@@ -1,4 +1,5 @@
 use crate::serialization::types::TypeCode;
+use crate::types::stype_param::STypeVar;
 
 use super::sfunc::SFunc;
 use super::smethod::MethodId;
@@ -17,11 +18,13 @@ pub static TYPE_NAME: &str = "Global";
 pub const GROUP_GENERATOR_METHOD_ID: MethodId = MethodId(1);
 /// "xor" predefined function
 pub const XOR_METHOD_ID: MethodId = MethodId(2);
+/// serialize function added in v6.0
+pub const SERIALIZE_METHOD_ID: MethodId = MethodId(3);
 
 lazy_static! {
     /// Global method descriptors
     pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> =
-        vec![&GROUP_GENERATOR_METHOD_DESC, &XOR_METHOD_DESC,];
+        vec![&GROUP_GENERATOR_METHOD_DESC, &XOR_METHOD_DESC, &SERIALIZE_METHOD_DESC]; // TODO: versioning
 }
 
 lazy_static! {
@@ -57,5 +60,24 @@ lazy_static! {
     };
      /// GLOBAL.xor
     pub static ref XOR_METHOD: SMethod = SMethod::new(STypeCompanion::Global, XOR_METHOD_DESC.clone(),);
+
+}
+
+lazy_static! {
+    static ref SERIALIZE_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: SERIALIZE_METHOD_ID,
+        name: "serialize",
+        tpe: SFunc {
+            t_dom: vec![
+                SType::SGlobal,
+                STypeVar::t().into()
+            ],
+            t_range: SType::SColl(SType::SByte.into()).into(),
+            tpe_params: vec![],
+        },
+        explicit_type_args: vec![]
+    };
+     /// GLOBAL.serialize
+    pub static ref SERIALIZE_METHOD: SMethod = SMethod::new(STypeCompanion::Global, SERIALIZE_METHOD_DESC.clone(),);
 
 }

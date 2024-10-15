@@ -335,6 +335,7 @@ fn smethod_eval_fn(method: &SMethod) -> Result<EvalFn, EvalError> {
         sglobal::TYPE_CODE => match method.method_id() {
             sglobal::GROUP_GENERATOR_METHOD_ID => self::sglobal::GROUP_GENERATOR_EVAL_FN,
             sglobal::XOR_METHOD_ID => self::sglobal::XOR_EVAL_FN,
+            sglobal::SERIALIZE_METHOD_ID => self::sglobal::SERIALIZE_EVAL_FN,
             method_id => {
                 return Err(EvalError::NotFound(format!(
                     "Eval fn: method {:?} with method id {:?} not found in SGlobal",

@@ -3,7 +3,8 @@
 mod bin_op;
 mod constant;
 mod constant_placeholder;
-pub(crate) mod data;
+/// Serializer for literals & constants
+pub mod data;
 mod expr;
 mod global_vars;
 mod method_call;
