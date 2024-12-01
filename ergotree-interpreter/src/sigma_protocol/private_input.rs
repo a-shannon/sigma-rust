@@ -3,6 +3,7 @@ use core::convert::TryInto;
 use core::fmt::Formatter;
 
 use alloc::vec::Vec;
+use elliptic_curve::ops::MulByGenerator;
 use ergo_chain_types::EcPoint;
 use ergotree_ir::serialization::SigmaSerializable;
 use ergotree_ir::sigma_protocol::sigma_boolean::ProveDhTuple;
@@ -13,6 +14,7 @@ use ergotree_ir::sigma_protocol::sigma_boolean::SigmaBoolean;
 extern crate derive_more;
 use derive_more::From;
 use k256::elliptic_curve::PrimeField;
+use k256::ProjectivePoint;
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 
@@ -20,11 +22,12 @@ use super::wscalar::Wscalar;
 
 /// Secret key of discrete logarithm signature protocol
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "json", serde(transparent))]
-#[derive(PartialEq, Eq, Clone, derive_more::From)]
+#[cfg_attr(feature = "json", serde(from = "Wscalar", into = "Wscalar"))]
+#[derive(PartialEq, Eq, Clone)]
 pub struct DlogProverInput {
     /// secret key value
     pub w: Wscalar,
+    pk: EcPoint,
 }
 
 impl core::fmt::Debug for DlogProverInput {
@@ -34,26 +37,46 @@ impl core::fmt::Debug for DlogProverInput {
     }
 }
 
+impl From<Wscalar> for DlogProverInput {
+    fn from(scalar: Wscalar) -> Self {
+        DlogProverInput::new(scalar)
+    }
+}
+
+impl From<DlogProverInput> for Wscalar {
+    fn from(prover_input: DlogProverInput) -> Self {
+        prover_input.w
+    }
+}
+
 impl DlogProverInput {
     /// Scalar(secret key) size in bytes
     pub const SIZE_BYTES: usize = 32;
 
+    /// Create new DlogProverInput
+    pub fn new(w: Wscalar) -> DlogProverInput {
+        Self {
+            pk: EcPoint::from(ProjectivePoint::mul_by_generator(w.as_scalar_ref())),
+            w,
+        }
+    }
     /// generates random secret in the range [0, n), where n is DLog group order.
     #[cfg(feature = "std")]
     pub fn random() -> DlogProverInput {
-        DlogProverInput {
-            w: ergotree_ir::sigma_protocol::dlog_group::random_scalar_in_group_range(
-                super::crypto_utils::secure_rng(),
-            )
-            .into(),
-        }
+        use ergotree_ir::sigma_protocol::dlog_group;
+
+        use crate::sigma_protocol::crypto_utils;
+
+        DlogProverInput::new(
+            dlog_group::random_scalar_in_group_range(crypto_utils::secure_rng()).into(),
+        )
     }
 
     /// Attempts to parse the given byte array as an SEC-1-encoded scalar(secret key).
     /// Returns None if the byte array does not contain a big-endian integer in the range [0, modulus).
     pub fn from_bytes(bytes: &[u8; DlogProverInput::SIZE_BYTES]) -> Option<DlogProverInput> {
         k256::Scalar::from_repr((*bytes).into())
-            .map(|s| DlogProverInput::from(Wscalar::from(s)))
+            .map(|s| DlogProverInput::new(Wscalar::from(s)))
             .into()
     }
 
@@ -90,12 +113,7 @@ impl DlogProverInput {
 
     /// public key of discrete logarithm signature protocol
     pub fn public_image(&self) -> ProveDlog {
-        // test it, see https://github.com/ergoplatform/sigma-rust/issues/38
-        let g = ergo_chain_types::ec_point::generator();
-        ProveDlog::new(ergo_chain_types::ec_point::exponentiate(
-            &g,
-            self.w.as_scalar_ref(),
-        ))
+        ProveDlog::new(self.pk)
     }
 
     /// Return true if the secret is 0

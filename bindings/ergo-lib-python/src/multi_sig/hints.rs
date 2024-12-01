@@ -113,7 +113,7 @@ fn extract_image(py: Python, image: &SigmaBoolean) -> PyResult<Py<PyAny>> {
 fn extract_commitment(py: Python, commitment: &FirstProverMessage) -> PyResult<Py<PyAny>> {
     match commitment {
         FirstProverMessage::FirstDlogProverMessage(ref first_dlog_prover_message) => {
-            Ok(Py::new(py, EcPoint::from(first_dlog_prover_message.a().clone()))?.into_any())
+            Ok(Py::new(py, EcPoint::from(*first_dlog_prover_message.a()))?.into_any())
         }
         FirstProverMessage::FirstDhtProverMessage(_) => Err(PyNotImplementedError::new_err(
             "ProveDHTuple is not supported",

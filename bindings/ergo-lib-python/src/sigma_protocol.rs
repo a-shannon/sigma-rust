@@ -16,7 +16,7 @@ impl ProveDlog {
     }
     #[getter]
     fn h(&self) -> EcPoint {
-        (*self.0.h).clone().into()
+        (*self.0.h).into()
     }
     fn __repr__(&self) -> String {
         format!("{:?}", self.0)

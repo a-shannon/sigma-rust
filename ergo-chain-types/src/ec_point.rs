@@ -11,7 +11,7 @@ use sigma_ser::vlq_encode::{ReadSigmaVlqExt, WriteSigmaVlqExt};
 use sigma_ser::{ScorexParsingError, ScorexSerializable, ScorexSerializeResult};
 
 /// Elliptic curve point
-#[derive(PartialEq, Clone, Default, From, Into)]
+#[derive(PartialEq, Clone, Copy, Default, From, Into)]
 #[cfg_attr(
     feature = "json",
     derive(serde::Serialize, serde::Deserialize),
