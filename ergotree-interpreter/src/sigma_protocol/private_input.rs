@@ -3,7 +3,7 @@ use core::convert::TryInto;
 use core::fmt::Formatter;
 
 use alloc::vec::Vec;
-use elliptic_curve::ops::MulByGenerator;
+use ergo_chain_types::ec_point::exponentiate_gen;
 use ergo_chain_types::EcPoint;
 use ergotree_ir::serialization::SigmaSerializable;
 use ergotree_ir::sigma_protocol::sigma_boolean::ProveDhTuple;
@@ -14,7 +14,6 @@ use ergotree_ir::sigma_protocol::sigma_boolean::SigmaBoolean;
 extern crate derive_more;
 use derive_more::From;
 use k256::elliptic_curve::PrimeField;
-use k256::ProjectivePoint;
 use num_bigint::BigUint;
 use num_traits::ToPrimitive;
 
@@ -56,7 +55,7 @@ impl DlogProverInput {
     /// Create new DlogProverInput
     pub fn new(w: Wscalar) -> DlogProverInput {
         Self {
-            pk: EcPoint::from(ProjectivePoint::mul_by_generator(w.as_scalar_ref())),
+            pk: exponentiate_gen(w.as_scalar_ref()),
             w,
         }
     }
@@ -154,15 +153,13 @@ impl DhTupleProverInput {
     pub fn random() -> DhTupleProverInput {
         use ergo_chain_types::ec_point::{exponentiate, generator};
         use ergotree_ir::sigma_protocol::dlog_group;
-        let g = generator();
-        let h = exponentiate(
-            &generator(),
-            &dlog_group::random_scalar_in_group_range(super::crypto_utils::secure_rng()),
-        );
+        let h = exponentiate_gen(&dlog_group::random_scalar_in_group_range(
+            super::crypto_utils::secure_rng(),
+        ));
         let w = dlog_group::random_scalar_in_group_range(super::crypto_utils::secure_rng());
-        let u = exponentiate(&g, &w);
+        let u = exponentiate_gen(&w);
         let v = exponentiate(&h, &w);
-        let common_input = ProveDhTuple::new(g, h, u, v);
+        let common_input = ProveDhTuple::new(generator(), h, u, v);
         DhTupleProverInput {
             w: w.into(),
             common_input,

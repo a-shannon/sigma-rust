@@ -4,6 +4,7 @@ use alloc::string::String;
 use core::convert::TryFrom;
 use core::ops::{Add, Mul, Neg};
 use derive_more::{From, Into};
+use elliptic_curve::ops::MulByGenerator;
 use k256::elliptic_curve::group::prime::PrimeCurveAffine;
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::{ProjectivePoint, PublicKey, Scalar};
@@ -115,6 +116,11 @@ pub fn exponentiate(base: &EcPoint, exponent: &Scalar) -> EcPoint {
     } else {
         base.clone()
     }
+}
+
+/// Raise the generator g to the exponent. This is faster than exponentiate(&generator(), exponent)
+pub fn exponentiate_gen(exponent: &Scalar) -> EcPoint {
+    ProjectivePoint::mul_by_generator(exponent).into()
 }
 
 impl ScorexSerializable for EcPoint {
