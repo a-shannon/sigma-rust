@@ -45,12 +45,11 @@ impl From<GroupSizedBytes> for Wscalar {
     }
 }
 
-impl From<Challenge> for Scalar {
-    fn from(v: Challenge) -> Self {
-        let v: [u8; SOUNDNESS_BYTES] = v.0.into();
-        // prepend zeroes to 32 bytes (big-endian)
-        let mut prefix = vec![0u8; 8];
-        prefix.append(&mut v.to_vec());
+impl From<&Challenge> for Scalar {
+    fn from(v: &Challenge) -> Self {
+        let v: [u8; SOUNDNESS_BYTES] = *v.0 .0;
+        let mut prefix = [0u8; 32];
+        prefix[32 - SOUNDNESS_BYTES..].copy_from_slice(&v);
         <Scalar as Reduce<U256>>::reduce_bytes(&GenericArray::clone_from_slice(&prefix))
     }
 }

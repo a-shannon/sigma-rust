@@ -105,7 +105,7 @@ pub fn is_identity(ge: &EcPoint) -> bool {
 
 /// Calculates the inverse of the given group element
 pub fn inverse(ec: &EcPoint) -> EcPoint {
-    -ec.clone()
+    -*ec
 }
 
 /// Raises the base GroupElement to the exponent. The result is another GroupElement.
@@ -114,7 +114,7 @@ pub fn exponentiate(base: &EcPoint, exponent: &Scalar) -> EcPoint {
         // we treat EC as a multiplicative group, therefore, exponentiate point is multiply.
         EcPoint(base.0 * exponent)
     } else {
-        base.clone()
+        *base
     }
 }
 

@@ -216,12 +216,11 @@ fn prove_to_unchecked<P: Prover + ?Sized>(
     // Prover Steps 7: convert the relevant information in the tree (namely, tree structure, node types,
     // the statements being proven and commitments at the leaves)
     // to a string
-    let var_name = fiat_shamir_tree_to_bytes(&step6.clone().into())?;
-    let mut s = var_name;
+    let mut s = fiat_shamir_tree_to_bytes(&step6.clone().into())?;
 
     // Prover Step 8: compute the challenge for the root of the tree as the Fiat-Shamir hash of s
     // and the message being signed.
-    s.append(&mut message.to_vec());
+    s.extend_from_slice(message);
     let root_challenge: Challenge = fiat_shamir_hash_fn(s.as_slice()).into();
     let step8 = step6.with_challenge(root_challenge);
     // dbg!(&step8);

@@ -74,7 +74,7 @@ pub mod interactive_prover {
         );
 
         // COMPUTE a = g^z*u^(-e) and b = h^z*v^{-e}  (where -e here means -e mod q)
-        let e: Scalar = challenge.clone().into();
+        let e: Scalar = challenge.into();
         let minus_e = e.negate();
         let h_to_z = exponentiate(&public_input.h, &z);
         let g_to_z = exponentiate(&public_input.g, &z);
@@ -114,7 +114,7 @@ pub mod interactive_prover {
         rnd: &Wscalar,
         challenge: &Challenge,
     ) -> SecondDhTupleProverMessage {
-        let e: Scalar = challenge.clone().into();
+        let e: Scalar = challenge.into();
         // modulo multiplication, no need to explicit mod op
         let ew = e.mul(private_input.w.as_scalar_ref());
         // modulo addition, no need to explicit mod op
@@ -141,7 +141,7 @@ pub mod interactive_prover {
 
         let z = second_message.z.clone();
 
-        let e: Scalar = challenge.clone().into();
+        let e: Scalar = challenge.into();
 
         use ergo_chain_types::ec_point::{exponentiate, inverse};
 
