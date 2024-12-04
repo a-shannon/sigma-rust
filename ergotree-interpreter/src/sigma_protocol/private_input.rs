@@ -107,7 +107,7 @@ impl DlogProverInput {
 
     /// byte representation of the underlying scalar
     pub fn to_bytes(&self) -> [u8; DlogProverInput::SIZE_BYTES] {
-        self.w.as_scalar_ref().to_bytes().into()
+        self.w.to_bytes()
     }
 
     /// public key of discrete logarithm signature protocol
@@ -117,7 +117,7 @@ impl DlogProverInput {
 
     /// Return true if the secret is 0
     pub fn is_zero(&self) -> bool {
-        self.w.as_scalar_ref().is_zero().into()
+        self.w.is_zero()
     }
 }
 

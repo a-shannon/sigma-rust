@@ -28,7 +28,8 @@ type HmacSha512 = Hmac<Sha512>;
 pub struct ExtPubKey {
     /// Parsed public key (EcPoint)
     pub public_key: EcPoint,
-    chain_code: ChainCode,
+    /// Chain code bytes
+    pub chain_code: ChainCode,
     /// Derivation path for this extended public key
     pub derivation_path: DerivationPath,
 }
