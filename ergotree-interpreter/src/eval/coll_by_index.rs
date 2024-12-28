@@ -1,3 +1,4 @@
+use ergotree_ir::ergo_tree::ErgoTreeVersion;
 use ergotree_ir::mir::coll_by_index::ByIndex;
 use ergotree_ir::mir::constant::TryExtractInto;
 use ergotree_ir::mir::value::CollKind;
@@ -23,12 +24,16 @@ impl Evaluable for ByIndex {
                 input_v
             ))),
         }?;
-        match self.default.clone() {
+        match self.default.as_ref() {
             Some(default) => {
-                let default_v = default.eval(env, ctx)?;
-                Ok(normalized_input_vals
-                    .get_val(index_v.try_extract_into::<i32>()? as usize)
-                    .unwrap_or(default_v))
+                let mut default_v = || default.eval(env, ctx);
+                let val =
+                    normalized_input_vals.get_val(index_v.try_extract_into::<i32>()? as usize);
+                if ctx.tree_version() >= ErgoTreeVersion::V3 {
+                    val.map(Ok).unwrap_or_else(default_v)
+                } else {
+                    Ok(val.unwrap_or(default_v()?))
+                }
             }
             None => normalized_input_vals
                 .get_val(index_v.clone().try_extract_into::<i32>()? as usize)
@@ -47,6 +52,10 @@ impl Evaluable for ByIndex {
 #[cfg(test)]
 mod tests {
     use ergotree_ir::chain::ergo_box::ErgoBox;
+    use ergotree_ir::mir::bin_op::ArithOp;
+    use ergotree_ir::mir::bin_op::BinOp;
+    use ergotree_ir::mir::bin_op::BinOpKind;
+    use ergotree_ir::mir::constant::Constant;
     use ergotree_ir::mir::expr::Expr;
     use ergotree_ir::mir::global_vars::GlobalVars;
     use ergotree_ir::reference::Ref;
@@ -55,6 +64,7 @@ mod tests {
     use super::*;
     use crate::eval::tests::eval_out;
     use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::tests::try_eval_out_with_version;
     use ergotree_ir::chain::context::Context;
 
     #[test]
@@ -79,5 +89,34 @@ mod tests {
         .unwrap()
         .into();
         assert_eq!(eval_out_wo_ctx::<i64>(&expr), 5);
+    }
+
+    #[test]
+    fn eval_lazy() {
+        let expr: Expr = ByIndex::new(
+            Expr::Const(vec![1i64, 2i64].into()),
+            Expr::Const(1i32.into()),
+            Some(Box::new(Expr::BinOp(
+                BinOp {
+                    kind: BinOpKind::Arith(ArithOp::Divide),
+                    left: Box::new(Constant::from(1i64).into()),
+                    right: Box::new(Constant::from(0i64).into()),
+                }
+                .into(),
+            ))),
+        )
+        .unwrap()
+        .into();
+        let ctx = force_any_val::<Context>();
+        for tree_version in 0u8..ErgoTreeVersion::V3.into() {
+            assert!(try_eval_out_with_version::<Value>(&expr, &ctx, tree_version, 3).is_err());
+        }
+        for tree_version in ErgoTreeVersion::V3.into()..=ErgoTreeVersion::MAX_SCRIPT_VERSION.into()
+        {
+            assert_eq!(
+                try_eval_out_with_version::<i64>(&expr, &ctx, tree_version, 3).unwrap(),
+                2i64
+            );
+        }
     }
 }

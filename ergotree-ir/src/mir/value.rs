@@ -327,7 +327,7 @@ impl From<Literal> for Value<'static> {
                 Value::Coll(converted_coll)
             }
             Literal::AvlTree(a) => Value::AvlTree(a),
-            Literal::Opt(lit) => Value::Opt(lit.as_deref().cloned().map(Value::from).map(Box::new)),
+            Literal::Opt(lit) => Value::Opt(lit.map(|boxed| *boxed).map(Value::from).map(Box::new)),
             Literal::Tup(t) => Value::Tup(t.mapped(Value::from)),
         }
     }
@@ -690,7 +690,7 @@ impl<'ctx, T: TryExtractFrom<Value<'ctx>> + StoreWrapped> TryExtractFrom<Vec<Val
 impl<'ctx, T: TryExtractFrom<Value<'ctx>>> TryExtractFrom<Value<'ctx>> for Option<T> {
     fn try_extract_from(v: Value<'ctx>) -> Result<Self, TryExtractFromError> {
         match v {
-            Value::Opt(opt) => opt.as_deref().cloned().map(T::try_extract_from).transpose(),
+            Value::Opt(opt) => opt.map(|boxed| *boxed).map(T::try_extract_from).transpose(),
             _ => Err(TryExtractFromError(format!(
                 "expected Option, found {:?}",
                 v

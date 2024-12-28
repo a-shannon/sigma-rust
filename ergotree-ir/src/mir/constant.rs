@@ -851,7 +851,7 @@ impl TryExtractFrom<Literal> for AvlTreeData {
 impl<T: TryExtractFrom<Literal>> TryExtractFrom<Literal> for Option<T> {
     fn try_extract_from(v: Literal) -> Result<Self, TryExtractFromError> {
         match v {
-            Literal::Opt(opt) => opt.as_deref().cloned().map(T::try_extract_from).transpose(),
+            Literal::Opt(opt) => opt.map(|boxed| *boxed).map(T::try_extract_from).transpose(),
             _ => Err(TryExtractFromError(format!(
                 "expected Option, found {:?}",
                 v
