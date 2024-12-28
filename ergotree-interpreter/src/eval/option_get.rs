@@ -15,9 +15,10 @@ impl Evaluable for OptionGet {
     ) -> Result<Value<'ctx>, EvalError> {
         let v = self.input.eval(env, ctx)?;
         match v {
-            Value::Opt(opt_v) => {
-                opt_v.ok_or_else(|| EvalError::NotFound("calling Option.get on None".to_string()))
-            }
+            Value::Opt(opt_v) => opt_v
+                .as_deref()
+                .ok_or_else(|| EvalError::NotFound("calling Option.get on None".to_string()))
+                .cloned(),
             _ => Err(EvalError::UnexpectedExpr(format!(
                 "Don't know how to eval OptM: {0:?}",
                 self

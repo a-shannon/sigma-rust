@@ -15,7 +15,7 @@ impl Evaluable for OptionGetOrElse {
         let v = self.input.eval(env, ctx)?;
         let default_v = self.default.eval(env, ctx)?;
         match v {
-            Value::Opt(opt_v) => Ok(opt_v.unwrap_or(default_v)),
+            Value::Opt(opt_v) => Ok(opt_v.as_deref().cloned().unwrap_or(default_v)),
             _ => Err(EvalError::UnexpectedExpr(format!(
                 "Don't know how to eval OptM: {0:?}",
                 self

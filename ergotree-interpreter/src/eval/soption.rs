@@ -45,7 +45,7 @@ pub fn map_eval<'ctx>(
         res
     };
     let normalized_input_val: Option<Value> = match input_v {
-        Value::Opt(opt) => Ok(*opt),
+        Value::Opt(opt) => Ok(opt.as_deref().cloned()),
         _ => Err(EvalError::UnexpectedValue(format!(
             "expected map input to be Value::Opt, got: {0:?}",
             input_v
@@ -53,8 +53,8 @@ pub fn map_eval<'ctx>(
     }?;
 
     match normalized_input_val {
-        Some(t) => Ok(Value::Opt(Box::new(lambda_call(t)?.into()))),
-        _ => Ok(Value::Opt(Box::new(None))),
+        Some(t) => Ok(Value::Opt(Box::new(lambda_call(t)?).into())),
+        _ => Ok(Value::Opt(None)),
     }
 }
 
@@ -93,7 +93,7 @@ pub fn filter_eval<'ctx>(
         res
     };
     let normalized_input_val: Option<Value> = match input_v {
-        Value::Opt(opt) => Ok(*opt),
+        Value::Opt(opt) => Ok(opt.as_deref().cloned()),
         _ => Err(EvalError::UnexpectedValue(format!(
             "expected filter input to be Value::Opt, got: {0:?}",
             input_v
@@ -103,15 +103,15 @@ pub fn filter_eval<'ctx>(
     match normalized_input_val {
         Some(val) => match predicate_call(val.clone())? {
             Value::Boolean(predicate_res) => match predicate_res {
-                true => Ok(Value::Opt(Box::new(Some(val)))),
-                false => Ok(Value::Opt(Box::new(None))),
+                true => Ok(Value::Opt(Some(Box::new(val)))),
+                false => Ok(Value::Opt(None)),
             },
             _ => Err(EvalError::UnexpectedValue(format!(
                 "expected filter predicate result to be boolean, got: {0:?}",
                 lambda.body.tpe()
             ))),
         },
-        None => Ok(Value::Opt(Box::new(None))),
+        None => Ok(Value::Opt(None)),
     }
 }
 
@@ -178,7 +178,7 @@ mod tests {
         let res = eval_out_wo_ctx::<Value>(&expr);
         assert_eq!(
             res,
-            Value::Opt(Box::new(Option::Some(Value::Boolean(true))))
+            Value::Opt(Option::Some(Box::new(Value::Boolean(true))))
         );
     }
 
@@ -224,7 +224,7 @@ mod tests {
         .into();
 
         let res = eval_out_wo_ctx::<Value>(&expr);
-        assert_eq!(res, Value::Opt(Box::new(None)));
+        assert_eq!(res, Value::Opt(None));
     }
 
     #[test]
@@ -262,7 +262,7 @@ mod tests {
         .into();
 
         let res = eval_out_wo_ctx::<Value>(&expr);
-        assert_eq!(res, Value::Opt(Box::new(Option::Some(Value::Long(1)))));
+        assert_eq!(res, Value::Opt(Option::Some(Box::new(Value::Long(1)))));
     }
 
     #[test]
@@ -300,7 +300,7 @@ mod tests {
         .into();
 
         let res = eval_out_wo_ctx::<Value>(&expr);
-        assert_eq!(res, Value::Opt(Box::new(Option::None)));
+        assert_eq!(res, Value::Opt(Option::None));
     }
 
     #[test]
@@ -339,7 +339,7 @@ mod tests {
         .into();
 
         let res = eval_out_wo_ctx::<Value>(&expr);
-        assert_eq!(res, Value::Opt(Box::new(Option::None)));
+        assert_eq!(res, Value::Opt(Option::None));
     }
 
     #[test]

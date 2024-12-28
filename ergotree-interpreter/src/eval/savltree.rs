@@ -42,11 +42,12 @@ pub(crate) static KEY_LENGTH_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
 
 pub(crate) static VALUE_LENGTH_OPT_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
     let avl_tree_data = obj.try_extract_into::<AvlTreeData>()?;
-    Ok(Value::Opt(Box::new(
+    Ok(Value::Opt(
         avl_tree_data
             .value_length_opt
-            .map(|v| Value::Int(*v as i32)),
-    )))
+            .map(|v| Value::Int(*v as i32))
+            .map(Box::new),
+    ))
 };
 
 pub(crate) static IS_INSERT_ALLOWED_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
@@ -125,10 +126,10 @@ pub(crate) static GET_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
 
     match bv.perform_one_operation(&Operation::Lookup(Bytes::from(key))) {
         Ok(opt) => match opt {
-            Some(v) => Ok(Value::Opt(Box::new(Some(Value::Coll(
+            Some(v) => Ok(Value::Opt(Some(Box::new(Value::Coll(
                 CollKind::NativeColl(NativeColl::CollByte(v.iter().map(|&b| b as i8).collect())),
             ))))),
-            _ => Ok(Value::Opt(Box::new(None))),
+            _ => Ok(Value::Opt(None)),
         },
         Err(_) => Err(EvalError::AvlTree(format!(
             "Tree proof is incorrect {:?}",
@@ -176,13 +177,13 @@ pub(crate) static GET_MANY_EVAL_FN: EvalFn =
             .map(|key| {
                 if let Ok(r) = bv.perform_one_operation(&Operation::Lookup(Bytes::from(key))) {
                     if let Some(v) = r {
-                        Ok(Value::Opt(Box::new(Some(Value::Coll(
+                        Ok(Value::Opt(Some(Box::new(Value::Coll(
                             CollKind::NativeColl(NativeColl::CollByte(
                                 v.iter().map(|&b| b as i8).collect(),
                             )),
                         )))))
                     } else {
-                        Ok(Value::Opt(Box::new(None)))
+                        Ok(Value::Opt(None))
                     }
                 } else {
                     Err(EvalError::AvlTree(format!(
@@ -254,7 +255,7 @@ pub(crate) static INSERT_EVAL_FN: EvalFn =
         if let Some(new_digest) = bv.digest() {
             let digest = ADDigest::scorex_parse_bytes(&new_digest)?;
             avl_tree_data.digest = digest;
-            Ok(Value::Opt(Box::new(Some(Value::AvlTree(
+            Ok(Value::Opt(Some(Box::new(Value::AvlTree(
                 avl_tree_data.into(),
             )))))
         } else {
@@ -314,7 +315,7 @@ pub(crate) static REMOVE_EVAL_FN: EvalFn =
         if let Some(new_digest) = bv.digest() {
             let digest = ADDigest::scorex_parse_bytes(&new_digest)?;
             avl_tree_data.digest = digest;
-            Ok(Value::Opt(Box::new(Some(Value::AvlTree(
+            Ok(Value::Opt(Some(Box::new(Value::AvlTree(
                 avl_tree_data.into(),
             )))))
         } else {
@@ -424,7 +425,7 @@ pub(crate) static UPDATE_EVAL_FN: EvalFn =
         if let Some(new_digest) = bv.digest() {
             let digest = ADDigest::scorex_parse_bytes(&new_digest)?;
             avl_tree_data.digest = digest;
-            Ok(Value::Opt(Box::new(Some(Value::AvlTree(
+            Ok(Value::Opt(Some(Box::new(Value::AvlTree(
                 avl_tree_data.into(),
             )))))
         } else {
@@ -511,7 +512,8 @@ mod tests {
         let res_not_found = eval_out_wo_ctx::<Value>(&expr_not_found);
 
         if let Value::Opt(opt) = res_found {
-            if let Some(Value::Coll(CollKind::NativeColl(NativeColl::CollByte(b)))) = *opt {
+            if let Some(Value::Coll(CollKind::NativeColl(NativeColl::CollByte(b)))) = opt.as_deref()
+            {
                 assert!(lookup_found.unwrap().eq(&b.as_vec_u8()));
             } else {
                 unreachable!();
@@ -592,7 +594,7 @@ mod tests {
         if let Value::Coll(CollKind::WrappedColl { items, .. }) = res {
             for (item, expected) in items.iter().zip(lookups) {
                 if let Value::Opt(opt) = item.clone() {
-                    match *opt {
+                    match opt.as_deref() {
                         None => assert!(expected.is_none()),
                         Some(Value::Coll(CollKind::NativeColl(NativeColl::CollByte(b)))) => {
                             assert_eq!(&b[..], &expected.unwrap().to_vec().as_vec_i8()[..]);
@@ -685,7 +687,7 @@ mod tests {
 
         let res = eval_out_wo_ctx::<Value>(&expr);
         if let Value::Opt(opt) = res {
-            if let Some(Value::AvlTree(avl)) = *opt {
+            if let Some(Value::AvlTree(avl)) = opt.as_deref() {
                 assert_eq!(avl.digest, final_digest);
             } else {
                 unreachable!();
@@ -773,7 +775,7 @@ mod tests {
 
             let res = eval_out_wo_ctx::<Value>(&expr);
             if let Value::Opt(opt) = res {
-                assert_eq!(*opt, value_length_opt);
+                assert_eq!(opt.as_deref().cloned(), value_length_opt);
             } else {
                 unreachable!();
             }
@@ -966,7 +968,7 @@ mod tests {
 
         let res = eval_out_wo_ctx::<Value>(&expr);
         if let Value::Opt(opt) = res {
-            if let Some(Value::AvlTree(avl)) = *opt {
+            if let Some(Value::AvlTree(avl)) = opt.as_deref() {
                 assert_eq!(avl.digest, final_digest);
             } else {
                 unreachable!();
@@ -1043,7 +1045,7 @@ mod tests {
 
         let res = eval_out_wo_ctx::<Value>(&expr);
         if let Value::Opt(opt) = res {
-            if let Some(Value::AvlTree(avl)) = *opt {
+            if let Some(Value::AvlTree(avl)) = opt.as_deref() {
                 assert_eq!(avl.digest, final_digest);
             } else {
                 unreachable!();

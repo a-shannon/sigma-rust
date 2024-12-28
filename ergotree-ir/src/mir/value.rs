@@ -205,7 +205,7 @@ pub enum Value<'ctx> {
     /// Global which is used to define global methods
     Global,
     /// Optional value
-    Opt(Box<Option<Value<'ctx>>>),
+    Opt(Option<Box<Value<'ctx>>>),
     /// lambda
     Lambda(Lambda),
 }
@@ -246,7 +246,7 @@ impl<'ctx> Value<'ctx> {
             Value::PreHeader(h) => Value::PreHeader(h.clone()),
             Value::Global => Value::Global,
             Value::CBox(c) => Value::CBox(c.to_static()),
-            Value::Opt(opt) => Value::Opt(Box::new(Option::as_ref(opt).map(|o| o.to_static()))),
+            Value::Opt(opt) => Value::Opt(Option::as_ref(opt).map(|o| o.to_static()).map(Box::new)),
             Value::Lambda(l) => Value::Lambda(l.clone()),
         }
     }
@@ -299,7 +299,7 @@ impl<'ctx> From<Vec<u8>> for Value<'ctx> {
 
 impl<'ctx, T: Into<Value<'ctx>>> From<Option<T>> for Value<'ctx> {
     fn from(opt: Option<T>) -> Self {
-        Value::Opt(Box::new(opt.map(|v| v.into())))
+        Value::Opt(opt.map(|v| v.into()).map(Box::new))
     }
 }
 
@@ -327,7 +327,7 @@ impl From<Literal> for Value<'static> {
                 Value::Coll(converted_coll)
             }
             Literal::AvlTree(a) => Value::AvlTree(a),
-            Literal::Opt(lit) => Value::Opt(Box::new(lit.into_iter().next().map(Value::from))),
+            Literal::Opt(lit) => Value::Opt(lit.as_deref().cloned().map(Value::from).map(Box::new)),
             Literal::Tup(t) => Value::Tup(t.mapped(Value::from)),
         }
     }
@@ -357,7 +357,7 @@ impl core::fmt::Display for Value<'_> {
                 write!(f, ")")
             }
             Value::Opt(boxed_opt) => {
-                if let Some(v) = &**boxed_opt {
+                if let Some(v) = boxed_opt {
                     write!(f, "Some(")?;
                     v.fmt(f)?;
                     write!(f, ")")
@@ -690,7 +690,7 @@ impl<'ctx, T: TryExtractFrom<Value<'ctx>> + StoreWrapped> TryExtractFrom<Vec<Val
 impl<'ctx, T: TryExtractFrom<Value<'ctx>>> TryExtractFrom<Value<'ctx>> for Option<T> {
     fn try_extract_from(v: Value<'ctx>) -> Result<Self, TryExtractFromError> {
         match v {
-            Value::Opt(opt) => opt.map(T::try_extract_from).transpose(),
+            Value::Opt(opt) => opt.as_deref().cloned().map(T::try_extract_from).transpose(),
             _ => Err(TryExtractFromError(format!(
                 "expected Option, found {:?}",
                 v
