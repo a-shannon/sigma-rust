@@ -20,6 +20,7 @@ use num_bigint::{BigInt, Sign};
 use num_traits::Num;
 use sigma_ser::ScorexSerializationError;
 use sigma_util::hash::blake2b256_hash;
+use thiserror::Error;
 
 use crate::Header;
 
@@ -242,7 +243,7 @@ fn as_unsigned_byte_array(
     let start = usize::from(bytes[0] == 0);
     let count = bytes.len() - start;
     if count > length {
-        return Err(AutolykosPowSchemeError::BigIntToFixedByteArrayError);
+        return Err(AutolykosPowSchemeError::BigIntToByteArrayError);
     }
     let mut res: Vec<_> = vec![0; length];
     res[(length - count)..].copy_from_slice(&bytes[start..]);
@@ -250,14 +251,20 @@ fn as_unsigned_byte_array(
 }
 
 /// Autolykos POW scheme error
-#[derive(PartialEq, Eq, Debug, Clone, From)]
+#[derive(PartialEq, Eq, Debug, Clone, From, Error)]
 pub enum AutolykosPowSchemeError {
     /// Scorex-serialization error
+    #[error("Scorex serialization error: {0}")]
     ScorexSerializationError(ScorexSerializationError),
     /// Error occurring when trying to convert a `BigInt` into a fixed-length byte-array.
-    BigIntToFixedByteArrayError,
+    #[error("Error converting BigInt to byte array")]
+    BigIntToByteArrayError,
     /// Occurs when `Header.version == 1` and the `pow_distance` parameter is None.
+    #[error("PoW distance not found for Autolykos1 Header")]
     MissingPowDistanceParameter,
+    /// Checking proof-of-work for AutolykosV1 is not supported
+    #[error("Header.check_pow is not supported for Autolykos1")]
+    Unsupported,
 }
 
 /// The following tests are taken from <https://github.com/ergoplatform/ergo/blob/f7b91c0be00531c6d042c10a8855149ca6924373/src/test/scala/org/ergoplatform/mining/AutolykosPowSchemeSpec.scala#L43-L130>

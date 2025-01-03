@@ -1,4 +1,7 @@
 //! Block header
+use crate::autolykos_pow_scheme::{
+    decode_compact_bits, order_bigint, AutolykosPowScheme, AutolykosPowSchemeError,
+};
 use crate::{ADDigest, BlockId, Digest32, EcPoint};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
@@ -82,6 +85,16 @@ impl Header {
             w.put_i8(0)?;
         }
         Ok(data)
+    }
+    /// Check that proof of work was valid for header. Only Autolykos2 is supported
+    pub fn check_pow(&self) -> Result<bool, AutolykosPowSchemeError> {
+        if self.version != 1 {
+            let hit = AutolykosPowScheme::default().pow_hit(self)?;
+            let target = order_bigint() / decode_compact_bits(self.n_bits);
+            Ok(hit < target)
+        } else {
+            Err(AutolykosPowSchemeError::Unsupported)
+        }
     }
 }
 
@@ -419,6 +432,7 @@ mod tests {
         }"#;
         let header: Header = serde_json::from_str(json).unwrap();
         assert_eq!(header.height, 471746);
+        assert!(header.check_pow().unwrap());
         assert_eq!(
             header.autolykos_solution.pow_distance,
             Some(BigInt::from_str(
@@ -457,6 +471,7 @@ mod tests {
         }"#;
         let header: Header = serde_json::from_str(json).unwrap();
         assert_eq!(header.height, 471746);
+        assert!(header.check_pow().unwrap());
         assert_eq!(
             header.autolykos_solution.pow_distance,
             Some(BigInt::from_str(
