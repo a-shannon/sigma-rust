@@ -1,22 +1,94 @@
+//! Autolykos Pow puzzle scheme implementation
+//!
+//! See for reference implmentation - <https://github.com/ergoplatform/ergo/blob/f7b91c0be00531c6d042c10a8855149ca6924373/src/main/scala/org/ergoplatform/mining/AutolykosPowScheme.scala>
+//!
+//! Based on k-sum problem, so general idea is to find k numbers in a table of size N, such that
+//! sum of numbers (or a hash of the sum) is less than target value.
+//!
+//! See <https://docs.ergoplatform.com/ErgoPow.pdf> for details
+//!
+//! CPU Mining process is implemented in inefficient way and should not be used in real environment.
+//!
+//! See <https://github.com/ergoplatform/ergo/papers/yellow/pow/ErgoPow.tex> for full description
+use alloc::boxed::Box;
+use alloc::vec;
+use alloc::vec::Vec;
 use bounded_integer::{BoundedI32, BoundedU64};
 use derive_more::From;
-use ergo_chain_types::Header;
+use k256::{elliptic_curve::PrimeField, Scalar};
 use num_bigint::{BigInt, Sign};
+use num_traits::Num;
 use sigma_ser::ScorexSerializationError;
 use sigma_util::hash::blake2b256_hash;
 
+use crate::Header;
+
+/// The "compact" format is an encoding of a whole number `N` using an unsigned 32 bit number.
+/// This number encodes a base-256 scientific notation representation of `N` (similar to a floating
+/// point format):
+///  - The most significant 8 bits represent the number of bytes necessary to represent `N` in
+///    two's-complement form; denote it by `exponent`.
+///  - The lower 23 bits are the mantissa(significand).
+///  - Bit number 24 (0x800000) represents the sign of N.
+///
+/// There are 2 cases to consider:
+///  - If `exponent >= 3` then `N` is represented by
+///      `(-1^sign) * mantissa * 256^(exponent-3)`
+///    E.g. suppose the compact form is given in hex-format by `0x04123456`. Mantissa is `0x123456`
+///    and `exponent == 4`. So `N == 0x123456 * 265^1`. Now note that we need exactly 4 bytes to
+///    represent `N`; 3 bytes for the mantissa and 1 byte for the rest. In base-256:
+///      `N == B(0x12)B(0x34)B(0x56)0`
+///    where `B(y)` denotes the base-256 representation of a hex-number `y` (note how each base-256
+///    digit is represented by a single-byte).
+///  - If `exponent < 3` then `N` is represented by the `exponent`-most-significant-bytes of the
+///    mantissa. E.g. suppose the compact form is given in hex-format by `0x01003456`. Noting that
+///    each hex-digit is represented by 4-bits, our `exponent == 0x01` which is `1` base-10.  The
+///    mantissa is represented by `0x003456` and it's most signficant byte is `0x00`. Therefore
+///    `N == 0`.
+///
+/// Satoshi's original implementation used BN_bn2mpi() and BN_mpi2bn(). MPI uses the most
+/// significant bit of the first byte as sign. Thus 0x1234560000 is compact 0x05123456 and
+/// 0xc0de000000 is compact 0x0600c0de. Compact 0x05c0de00 would be -0x40de000000.
+///
+/// Bitcoin only uses this "compact" format for encoding difficulty targets, which are unsigned
+/// 256bit quantities.  Thus, all the complexities of the sign bit and using base 256 are probably
+/// an implementation accident.
+pub fn decode_compact_bits(n_bits: u64) -> BigInt {
+    let compact = n_bits as i64;
+    let size = ((compact >> 24) as i32) & 0xFF;
+    if size == 0 {
+        return BigInt::from(0);
+    }
+    let mut buf: Vec<i8> = vec![0; size as usize];
+    if size >= 1 {
+        // Store the first byte of the mantissa
+        buf[0] = (((compact >> 16) as i32) & 0xFF) as i8;
+    }
+    if size >= 2 {
+        buf[1] = (((compact >> 8) as i32) & 0xFF) as i8;
+    }
+    if size >= 3 {
+        buf[2] = ((compact as i32) & 0xFF) as i8;
+    }
+
+    let is_negative = (buf[0] as i32) & 0x80 == 0x80;
+    if is_negative {
+        buf[0] &= 0x7f;
+        let buf: Vec<_> = buf.into_iter().map(|x| x as u8).collect();
+        -BigInt::from_signed_bytes_be(&buf)
+    } else {
+        let buf: Vec<_> = buf.into_iter().map(|x| x as u8).collect();
+        BigInt::from_signed_bytes_be(&buf)
+    }
+}
+
+/// Order of the secp256k1 elliptic curve as BigInt
+pub fn order_bigint() -> BigInt {
+    #[allow(clippy::unwrap_used)]
+    BigInt::from_str_radix(Scalar::MODULUS, 16).unwrap()
+}
+
 /// Autolykos PoW puzzle scheme implementation.
-///
-/// See for reference implmentation - <https://github.com/ergoplatform/ergo/blob/f7b91c0be00531c6d042c10a8855149ca6924373/src/main/scala/org/ergoplatform/mining/AutolykosPowScheme.scala>
-///
-/// Based on k-sum problem, so general idea is to find k numbers in a table of size N, such that
-/// sum of numbers (or a hash of the sum) is less than target value.
-///
-/// See <https://docs.ergoplatform.com/ErgoPow.pdf> for details
-///
-/// CPU Mining process is implemented in inefficient way and should not be used in real environment.
-///
-/// See <https://github.com/ergoplatform/ergo/papers/yellow/pow/ErgoPow.tex> for full description
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutolykosPowScheme {
     /// Represents the number of elements in one solution. **Important assumption**: `k <= 32`.
@@ -172,11 +244,12 @@ fn as_unsigned_byte_array(
     if count > length {
         return Err(AutolykosPowSchemeError::BigIntToFixedByteArrayError);
     }
-    let mut res: Vec<_> = std::iter::repeat(0).take(length).collect();
+    let mut res: Vec<_> = vec![0; length];
     res[(length - count)..].copy_from_slice(&bytes[start..]);
     Ok(res)
 }
 
+/// Autolykos POW scheme error
 #[derive(PartialEq, Eq, Debug, Clone, From)]
 pub enum AutolykosPowSchemeError {
     /// Scorex-serialization error
@@ -191,9 +264,8 @@ pub enum AutolykosPowSchemeError {
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod tests {
-    use ergotree_ir::{serialization::SigmaSerializable, sigma_protocol::dlog_group::order_bigint};
-
-    use crate::nipopow_algos::decode_compact_bits;
+    use num_bigint::ToBigInt;
+    use sigma_ser::ScorexSerializable;
 
     use super::*;
 
@@ -288,7 +360,7 @@ mod tests {
                 &header
                     .autolykos_solution
                     .miner_pk
-                    .sigma_serialize_bytes()
+                    .scorex_serialize_bytes()
                     .unwrap()
             ),
             "03bedaee069ff4829500b3c07c4d5fe6b3ea3d3bf76c5c28c1d4dcdb1bed0ade0c"
@@ -316,5 +388,48 @@ mod tests {
         let hit = pow.pow_hit(&header).unwrap();
 
         assert!(hit >= target_b);
+    }
+
+    #[test]
+    fn test_decode_n_bits() {
+        // Following example taken from https://btcinformation.org/en/developer-reference#target-nbits
+        let n_bits = 0x181bc330;
+        assert_eq!(
+            decode_compact_bits(n_bits),
+            BigInt::parse_bytes(b"1bc330000000000000000000000000000000000000000000", 16).unwrap()
+        );
+
+        let n_bits = 0x01003456;
+        assert_eq!(
+            decode_compact_bits(n_bits),
+            ToBigInt::to_bigint(&0x00).unwrap()
+        );
+
+        let n_bits = 0x01123456;
+        assert_eq!(
+            decode_compact_bits(n_bits),
+            ToBigInt::to_bigint(&0x12).unwrap()
+        );
+
+        let n_bits = 0x04923456;
+        assert_eq!(
+            decode_compact_bits(n_bits),
+            ToBigInt::to_bigint(&-0x12345600).unwrap()
+        );
+
+        let n_bits = 0x04123456;
+        assert_eq!(
+            decode_compact_bits(n_bits),
+            ToBigInt::to_bigint(&0x12345600).unwrap()
+        );
+
+        let n_bits = 0x05123456;
+        assert_eq!(
+            decode_compact_bits(n_bits),
+            ToBigInt::to_bigint(&0x1234560000i64).unwrap()
+        );
+
+        let n_bits = 16842752;
+        assert_eq!(decode_compact_bits(n_bits), BigInt::from(1_u8));
     }
 }

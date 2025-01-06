@@ -22,6 +22,7 @@
 #[macro_use]
 extern crate alloc;
 
+pub mod autolykos_pow_scheme;
 mod base16_bytes;
 mod block_id;
 mod digest32;

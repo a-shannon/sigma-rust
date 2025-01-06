@@ -10,6 +10,7 @@ exclude = ["proptest-regressions/*"]
 
 [dependencies]
 thiserror = { workspace = true }
+bounded-integer = { workspace = true }
 derive_more = { workspace = true }
 sigma-ser = { workspace = true }
 sigma-util = { workspace = true }

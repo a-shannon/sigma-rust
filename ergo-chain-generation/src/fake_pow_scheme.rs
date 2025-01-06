@@ -8,10 +8,9 @@
 #[cfg(test)]
 mod tests {
     use ergo_lib::ergo_chain_types::{blake2b256_hash, ADDigest, BlockId, Digest32};
-    use ergo_lib::ergotree_ir::sigma_protocol::dlog_group::order_bigint;
     use ergo_nipopow::{NipopowAlgos, NipopowProof};
 
-    use ergo_chain_types::{AutolykosSolution, Header, Votes};
+    use ergo_chain_types::{autolykos_pow_scheme::order_bigint, AutolykosSolution, Header, Votes};
     use ergo_lib::ergotree_interpreter::sigma_protocol::private_input::DlogProverInput;
     use ergo_lib::ergotree_ir::serialization::sigma_byte_writer::SigmaByteWriter;
     use ergo_nipopow::PoPowHeader;

@@ -1,14 +1,13 @@
-use ergo_chain_types::Header;
-use ergotree_ir::sigma_protocol::dlog_group::order_bigint;
-use num_bigint::BigInt;
+use ergo_chain_types::{
+    autolykos_pow_scheme::{
+        decode_compact_bits, order_bigint, AutolykosPowScheme, AutolykosPowSchemeError,
+    },
+    Header,
+};
 use num_traits::ToPrimitive;
 use std::convert::TryInto;
 
-use crate::{
-    autolykos_pow_scheme::{AutolykosPowScheme, AutolykosPowSchemeError},
-    nipopow_proof::PoPowHeader,
-    NipopowProof, NipopowProofError,
-};
+use crate::{nipopow_proof::PoPowHeader, NipopowProof, NipopowProofError};
 use ergo_chain_types::{BlockId, Digest32, ExtensionCandidate};
 
 /// Prefix for Block Interlinks
@@ -348,113 +347,4 @@ fn extension_merkletree(kv: &[([u8; 2], Vec<u8>)]) -> ergo_merkle_tree::MerkleTr
         .map(ergo_merkle_tree::MerkleNode::from_bytes)
         .collect::<Vec<ergo_merkle_tree::MerkleNode>>();
     ergo_merkle_tree::MerkleTree::new(leafs)
-}
-
-/// The "compact" format is an encoding of a whole number `N` using an unsigned 32 bit number.
-/// This number encodes a base-256 scientific notation representation of `N` (similar to a floating
-/// point format):
-///  - The most significant 8 bits represent the number of bytes necessary to represent `N` in
-///    two's-complement form; denote it by `exponent`.
-///  - The lower 23 bits are the mantissa(significand).
-///  - Bit number 24 (0x800000) represents the sign of N.
-///
-/// There are 2 cases to consider:
-///  - If `exponent >= 3` then `N` is represented by
-///      `(-1^sign) * mantissa * 256^(exponent-3)`
-///    E.g. suppose the compact form is given in hex-format by `0x04123456`. Mantissa is `0x123456`
-///    and `exponent == 4`. So `N == 0x123456 * 265^1`. Now note that we need exactly 4 bytes to
-///    represent `N`; 3 bytes for the mantissa and 1 byte for the rest. In base-256:
-///      `N == B(0x12)B(0x34)B(0x56)0`
-///    where `B(y)` denotes the base-256 representation of a hex-number `y` (note how each base-256
-///    digit is represented by a single-byte).
-///  - If `exponent < 3` then `N` is represented by the `exponent`-most-significant-bytes of the
-///    mantissa. E.g. suppose the compact form is given in hex-format by `0x01003456`. Noting that
-///    each hex-digit is represented by 4-bits, our `exponent == 0x01` which is `1` base-10.  The
-///    mantissa is represented by `0x003456` and it's most signficant byte is `0x00`. Therefore
-///    `N == 0`.
-///
-/// Satoshi's original implementation used BN_bn2mpi() and BN_mpi2bn(). MPI uses the most
-/// significant bit of the first byte as sign. Thus 0x1234560000 is compact 0x05123456 and
-/// 0xc0de000000 is compact 0x0600c0de. Compact 0x05c0de00 would be -0x40de000000.
-///
-/// Bitcoin only uses this "compact" format for encoding difficulty targets, which are unsigned
-/// 256bit quantities.  Thus, all the complexities of the sign bit and using base 256 are probably
-/// an implementation accident.
-pub fn decode_compact_bits(n_bits: u64) -> BigInt {
-    let compact = n_bits as i64;
-    let size = ((compact >> 24) as i32) & 0xFF;
-    if size == 0 {
-        return BigInt::from(0);
-    }
-    let mut buf: Vec<i8> = std::iter::repeat(0).take(size as usize).collect();
-    if size >= 1 {
-        // Store the first byte of the mantissa
-        buf[0] = (((compact >> 16) as i32) & 0xFF) as i8;
-    }
-    if size >= 2 {
-        buf[1] = (((compact >> 8) as i32) & 0xFF) as i8;
-    }
-    if size >= 3 {
-        buf[2] = ((compact as i32) & 0xFF) as i8;
-    }
-
-    let is_negative = (buf[0] as i32) & 0x80 == 0x80;
-    if is_negative {
-        buf[0] &= 0x7f;
-        let buf: Vec<_> = buf.into_iter().map(|x| x as u8).collect();
-        -BigInt::from_signed_bytes_be(&buf)
-    } else {
-        let buf: Vec<_> = buf.into_iter().map(|x| x as u8).collect();
-        BigInt::from_signed_bytes_be(&buf)
-    }
-}
-
-#[allow(clippy::unwrap_used)]
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use num_bigint::ToBigInt;
-
-    #[test]
-    fn test_decode_n_bits() {
-        // Following example taken from https://btcinformation.org/en/developer-reference#target-nbits
-        let n_bits = 0x181bc330;
-        assert_eq!(
-            decode_compact_bits(n_bits),
-            BigInt::parse_bytes(b"1bc330000000000000000000000000000000000000000000", 16).unwrap()
-        );
-
-        let n_bits = 0x01003456;
-        assert_eq!(
-            decode_compact_bits(n_bits),
-            ToBigInt::to_bigint(&0x00).unwrap()
-        );
-
-        let n_bits = 0x01123456;
-        assert_eq!(
-            decode_compact_bits(n_bits),
-            ToBigInt::to_bigint(&0x12).unwrap()
-        );
-
-        let n_bits = 0x04923456;
-        assert_eq!(
-            decode_compact_bits(n_bits),
-            ToBigInt::to_bigint(&-0x12345600).unwrap()
-        );
-
-        let n_bits = 0x04123456;
-        assert_eq!(
-            decode_compact_bits(n_bits),
-            ToBigInt::to_bigint(&0x12345600).unwrap()
-        );
-
-        let n_bits = 0x05123456;
-        assert_eq!(
-            decode_compact_bits(n_bits),
-            ToBigInt::to_bigint(&0x1234560000i64).unwrap()
-        );
-
-        let n_bits = 16842752;
-        assert_eq!(decode_compact_bits(n_bits), BigInt::from(1_u8));
-    }
 }

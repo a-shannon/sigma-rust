@@ -1,5 +1,5 @@
 use derive_more::From;
-use ergo_chain_types::{BlockId, Header};
+use ergo_chain_types::{autolykos_pow_scheme::AutolykosPowSchemeError, BlockId, Header};
 use ergo_merkle_tree::BatchMerkleProof;
 use serde::{Deserialize, Serialize};
 use sigma_ser::{
@@ -7,7 +7,7 @@ use sigma_ser::{
     ScorexParsingError, ScorexSerializable, ScorexSerializeResult,
 };
 
-use crate::{autolykos_pow_scheme, nipopow_algos::NipopowAlgos};
+use crate::nipopow_algos::NipopowAlgos;
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 /// A structure representing NiPoPow proof as a persistent modifier.
@@ -189,7 +189,7 @@ impl ScorexSerializable for NipopowProof {
 pub enum NipopowProofError {
     /// Errors from `AutolykosPowScheme`
     #[error("{0:?}")]
-    AutolykosPowSchemeError(autolykos_pow_scheme::AutolykosPowSchemeError),
+    AutolykosPowSchemeError(AutolykosPowSchemeError),
     /// `k` parameter == 0. Must be >= 1.
     #[error("k parameter == 0. Must be >= 1")]
     ZeroKParameter,
@@ -288,7 +288,7 @@ impl ScorexSerializable for PoPowHeader {
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::unwrap_used)]
 mod arbitrary {
-    use crate::autolykos_pow_scheme::AutolykosPowScheme;
+    use ergo_chain_types::autolykos_pow_scheme::AutolykosPowScheme;
 
     use super::*;
     use ergo_chain_types::Digest32;
