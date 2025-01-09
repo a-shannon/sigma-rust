@@ -135,10 +135,10 @@ pub struct AutolykosPowScheme {
 
 impl AutolykosPowScheme {
     /// Create a new `AutolykosPowScheme`. Returns None if k is not >= 2 && <= 32 or big_n is not >= 16
-    pub fn new(k: u64, big_n: u32) -> Option<Self> {
-        let k = BoundedU64::new(k)?;
-        let big_n = BoundedU32::new(big_n)?;
-        Some(Self {
+    pub fn new(k: u64, big_n: u32) -> Result<Self, AutolykosPowSchemeError> {
+        let k = BoundedU64::new(k).ok_or(AutolykosPowSchemeError::OutOfBounds)?;
+        let big_n = BoundedU32::new(big_n).ok_or(AutolykosPowSchemeError::OutOfBounds)?;
+        Ok(Self {
             k,
             big_n_base: big_n,
         })
@@ -150,7 +150,7 @@ impl AutolykosPowScheme {
         msg: &[u8],
         nonce: &[u8],
         h: &[u8],
-        big_n: usize,
+        big_n: u32,
     ) -> Result<BigUint, AutolykosPowSchemeError> {
         let seed_hash = self.calc_seed_v2(big_n, msg, nonce, h)?;
         let indexes = self.gen_indexes(&seed_hash, big_n);
@@ -205,7 +205,7 @@ impl AutolykosPowScheme {
     /// in ErgoPow paper.
     pub fn calc_seed_v2(
         &self,
-        big_n: usize,
+        big_n: u32,
         msg: &[u8],
         nonce: &[u8],
         header_height_bytes: &[u8],
@@ -235,7 +235,7 @@ impl AutolykosPowScheme {
     }
 
     /// Returns a list of size `k` with numbers in [0,`N`)
-    pub fn gen_indexes(&self, seed_hash: &[u8; 32], big_n: usize) -> Vec<u32> {
+    pub fn gen_indexes(&self, seed_hash: &[u8; 32], big_n: u32) -> Vec<u32> {
         let mut res = vec![];
         let mut extended_hash: Vec<u8> = seed_hash.to_vec();
         extended_hash.extend(&seed_hash[..3]);
@@ -252,9 +252,9 @@ impl AutolykosPowScheme {
     }
 
     /// Calculates table size (N value) for a given height (moment of time)
-    pub fn calc_big_n(&self, header_version: u8, header_height: u32) -> usize {
+    pub fn calc_big_n(&self, header_version: u8, header_height: u32) -> u32 {
         // Number of elements in a table to find k-sum problem solution on top of
-        let n_base = self.big_n_base.get() as usize;
+        let n_base = self.big_n_base.get();
         if header_version == 1 {
             n_base
         } else {
@@ -322,6 +322,9 @@ pub enum AutolykosPowSchemeError {
     /// Checking proof-of-work for AutolykosV1 is not supported
     #[error("Header.check_pow is not supported for Autolykos1")]
     Unsupported,
+    /// k or N are out of bounds, see [`AutolykosPowScheme::new`]
+    #[error("Arguments to AutolykosPowScheme::new were out of bounds")]
+    OutOfBounds,
 }
 
 /// The following tests are taken from <https://github.com/ergoplatform/ergo/blob/f7b91c0be00531c6d042c10a8855149ca6924373/src/test/scala/org/ergoplatform/mining/AutolykosPowSchemeSpec.scala#L43-L130>
@@ -336,7 +339,7 @@ mod tests {
     #[test]
     fn test_calc_big_n() {
         let pow = AutolykosPowScheme::default();
-        let n_base = pow.big_n_base.get() as usize;
+        let n_base = pow.big_n_base.get();
 
         // autolykos v1
         assert_eq!(pow.calc_big_n(1, 700000), n_base);

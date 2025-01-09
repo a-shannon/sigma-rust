@@ -1,6 +1,8 @@
 //! 256-bit unsigned big integer type
+use alloc::string::String;
 use alloc::vec::Vec;
 use core::ops::{Div, Mul, Rem};
+use num_bigint::BigUint;
 
 use bnum::{
     cast::{As, CastFrom},
@@ -166,6 +168,15 @@ impl UnsignedBigInt {
     /// Convert `self` to underlying digits stored in little-endian order
     pub fn to_limbs(&self) -> [u64; 4] {
         *self.0.digits()
+    }
+}
+
+impl TryFrom<BigUint> for UnsignedBigInt {
+    type Error = String;
+
+    fn try_from(value: BigUint) -> Result<Self, Self::Error> {
+        let bytes = value.to_bytes_be();
+        Self::from_be_slice(&bytes).ok_or_else(|| "BigInt256 value: {value} out of bounds".into())
     }
 }
 
