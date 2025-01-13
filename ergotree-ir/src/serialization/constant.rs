@@ -1,6 +1,5 @@
 use super::{data::DataSerializer, sigma_byte_writer::SigmaByteWrite};
 use crate::mir::constant::Constant;
-use crate::serialization::types::TypeCode;
 use crate::serialization::SigmaSerializeResult;
 use crate::serialization::{
     sigma_byte_reader::SigmaByteRead, SigmaParsingError, SigmaSerializable,
@@ -10,11 +9,8 @@ use crate::types::stype::SType;
 impl Constant {
     /// Parse constant from byte stream. This function should be used instead of
     /// `sigma_parse` when type code is already read for look-ahead
-    pub fn parse_with_type_code<R: SigmaByteRead>(
-        r: &mut R,
-        t_code: TypeCode,
-    ) -> Result<Self, SigmaParsingError> {
-        let tpe = SType::parse_with_type_code(r, t_code)?;
+    pub fn parse_with_tag<R: SigmaByteRead>(r: &mut R, tag: u8) -> Result<Self, SigmaParsingError> {
+        let tpe = SType::parse_with_tag(r, tag)?;
         let v = DataSerializer::sigma_parse(&tpe, r)?;
         Ok(Constant { tpe, v })
     }
@@ -27,8 +23,8 @@ impl SigmaSerializable for Constant {
 
     fn sigma_parse<R: SigmaByteRead>(r: &mut R) -> Result<Self, SigmaParsingError> {
         // for reference see http://github.com/ScorexFoundation/sigmastate-interpreter/blob/25251c1313b0131835f92099f02cef8a5d932b5e/sigmastate/src/main/scala/sigmastate/serialization/DataSerializer.scala#L84-L84
-        let t_code = TypeCode::sigma_parse(r)?;
-        Self::parse_with_type_code(r, t_code)
+        let tag = r.get_u8()?;
+        Self::parse_with_tag(r, tag)
     }
 }
 

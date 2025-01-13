@@ -16,6 +16,7 @@ pub struct SigmaByteReader<R> {
     val_def_type_store: ValDefTypeStore,
     was_deserialize: bool,
     version: ErgoTreeVersion,
+    activated_script_version: ErgoTreeVersion,
 }
 
 impl<R: Read> SigmaByteReader<R> {
@@ -28,6 +29,7 @@ impl<R: Read> SigmaByteReader<R> {
             val_def_type_store: ValDefTypeStore::new(),
             was_deserialize: false,
             version: ErgoTreeVersion::MAX_SCRIPT_VERSION,
+            activated_script_version: ErgoTreeVersion::MAX_SCRIPT_VERSION,
         }
     }
 
@@ -44,6 +46,7 @@ impl<R: Read> SigmaByteReader<R> {
             val_def_type_store: ValDefTypeStore::new(),
             was_deserialize: false,
             version: ErgoTreeVersion::MAX_SCRIPT_VERSION,
+            activated_script_version: ErgoTreeVersion::MAX_SCRIPT_VERSION,
         }
     }
 }
@@ -92,8 +95,11 @@ pub trait SigmaByteRead: ReadSigmaVlqExt {
         f: impl FnOnce(&mut Self) -> T,
     ) -> T;
 
-    /// Maximum version that deserializer can handle. By default this will be [ErgoTreeVersion::MAX_SCRIPT_VERSION] but for consensus-critical applications it should be set to activated block version
+    /// Maximum ErgoTree version that deserializer can handle.
     fn tree_version(&self) -> ErgoTreeVersion;
+
+    /// Currently activated version. By default this will be [ErgoTreeVersion::MAX_SCRIPT_VERSION] but for consensus-critical applications it should be set to activated block version
+    fn activated_script_version(&self) -> ErgoTreeVersion;
 }
 
 impl<R: Read> Read for SigmaByteReader<R> {
@@ -157,5 +163,9 @@ impl<R: ReadSigmaVlqExt> SigmaByteRead for SigmaByteReader<R> {
 
     fn tree_version(&self) -> ErgoTreeVersion {
         self.version
+    }
+
+    fn activated_script_version(&self) -> ErgoTreeVersion {
+        self.activated_script_version
     }
 }

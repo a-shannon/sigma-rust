@@ -78,7 +78,6 @@ use crate::serialization::{
 };
 
 use crate::mir::xor_of::XorOf;
-use crate::serialization::types::TypeCode;
 use crate::source_span::Spanned;
 
 impl Expr {
@@ -86,8 +85,7 @@ impl Expr {
     /// `sigma_parse` when tag byte is already read for look-ahead
     pub fn parse_with_tag<R: SigmaByteRead>(r: &mut R, tag: u8) -> Result<Self, SigmaParsingError> {
         let res = if tag <= OpCode::LAST_CONSTANT_CODE.value() {
-            let t_code = TypeCode::parse(tag)?;
-            let constant = Constant::parse_with_type_code(r, t_code)?;
+            let constant = Constant::parse_with_tag(r, tag)?;
             Ok(Expr::Const(constant))
         } else {
             let op_code = OpCode::parse(tag);

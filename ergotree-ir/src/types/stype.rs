@@ -90,6 +90,7 @@ impl SType {
                 | SType::SLong
                 | SType::SBigInt
                 | SType::SAny
+                | SType::SUnit
                 | SType::SGroupElement
                 | SType::SSigmaProp
                 | SType::SBox
@@ -295,6 +296,7 @@ pub(crate) mod tests {
     pub(crate) fn primitive_type() -> BoxedStrategy<SType> {
         prop_oneof![
             Just(SType::SAny),
+            Just(SType::SUnit),
             Just(SType::SBoolean),
             Just(SType::SByte),
             Just(SType::SShort),
