@@ -31,15 +31,15 @@ pub const VOTES_METHOD_ID: MethodId = MethodId(7);
 
 lazy_static! {
     /// Pre-header method descriptors
-    pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> =
+    pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
         vec![
-            &VERSION_METHOD,
-            &PARENT_ID_METHOD,
-            &TIMESTAMP_METHOD,
-            &N_BITS_METHOD,
-            &HEIGHT_METHOD,
-            &MINER_PK_METHOD,
-            &VOTES_METHOD,
+            VERSION_METHOD.clone(),
+            PARENT_ID_METHOD.clone(),
+            TIMESTAMP_METHOD.clone(),
+            N_BITS_METHOD.clone(),
+            HEIGHT_METHOD.clone(),
+            MINER_PK_METHOD.clone(),
+            VOTES_METHOD.clone(),
         ]
     ;
 }

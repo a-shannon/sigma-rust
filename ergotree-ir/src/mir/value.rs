@@ -18,6 +18,7 @@ use crate::sigma_protocol::sigma_boolean::SigmaProp;
 use crate::types::stuple::TupleItems;
 use crate::types::stype::LiftIntoSType;
 use crate::types::stype::SType;
+use crate::unsignedbigint256::UnsignedBigInt;
 use ergo_chain_types::{EcPoint, Header, PreHeader};
 
 use super::avl_tree_data::AvlTreeData;
@@ -238,6 +239,8 @@ pub enum Value<'ctx> {
     GroupElement(Ref<'ctx, EcPoint>),
     /// Sigma property
     SigmaProp(Box<SigmaProp>),
+    /// UnsignedBigInt
+    UnsignedBigInt(UnsignedBigInt),
     /// Ergo box
     CBox(Ref<'ctx, ErgoBox>),
     /// AVL tree
@@ -276,6 +279,7 @@ impl<'ctx> Value<'ctx> {
             Value::BigInt(b) => Value::BigInt(*b),
             Value::GroupElement(b) => Value::GroupElement(b.to_static()),
             Value::SigmaProp(p) => Value::SigmaProp(p.clone()),
+            Value::UnsignedBigInt(b) => Value::UnsignedBigInt(*b),
             Value::AvlTree(t) => Value::AvlTree(t.clone()),
             Value::Coll(coll) => match coll {
                 CollKind::NativeColl(c) => Value::Coll(CollKind::NativeColl(c.clone())),
@@ -368,6 +372,7 @@ impl From<Literal> for Value<'static> {
             Literal::String(s) => Value::String(s),
             Literal::Unit => Value::Unit,
             Literal::SigmaProp(s) => Value::SigmaProp(s),
+            Literal::UnsignedBigInt(b) => Value::UnsignedBigInt(b),
             Literal::GroupElement(e) => Value::GroupElement(e.into()),
             Literal::CBox(b) => Value::CBox(b),
             Literal::Coll(coll) => {
@@ -438,6 +443,7 @@ impl core::fmt::Display for Value<'_> {
             Value::BigInt(v) => v.fmt(f),
             Value::String(v) => v.fmt(f),
             Value::SigmaProp(v) => v.fmt(f),
+            Value::UnsignedBigInt(v) => v.fmt(f),
             Value::GroupElement(v) => v.fmt(f),
             Value::AvlTree(v) => write!(f, "AvlTree({:?})", v),
             Value::CBox(v) => write!(f, "ErgoBox({:?})", v),
@@ -566,6 +572,18 @@ impl TryExtractFrom<Value<'_>> for SigmaProp {
             Value::SigmaProp(v) => Ok(*v),
             _ => Err(TryExtractFromError(format!(
                 "expected SigmaProp, found {:?}",
+                cv
+            ))),
+        }
+    }
+}
+
+impl TryExtractFrom<Value<'_>> for UnsignedBigInt {
+    fn try_extract_from(cv: Value) -> Result<UnsignedBigInt, TryExtractFromError> {
+        match cv {
+            Value::UnsignedBigInt(v) => Ok(v),
+            _ => Err(TryExtractFromError(format!(
+                "expected UnsignedBigInt, found {:?}",
                 cv
             ))),
         }

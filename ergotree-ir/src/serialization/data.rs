@@ -22,6 +22,7 @@ use crate::serialization::{
 use crate::sigma_protocol::{sigma_boolean::SigmaBoolean, sigma_boolean::SigmaProp};
 use crate::types::stuple;
 use crate::types::stype::SType;
+use crate::unsignedbigint256::UnsignedBigInt;
 use ergo_chain_types::EcPoint;
 
 use super::sigma_byte_writer::SigmaByteWrite;
@@ -51,6 +52,7 @@ impl DataSerializer {
             }
             Literal::GroupElement(ecp) => ecp.sigma_serialize(w)?,
             Literal::SigmaProp(s) => s.value().sigma_serialize(w)?,
+            Literal::UnsignedBigInt(v) => v.sigma_serialize(w)?,
             Literal::AvlTree(a) => a.sigma_serialize(w)?,
             Literal::CBox(b) => b.sigma_serialize(w)?,
             Literal::Coll(ct) => match ct {
@@ -118,6 +120,7 @@ impl DataSerializer {
             SSigmaProp => {
                 Literal::SigmaProp(Box::new(SigmaProp::new(SigmaBoolean::sigma_parse(r)?)))
             }
+            SUnsignedBigInt => Literal::UnsignedBigInt(UnsignedBigInt::sigma_parse(r)?), // TODO: versioning
             SColl(elem_type) if **elem_type == SByte => {
                 let len = r.get_u16()? as usize;
                 let mut buf = vec![0u8; len];

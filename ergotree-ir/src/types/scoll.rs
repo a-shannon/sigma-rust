@@ -43,21 +43,20 @@ pub const GET_METHOD_ID: MethodId = MethodId(33);
 
 lazy_static! {
     /// Coll method descriptors
-    pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> =
+    pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
         vec![
-            &INDEX_OF_METHOD_DESC,
-            &FLATMAP_METHOD_DESC,
-            &ZIP_METHOD_DESC,
-            &INDICES_METHOD_DESC,
-            &UPDATED_METHOD_DESC,
-            &UPDATE_MANY_METHOD_DESC,
-            &PATCH_METHOD_DESC,
-            &REVERSE_METHOD_DESC,
-            &STARTS_WITH_METHOD_DESC,
-            &ENDS_WITH_METHOD_DESC,
-            &GET_METHOD_DESC
-        ]
-    ;
+            INDEX_OF_METHOD_DESC.clone(),
+            FLATMAP_METHOD_DESC.clone(),
+            ZIP_METHOD_DESC.clone(),
+            INDICES_METHOD_DESC.clone(),
+            UPDATED_METHOD_DESC.clone(),
+            UPDATE_MANY_METHOD_DESC.clone(),
+            PATCH_METHOD_DESC.clone(),
+            REVERSE_METHOD_DESC.clone(),
+            STARTS_WITH_METHOD_DESC.clone(),
+            ENDS_WITH_METHOD_DESC.clone(),
+            GET_METHOD_DESC.clone()
+        ];
 }
 
 lazy_static! {

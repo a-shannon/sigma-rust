@@ -3,7 +3,7 @@ use core::ops::{Div, Mul, Rem};
 
 use bnum::{types::U256, BInt, BTryFrom, BUint};
 use derive_more::{Add, AddAssign, BitAnd, BitOr, BitXor, Display, From, FromStr, Not, Sub};
-use num_derive::{Num, One, Zero};
+use num_derive::{Num, One, ToPrimitive, Zero};
 use num_traits::{Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub, Signed};
 
 use crate::{
@@ -32,6 +32,7 @@ use crate::{
     BitAnd,
     BitOr,
     BitXor,
+    ToPrimitive,
 )]
 /// Unsigned 256-bit integer type
 pub struct UnsignedBigInt(U256);

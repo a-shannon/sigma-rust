@@ -23,10 +23,10 @@ pub const NEGATE_METHOD_ID: MethodId = MethodId(5);
 
 lazy_static! {
     /// GroupElement method descriptors
-    pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> =
+    pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
         vec![
-            &GET_ENCODED_METHOD_DESC,
-            &NEGATE_METHOD_DESC
+            GET_ENCODED_METHOD_DESC.clone(),
+            NEGATE_METHOD_DESC.clone()
         ]
     ;
 }

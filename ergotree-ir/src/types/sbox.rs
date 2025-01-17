@@ -28,11 +28,11 @@ pub const TOKENS_METHOD_ID: MethodId = MethodId(8);
 
 lazy_static! {
     /// Box method descriptors
-    pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> =
+    pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
         vec![
-            &GET_REG_METHOD_DESC,
-            &VALUE_METHOD_DESC,
-            &TOKENS_METHOD_DESC
+            GET_REG_METHOD_DESC.clone(),
+            VALUE_METHOD_DESC.clone(),
+            TOKENS_METHOD_DESC.clone()
         ]
     ;
 }

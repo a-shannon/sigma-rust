@@ -26,6 +26,7 @@ pub enum TypeCode {
     SBIGINT = 6,
     SGROUP_ELEMENT = 7,
     SSIGMAPROP = 8,
+    SUNSIGNEDBIGINT = 9,
     COLL = (TypeCode::MAX_PRIM_TYPECODE + 1) * TypeCode::COLLECTION_CONSTR_ID, // 12 * 1
     NESTED_COLL = (TypeCode::MAX_PRIM_TYPECODE + 1) * (2 * TypeCode::COLLECTION_CONSTR_ID), // 12 * 2 = 24
     OPTION = (TypeCode::MAX_PRIM_TYPECODE + 1) * TypeCode::OPTION_CONSTR_ID, // 12 * 3 = 36
@@ -119,6 +120,7 @@ impl TypeCode {
             TypeCode::SBIGINT => Ok(SBigInt),
             TypeCode::SGROUP_ELEMENT => Ok(SGroupElement),
             TypeCode::SSIGMAPROP => Ok(SSigmaProp),
+            TypeCode::SUNSIGNEDBIGINT => Ok(SUnsignedBigInt),
             _ => Err(SigmaParsingError::InvalidTypeCode(*self as u8)),
         }
     }
@@ -135,6 +137,7 @@ impl TypeCode {
             SType::SBigInt => TypeCode::SBIGINT,
             SType::SGroupElement => TypeCode::SGROUP_ELEMENT,
             SType::SSigmaProp => TypeCode::SSIGMAPROP,
+            SType::SUnsignedBigInt => TypeCode::SUNSIGNEDBIGINT,
             SType::SBox => TypeCode::SBOX,
             SType::SAvlTree => TypeCode::SAVL_TREE,
             SType::SContext => TypeCode::SCONTEXT,
@@ -279,18 +282,18 @@ impl SigmaSerializable for SType {
             SOption(elem_type) => match &**elem_type {
                 #[allow(clippy::unwrap_used)]
                 // TypeCode::from_primitive_type can't fail since it's only called on primitive types here
-                SBoolean | SByte | SShort | SInt | SLong | SBigInt | SGroupElement | SSigmaProp => {
-                    w.put_u8(
+                SBoolean | SByte | SShort | SInt | SLong | SBigInt | SGroupElement | SSigmaProp
+                | SUnsignedBigInt => w
+                    .put_u8(
                         (TypeCode::OPTION as u8)
                             + (TypeCode::from_primitive_type(elem_type).unwrap() as u8),
                     )
-                    .map_err(From::from)
-                }
+                    .map_err(From::from),
                 SColl(inner_elem_type) => match &**inner_elem_type {
                     #[allow(clippy::unwrap_used)]
                     // TypeCode::from_primitive_type can't fail since it's only called on primitive types here
                     SBoolean | SByte | SShort | SInt | SLong | SBigInt | SGroupElement
-                    | SSigmaProp => w
+                    | SSigmaProp | SUnsignedBigInt => w
                         .put_u8(
                             (TypeCode::OPTION_COLL as u8)
                                 + TypeCode::from_primitive_type(inner_elem_type).unwrap() as u8,
@@ -317,18 +320,18 @@ impl SigmaSerializable for SType {
             SType::SColl(elem_type) => match &**elem_type {
                 #[allow(clippy::unwrap_used)]
                 // TypeCode::from_primitive_type can't fail since it's only called on primitive types here
-                SBoolean | SByte | SShort | SInt | SLong | SBigInt | SGroupElement | SSigmaProp => {
-                    w.put_u8(
+                SBoolean | SByte | SShort | SInt | SLong | SBigInt | SGroupElement | SSigmaProp
+                | SUnsignedBigInt => w
+                    .put_u8(
                         TypeCode::COLL as u8
                             + TypeCode::from_primitive_type(elem_type).unwrap() as u8,
                     )
-                    .map_err(From::from)
-                }
+                    .map_err(From::from),
                 SColl(inner_elem_type) => match &**inner_elem_type {
                     #[allow(clippy::unwrap_used)]
                     // TypeCode::from_primitive_type can't fail since it's only called on primitive types here
                     SBoolean | SByte | SShort | SInt | SLong | SBigInt | SGroupElement
-                    | SSigmaProp => w
+                    | SSigmaProp | SUnsignedBigInt => w
                         .put_u8(
                             TypeCode::NESTED_COLL as u8
                                 + TypeCode::from_primitive_type(inner_elem_type).unwrap() as u8,
@@ -357,7 +360,7 @@ impl SigmaSerializable for SType {
                 [t1, t2] => match (t1, t2) {
                     (
                         SBoolean | SByte | SShort | SInt | SLong | SBigInt | SGroupElement
-                        | SSigmaProp,
+                        | SSigmaProp | SUnsignedBigInt,
                         t2,
                     ) if t1 == t2 => w
                         .put_u8(
@@ -367,7 +370,7 @@ impl SigmaSerializable for SType {
                         .map_err(From::from),
                     (
                         SBoolean | SByte | SShort | SInt | SLong | SBigInt | SGroupElement
-                        | SSigmaProp,
+                        | SSigmaProp | SUnsignedBigInt,
                         t2,
                     ) => {
                         w.put_u8(
@@ -379,7 +382,7 @@ impl SigmaSerializable for SType {
                     (
                         t1,
                         SBoolean | SByte | SShort | SInt | SLong | SBigInt | SGroupElement
-                        | SSigmaProp,
+                        | SSigmaProp | SUnsignedBigInt,
                     ) => {
                         w.put_u8(
                             TypeCode::TUPLE_PAIR2 as u8

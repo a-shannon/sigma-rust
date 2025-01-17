@@ -53,24 +53,24 @@ pub const CHECK_POW_METHOD_ID: MethodId = MethodId(16);
 
 lazy_static! {
     /// Header method descriptors
-    pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> =
+    pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
         vec![
-            &ID_PROPERTY_METHOD_DESC,
-            &VERSION_PROPERTY_METHOD_DESC,
-            &PARENT_ID_PROPERTY_METHOD_DESC,
-            &AD_PROOFS_ROOT_PROPERTY_METHOD_DESC,
-            &STATE_ROOT_PROPERTY_METHOD_DESC,
-            &TRANSACTIONS_ROOT_PROPERTY_METHOD_DESC,
-            &TIMESTAMP_PROPERTY_METHOD_DESC,
-            &N_BITS_PROPERTY_METHOD_DESC,
-            &HEIGHT_PROPERTY_METHOD_DESC,
-            &EXTENSION_ROOT_PROPERTY_METHOD_DESC,
-            &MINER_PK_PROPERTY_METHOD_DESC,
-            &POW_ONETIME_PK_PROPERTY_METHOD_DESC,
-            &POW_NONCE_PROPERTY_METHOD_DESC,
-            &POW_DISTANCE_PROPERTY_METHOD_DESC,
-            &VOTES_PROPERTY_METHOD_DESC,
-            &CHECK_POW_METHOD_DESC
+            ID_PROPERTY_METHOD_DESC.clone(),
+            VERSION_PROPERTY_METHOD_DESC.clone(),
+            PARENT_ID_PROPERTY_METHOD_DESC.clone(),
+            AD_PROOFS_ROOT_PROPERTY_METHOD_DESC.clone(),
+            STATE_ROOT_PROPERTY_METHOD_DESC.clone(),
+            TRANSACTIONS_ROOT_PROPERTY_METHOD_DESC.clone(),
+            TIMESTAMP_PROPERTY_METHOD_DESC.clone(),
+            N_BITS_PROPERTY_METHOD_DESC.clone(),
+            HEIGHT_PROPERTY_METHOD_DESC.clone(),
+            EXTENSION_ROOT_PROPERTY_METHOD_DESC.clone(),
+            MINER_PK_PROPERTY_METHOD_DESC.clone(),
+            POW_ONETIME_PK_PROPERTY_METHOD_DESC.clone(),
+            POW_NONCE_PROPERTY_METHOD_DESC.clone(),
+            POW_DISTANCE_PROPERTY_METHOD_DESC.clone(),
+            VOTES_PROPERTY_METHOD_DESC.clone(),
+            CHECK_POW_METHOD_DESC.clone(),
         ]
     ;
 }

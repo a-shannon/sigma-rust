@@ -14,6 +14,12 @@ use super::sheader;
 use super::smethod::MethodId;
 use super::smethod::SMethod;
 use super::smethod::SMethodDesc;
+use super::snumeric::sbigint;
+use super::snumeric::sbyte;
+use super::snumeric::sint;
+use super::snumeric::slong;
+use super::snumeric::sshort;
+use super::snumeric::sunsignedbigint;
 use super::soption;
 use super::spreheader;
 
@@ -24,6 +30,18 @@ use strum_macros::EnumIter;
 /// Object's type companion
 #[derive(PartialEq, Eq, Debug, Clone, Copy, EnumIter)]
 pub enum STypeCompanion {
+    /// Signed Byte
+    SByte,
+    /// 16-bit signed integer value
+    SShort,
+    /// 32-bit signed integer value
+    SInt,
+    /// 64-bit signed integer value
+    SLong,
+    /// 256-bit signed integer value
+    SBigInt,
+    /// 256-bit unsigned integer value
+    SUnsignedBigInt,
     /// Context
     Context,
     /// Box
@@ -45,7 +63,7 @@ pub enum STypeCompanion {
 }
 
 impl STypeCompanion {
-    fn method_desc(&self) -> &Vec<&'static SMethodDesc> {
+    fn method_desc(&self) -> &[SMethodDesc] {
         match self {
             STypeCompanion::Context => &scontext::METHOD_DESC,
             STypeCompanion::Box => &sbox::METHOD_DESC,
@@ -56,6 +74,12 @@ impl STypeCompanion {
             STypeCompanion::PreHeader => &spreheader::METHOD_DESC,
             STypeCompanion::Option => &soption::METHOD_DESC,
             STypeCompanion::AvlTree => &savltree::METHOD_DESC,
+            STypeCompanion::SByte => &sbyte::METHOD_DESC,
+            STypeCompanion::SShort => &sshort::METHOD_DESC,
+            STypeCompanion::SInt => &sint::METHOD_DESC,
+            STypeCompanion::SLong => &slong::METHOD_DESC,
+            STypeCompanion::SBigInt => &sbigint::METHOD_DESC,
+            STypeCompanion::SUnsignedBigInt => &sunsignedbigint::METHOD_DESC,
         }
     }
 
@@ -87,6 +111,12 @@ impl STypeCompanion {
             STypeCompanion::PreHeader => spreheader::TYPE_CODE,
             STypeCompanion::Option => soption::TYPE_CODE,
             STypeCompanion::AvlTree => savltree::TYPE_CODE,
+            STypeCompanion::SByte => sbyte::TYPE_CODE,
+            STypeCompanion::SShort => sshort::TYPE_CODE,
+            STypeCompanion::SInt => sint::TYPE_CODE,
+            STypeCompanion::SLong => slong::TYPE_CODE,
+            STypeCompanion::SBigInt => sbigint::TYPE_CODE,
+            STypeCompanion::SUnsignedBigInt => sunsignedbigint::TYPE_CODE,
         }
     }
 
@@ -102,6 +132,12 @@ impl STypeCompanion {
             STypeCompanion::PreHeader => spreheader::TYPE_NAME,
             STypeCompanion::Option => soption::TYPE_NAME,
             STypeCompanion::AvlTree => savltree::TYPE_NAME,
+            STypeCompanion::SByte => sbyte::TYPE_NAME,
+            STypeCompanion::SShort => sshort::TYPE_NAME,
+            STypeCompanion::SInt => sint::TYPE_NAME,
+            STypeCompanion::SLong => slong::TYPE_NAME,
+            STypeCompanion::SBigInt => sbigint::TYPE_NAME,
+            STypeCompanion::SUnsignedBigInt => sunsignedbigint::TYPE_NAME,
         }
     }
 }

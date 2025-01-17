@@ -12,6 +12,15 @@ use crate::eval::EvalError;
 use crate::eval::Evaluable;
 use core::convert::TryFrom;
 
+fn wrap_downcast<T: Into<Value<'static>>>(res: Option<T>) -> Result<Value<'static>, EvalError> {
+    res.map(Into::into).ok_or_else(|| {
+        EvalError::UnexpectedValue(format!(
+            "Downcast: overflow converting to {}",
+            core::any::type_name::<T>()
+        ))
+    })
+}
+
 fn downcast_to_bigint<'a>(in_v: Value<'a>, ctx: &Context<'_>) -> Result<Value<'a>, EvalError> {
     match in_v {
         Value::Byte(v) => Ok(BigInt256::from(v).into()),
@@ -19,6 +28,7 @@ fn downcast_to_bigint<'a>(in_v: Value<'a>, ctx: &Context<'_>) -> Result<Value<'a
         Value::Int(v) => Ok(BigInt256::from(v).into()),
         Value::Long(v) => Ok(BigInt256::from(v).into()),
         Value::BigInt(_) if ctx.tree_version() >= ErgoTreeVersion::V3 => Ok(in_v),
+        // Downcasting to BigInt from UnsignedBigInt is intentionally not implemented, use toSigned method instead
         _ => Err(EvalError::UnexpectedValue(format!(
             "Downcast: cannot downcast {0:?} to BigInt",
             in_v
@@ -32,12 +42,9 @@ fn downcast_to_long<'a>(in_v: Value<'a>, ctx: &Context<'_>) -> Result<Value<'a>,
         Value::Short(v) => Ok((v as i64).into()),
         Value::Int(v) => Ok((v as i64).into()),
         Value::Long(_) => Ok(in_v),
-        Value::BigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => {
-            v.to_i64().map(Value::from).ok_or_else(|| {
-                EvalError::UnexpectedValue(
-                    "Downcast: overflow converting BigInt to Long".to_string(),
-                )
-            })
+        Value::BigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => wrap_downcast(v.to_i64()),
+        Value::UnsignedBigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => {
+            wrap_downcast(v.to_i64())
         }
         _ => Err(EvalError::UnexpectedValue(format!(
             "Downcast: cannot downcast {0:?} to Long",
@@ -51,18 +58,10 @@ fn downcast_to_int<'a>(in_v: Value<'a>, ctx: &Context<'_>) -> Result<Value<'a>, 
         Value::Byte(x) => Ok((x as i32).into()),
         Value::Short(s) => Ok((s as i32).into()),
         Value::Int(_) => Ok(in_v),
-        Value::Long(l) => match i32::try_from(l).ok() {
-            Some(v) => Ok(v.into()),
-            _ => Err(EvalError::UnexpectedValue(
-                "Downcast: Int overflow".to_string(),
-            )),
-        },
-        Value::BigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => {
-            v.to_i32().map(Value::from).ok_or_else(|| {
-                EvalError::UnexpectedValue(
-                    "Downcast: overflow converting BigInt to Int".to_string(),
-                )
-            })
+        Value::Long(l) => wrap_downcast(l.to_i32()),
+        Value::BigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => wrap_downcast(v.to_i32()),
+        Value::UnsignedBigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => {
+            wrap_downcast(v.to_i32())
         }
         _ => Err(EvalError::UnexpectedValue(format!(
             "Downcast: cannot downcast {0:?} to Int",
@@ -80,18 +79,10 @@ fn downcast_to_short<'a>(in_v: Value<'a>, ctx: &Context<'_>) -> Result<Value<'a>
                 "Downcast: Short overflow".to_string(),
             )),
         },
-        Value::Long(l) => match i16::try_from(l).ok() {
-            Some(v) => Ok(v.into()),
-            _ => Err(EvalError::UnexpectedValue(
-                "Downcast: Short overflow".to_string(),
-            )),
-        },
-        Value::BigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => {
-            v.to_i16().map(Value::from).ok_or_else(|| {
-                EvalError::UnexpectedValue(
-                    "Downcast: overflow converting BigInt to Short".to_string(),
-                )
-            })
+        Value::Long(l) => wrap_downcast(l.to_i16()),
+        Value::BigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => wrap_downcast(v.to_i16()),
+        Value::UnsignedBigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => {
+            wrap_downcast(v.to_i16())
         }
         _ => Err(EvalError::UnexpectedValue(format!(
             "Downcast: cannot downcast {0:?} to Short",
@@ -103,30 +94,12 @@ fn downcast_to_short<'a>(in_v: Value<'a>, ctx: &Context<'_>) -> Result<Value<'a>
 fn downcast_to_byte<'a>(in_v: Value<'a>, ctx: &Context<'_>) -> Result<Value<'a>, EvalError> {
     match in_v {
         Value::Byte(_) => Ok(in_v),
-        Value::Short(s) => match i8::try_from(s).ok() {
-            Some(v) => Ok(v.into()),
-            _ => Err(EvalError::UnexpectedValue(
-                "Downcast: Byte overflow".to_string(),
-            )),
-        },
-        Value::Int(i) => match i8::try_from(i).ok() {
-            Some(v) => Ok(v.into()),
-            _ => Err(EvalError::UnexpectedValue(
-                "Downcast: Byte overflow".to_string(),
-            )),
-        },
-        Value::Long(l) => match i8::try_from(l).ok() {
-            Some(v) => Ok(v.into()),
-            _ => Err(EvalError::UnexpectedValue(
-                "Downcast: Byte overflow".to_string(),
-            )),
-        },
-        Value::BigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => {
-            v.to_i8().map(Value::from).ok_or_else(|| {
-                EvalError::UnexpectedValue(
-                    "Downcast: overflow converting BigInt to Byte".to_string(),
-                )
-            })
+        Value::Short(s) => wrap_downcast(s.to_i8()),
+        Value::Int(i) => wrap_downcast(i.to_i8()),
+        Value::Long(l) => wrap_downcast(l.to_i8()),
+        Value::BigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => wrap_downcast(v.to_i8()),
+        Value::UnsignedBigInt(v) if ctx.tree_version() >= ErgoTreeVersion::V3 => {
+            wrap_downcast(v.to_i8())
         }
         _ => Err(EvalError::UnexpectedValue(format!(
             "Downcast: cannot downcast {0:?} to Byte",

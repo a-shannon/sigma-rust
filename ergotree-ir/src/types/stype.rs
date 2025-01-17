@@ -47,6 +47,8 @@ pub enum SType {
     SGroupElement,
     /// Proposition which can be proven and verified by sigma protocol.
     SSigmaProp,
+    /// Unsigned 256-bit integer type
+    SUnsignedBigInt,
     /// ErgoBox value
     SBox,
     /// AVL tree value
@@ -76,7 +78,12 @@ impl SType {
     pub fn is_numeric(&self) -> bool {
         matches!(
             self,
-            SType::SByte | SType::SShort | SType::SInt | SType::SLong | SType::SBigInt
+            SType::SByte
+                | SType::SShort
+                | SType::SInt
+                | SType::SLong
+                | SType::SBigInt
+                | SType::SUnsignedBigInt
         )
     }
 
@@ -93,6 +100,7 @@ impl SType {
                 | SType::SUnit
                 | SType::SGroupElement
                 | SType::SSigmaProp
+                | SType::SUnsignedBigInt
                 | SType::SBox
                 | SType::SAvlTree
                 | SType::SContext
@@ -148,6 +156,7 @@ impl core::fmt::Display for SType {
             SType::SBigInt => write!(f, "BigInt"),
             SType::SGroupElement => write!(f, "GroupElement"),
             SType::SSigmaProp => write!(f, "SigmaProp"),
+            SType::SUnsignedBigInt => write!(f, "SUnsignedBigInt"),
             SType::SBox => write!(f, "Box"),
             SType::SAvlTree => write!(f, "AvlTree"),
             SType::SOption(t) => write!(f, "Option[{}]", t),
@@ -305,6 +314,7 @@ pub(crate) mod tests {
             Just(SType::SBigInt),
             Just(SType::SGroupElement),
             Just(SType::SSigmaProp),
+            Just(SType::SUnsignedBigInt),
             Just(SType::SBox),
             Just(SType::SAvlTree),
             Just(SType::SContext),

@@ -23,10 +23,10 @@ pub const FILTER_METHOD_ID: MethodId = MethodId(8);
 
 lazy_static! {
     /// Option method descriptors
-    pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> =
+    pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
         vec![
-            &MAP_METHOD_DESC,
-            &FILTER_METHOD_DESC,
+            MAP_METHOD_DESC.clone(),
+            FILTER_METHOD_DESC.clone(),
         ]
     ;
 }
