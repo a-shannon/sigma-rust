@@ -185,7 +185,7 @@ where
             (
                 CollKind::NativeColl(NativeColl::CollByte(s)),
                 CollKind::NativeColl(NativeColl::CollByte(suffix)),
-            ) => s.starts_with(suffix),
+            ) => s.ends_with(suffix),
             (
                 CollKind::WrappedColl { elem_tpe: _, items },
                 CollKind::WrappedColl {

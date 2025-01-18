@@ -1,6 +1,7 @@
 use crate::eval::EvalError;
 use crate::eval::Evaluable;
 
+use alloc::boxed::Box;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use ergotree_ir::mir::constant::TryExtractInto;
@@ -333,6 +334,79 @@ pub(crate) static UPDATE_MANY_EVAL_FN: EvalFn =
         }
         Ok(Value::Coll(CollKind::from_collection(input_tpe, &res[..])?))
     };
+
+pub(crate) static REVERSE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
+    let Value::Coll(coll) = obj else {
+        return Err(EvalError::UnexpectedValue(format!(
+            "Reverse: expected Coll, found {obj:?}"
+        )));
+    };
+    Ok(Value::from(coll.reverse()))
+};
+
+pub(crate) static STARTS_WITH_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
+    let Value::Coll(coll) = obj else {
+        return Err(EvalError::UnexpectedValue(format!(
+            "endsWith: expected Coll, found {obj:?}"
+        )));
+    };
+    let Some(Value::Coll(prefix)) = args.first() else {
+        return Err(EvalError::UnexpectedValue(format!(
+            "startsWith: expected Coll argument, found {:?}",
+            args.first(),
+        )));
+    };
+    if prefix.elem_tpe() != coll.elem_tpe() {
+        return Err(EvalError::UnexpectedValue(format!(
+            "startsWith: expected prefix to be of type {:?}, found {:?}",
+            coll.elem_tpe(),
+            prefix.elem_tpe()
+        )));
+    }
+    Ok(Value::from(coll.starts_with(prefix)))
+};
+
+pub(crate) static ENDS_WITH_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
+    let Value::Coll(coll) = obj else {
+        return Err(EvalError::UnexpectedValue(format!(
+            "endsWith: expected Coll, found {obj:?}"
+        )));
+    };
+    let Some(Value::Coll(suffix)) = args.first() else {
+        return Err(EvalError::UnexpectedValue(format!(
+            "endsWith: expected Coll argument, found {:?}",
+            args.first(),
+        )));
+    };
+    if suffix.elem_tpe() != coll.elem_tpe() {
+        return Err(EvalError::UnexpectedValue(format!(
+            "endsWith: expected suffix to be of type {:?}, found {:?}",
+            coll.elem_tpe(),
+            suffix.elem_tpe()
+        )));
+    }
+    Ok(Value::from(coll.ends_with(suffix)))
+};
+
+pub(crate) static GET_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
+    let Value::Coll(coll) = obj else {
+        return Err(EvalError::UnexpectedValue(format!(
+            "get: expected Coll, found {obj:?}"
+        )));
+    };
+    let index = args
+        .first()
+        .cloned()
+        .ok_or_else(|| EvalError::UnexpectedValue("Get: index argument not found".into()))?
+        .try_extract_into::<i32>()?;
+    Ok(Value::Opt(
+        index
+            .try_into()
+            .ok()
+            .and_then(|index| coll.get_val(index))
+            .map(Box::new),
+    ))
+};
 
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
@@ -789,5 +863,137 @@ mod tests {
         .unwrap()
         .into();
         assert!(try_eval_out_wo_ctx::<Vec<i64>>(&expr).is_err());
+    }
+
+    #[test]
+    fn eval_reverse() {
+        let arr = vec![1i64, 2i64, 3i64];
+        let coll_const: Constant = arr.clone().into();
+        let expr: Expr = MethodCall::new(
+            coll_const.into(),
+            scoll::REVERSE_METHOD
+                .clone()
+                .with_concrete_types(&[(STypeVar::t(), SType::SLong)].into_iter().collect()),
+            vec![],
+        )
+        .unwrap()
+        .into();
+        assert_eq!(
+            eval_out_wo_ctx::<Vec<i64>>(&expr),
+            arr.into_iter().rev().collect::<Vec<_>>(),
+        );
+        let arr = vec![1i8, 2i8, 3i8];
+        let coll_const: Constant = arr.clone().into();
+        let expr: Expr = MethodCall::new(
+            coll_const.into(),
+            scoll::REVERSE_METHOD
+                .clone()
+                .with_concrete_types(&[(STypeVar::t(), SType::SByte)].into_iter().collect()),
+            vec![],
+        )
+        .unwrap()
+        .into();
+        assert_eq!(
+            eval_out_wo_ctx::<Vec<i8>>(&expr),
+            arr.into_iter().rev().collect::<Vec<_>>(),
+        );
+    }
+    #[test]
+    fn eval_starts_with() {
+        fn starts_with(input: Vec<i64>, prefix: Vec<i64>) -> bool {
+            let mc: Expr = MethodCall::new(
+                Constant::from(input).into(),
+                scoll::STARTS_WITH_METHOD
+                    .clone()
+                    .with_concrete_types(&[(STypeVar::t(), SType::SLong)].into_iter().collect()),
+                vec![Constant::from(prefix).into()],
+            )
+            .unwrap()
+            .into();
+            eval_out_wo_ctx(&mc)
+        }
+        fn starts_with_byte_array(input: Vec<i8>, prefix: Vec<i8>) -> bool {
+            let mc: Expr = MethodCall::new(
+                Constant::from(input).into(),
+                scoll::STARTS_WITH_METHOD
+                    .clone()
+                    .with_concrete_types(&[(STypeVar::t(), SType::SByte)].into_iter().collect()),
+                vec![Constant::from(prefix).into()],
+            )
+            .unwrap()
+            .into();
+            eval_out_wo_ctx(&mc)
+        }
+        assert!(starts_with(vec![1, 2, 3], vec![1, 2]));
+        assert!(starts_with(vec![1, 2, 3], vec![1, 2, 3]));
+        assert!(!starts_with(vec![1, 2, 3], vec![1, 2, 4]));
+        assert!(!starts_with(vec![1, 2, 3], vec![1, 2, 3, 4]));
+        assert!(starts_with(vec![], vec![]));
+        assert!(starts_with(vec![1, 2], vec![]));
+        assert!(starts_with_byte_array(vec![1, 2, 3], vec![1, 2]));
+        assert!(starts_with_byte_array(vec![1, 2, 3], vec![1, 2, 3]));
+        assert!(!starts_with_byte_array(vec![1, 2, 3], vec![1, 2, 4]));
+        assert!(!starts_with_byte_array(vec![1, 2, 3], vec![1, 2, 3, 4]));
+        assert!(starts_with_byte_array(vec![], vec![]));
+        assert!(starts_with_byte_array(vec![1, 2], vec![]));
+    }
+    #[test]
+    fn eval_ends_with() {
+        fn ends_with(input: Vec<i64>, suffix: Vec<i64>) -> bool {
+            let mc: Expr = MethodCall::new(
+                Constant::from(input).into(),
+                scoll::ENDS_WITH_METHOD
+                    .clone()
+                    .with_concrete_types(&[(STypeVar::t(), SType::SLong)].into_iter().collect()),
+                vec![Constant::from(suffix).into()],
+            )
+            .unwrap()
+            .into();
+            eval_out_wo_ctx(&mc)
+        }
+        fn ends_with_byte_array(input: Vec<i8>, suffix: Vec<i8>) -> bool {
+            let mc: Expr = MethodCall::new(
+                Constant::from(input).into(),
+                scoll::ENDS_WITH_METHOD
+                    .clone()
+                    .with_concrete_types(&[(STypeVar::t(), SType::SByte)].into_iter().collect()),
+                vec![Constant::from(suffix).into()],
+            )
+            .unwrap()
+            .into();
+            eval_out_wo_ctx(&mc)
+        }
+        assert!(!ends_with(vec![1, 2, 3], vec![1, 2]));
+        assert!(ends_with(vec![1, 2, 3], vec![2, 3]));
+        assert!(!ends_with(vec![1, 2, 3], vec![2, 3, 4]));
+        assert!(ends_with(vec![1, 2, 3], vec![1, 2, 3]));
+        assert!(ends_with(vec![], vec![]));
+        assert!(ends_with(vec![1, 2], vec![]));
+        assert!(!ends_with_byte_array(vec![1, 2, 3], vec![1, 2]));
+        assert!(ends_with_byte_array(vec![1, 2, 3], vec![2, 3]));
+        assert!(!ends_with_byte_array(vec![1, 2, 3], vec![2, 3, 4]));
+        assert!(ends_with_byte_array(vec![1, 2, 3], vec![1, 2, 3]));
+        assert!(ends_with_byte_array(vec![], vec![]));
+        assert!(ends_with_byte_array(vec![1, 2], vec![]));
+    }
+    #[test]
+    fn eval_get() {
+        fn get(input: Vec<i64>, index: i32) -> Option<i64> {
+            let mc: Expr = MethodCall::new(
+                Constant::from(input).into(),
+                scoll::GET_METHOD
+                    .clone()
+                    .with_concrete_types(&[(STypeVar::t(), SType::SLong)].into_iter().collect()),
+                vec![Constant::from(index).into()],
+            )
+            .unwrap()
+            .into();
+            eval_out_wo_ctx(&mc)
+        }
+        assert_eq!(get(vec![1, 2], 0), Some(1));
+        assert_eq!(get(vec![1, 2], 1), Some(2));
+        assert_eq!(get(vec![1, 2], -1), None);
+        assert_eq!(get(vec![1, 2], 2), None);
+        assert_eq!(get(vec![], 0), None);
     }
 }
