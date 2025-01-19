@@ -202,10 +202,43 @@ pub mod sbigint {
     /// Short Type name
     pub const TYPE_NAME: &str = "BigInt";
 
+    /// BigInt.toUnsigned method id
+    pub const TO_UNSIGNED_METHOD_ID: MethodId = MethodId(14);
+    /// BigInt.toUnsignedMod method id
+    pub const TO_UNSIGNED_MOD_METHOD_ID: MethodId = MethodId(15);
+
     lazy_static! {
+        /// toUnsigned method descriptor
+        pub static ref TO_UNSIGNED_METHOD_DESC: SMethodDesc = SMethodDesc {
+            method_id: TO_UNSIGNED_METHOD_ID,
+            name: "toUnsigned",
+            tpe: SFunc {
+                t_dom: vec![SType::SBigInt],
+                t_range: SType::SUnsignedBigInt.into(),
+                tpe_params: vec![],
+            },
+            explicit_type_args: vec![],
+            min_version: ErgoTreeVersion::V3
+        };
+        /// toUnsignedMod method descriptor
+        pub static ref TO_UNSIGNED_MOD_METHOD_DESC: SMethodDesc = SMethodDesc {
+            method_id: TO_UNSIGNED_MOD_METHOD_ID,
+            name: "toUnsignedMod",
+            tpe: SFunc {
+                t_dom: vec![SType::SBigInt, SType::SUnsignedBigInt],
+                t_range: SType::SUnsignedBigInt.into(),
+                tpe_params: vec![],
+            },
+            explicit_type_args: vec![],
+            min_version: ErgoTreeVersion::V3
+        };
         pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> = super::METHOD_DESC
             .into_iter()
             .map(|method| specialize_method(method, SType::SBigInt))
+            .chain([
+                TO_UNSIGNED_METHOD_DESC.clone(),
+                TO_UNSIGNED_MOD_METHOD_DESC.clone()
+            ])
             .collect();
     }
 }
@@ -220,10 +253,96 @@ pub mod sunsignedbigint {
     /// Short Type name
     pub const TYPE_NAME: &str = "UnsignedBigInt";
 
+    /// UnsignedBigInt.modInverse method id
+    pub const MOD_INVERSE_METHOD_ID: MethodId = MethodId(14);
+    /// UnsignedBigInt.plusMod method id
+    pub const PLUS_MOD_METHOD_ID: MethodId = MethodId(15);
+    /// UnsignedBigInt.subtractMod method id
+    pub const SUBTRACT_MOD_METHOD_ID: MethodId = MethodId(16);
+    /// UnsignedBigInt.multiplyMod method id
+    pub const MULTIPLY_MOD_METHOD_ID: MethodId = MethodId(17);
+    /// UnsignedBigInt.mod method id
+    pub const MOD_METHOD_ID: MethodId = MethodId(18);
+    /// UnsignedBigInt.toSigned method id
+    pub const TO_SIGNED_METHOD_ID: MethodId = MethodId(19);
+
     lazy_static! {
+        /// UnsignedBigInt.modInverse method
+        pub static ref MOD_INVERSE_METHOD_DESC: SMethodDesc = SMethodDesc {
+            name: "modInverse",
+            method_id: MOD_INVERSE_METHOD_ID,
+            tpe: SFunc {
+                t_dom: vec![SType::SUnsignedBigInt, SType::SUnsignedBigInt],
+                t_range: SType::SUnsignedBigInt.into(),
+                tpe_params: vec![],
+            },
+            explicit_type_args: vec![],
+            min_version: ErgoTreeVersion::V3,
+        };
+        /// UnsignedBigInt.plusMod method
+        pub static ref PLUS_MOD_METHOD_DESC: SMethodDesc = SMethodDesc {
+            name: "plusMod",
+            method_id: PLUS_MOD_METHOD_ID,
+            tpe: SFunc {
+                t_dom: vec![SType::SUnsignedBigInt, SType::SUnsignedBigInt, SType::SUnsignedBigInt],
+                t_range: SType::SUnsignedBigInt.into(),
+                tpe_params: vec![],
+            },
+            explicit_type_args: vec![],
+            min_version: ErgoTreeVersion::V3,
+        };
+        /// UnsignedBigInt.subtractMod method
+        pub static ref SUBTRACT_MOD_METHOD_DESC: SMethodDesc = SMethodDesc {
+            name: "subtractMod",
+            method_id: SUBTRACT_MOD_METHOD_ID,
+            tpe: SFunc {
+                t_dom: vec![SType::SUnsignedBigInt, SType::SUnsignedBigInt, SType::SUnsignedBigInt],
+                t_range: SType::SUnsignedBigInt.into(),
+                tpe_params: vec![],
+            },
+            explicit_type_args: vec![],
+            min_version: ErgoTreeVersion::V3,
+        };
+        /// UnsignedBigInt.multiplyMod method
+        pub static ref MULTIPLY_MOD_METHOD_DESC: SMethodDesc = SMethodDesc {
+            name: "multiplyMod",
+            method_id: MULTIPLY_MOD_METHOD_ID,
+            tpe: SFunc {
+                t_dom: vec![SType::SUnsignedBigInt, SType::SUnsignedBigInt, SType::SUnsignedBigInt],
+                t_range: SType::SUnsignedBigInt.into(),
+                tpe_params: vec![],
+            },
+            explicit_type_args: vec![],
+            min_version: ErgoTreeVersion::V3,
+        };
+        /// UnsignedBigInt.mod method
+        pub static ref MOD_METHOD_DESC: SMethodDesc = SMethodDesc {
+            name: "mod",
+            method_id: MOD_METHOD_ID,
+            tpe: SFunc {
+                t_dom: vec![SType::SUnsignedBigInt, SType::SUnsignedBigInt],
+                t_range: SType::SUnsignedBigInt.into(),
+                tpe_params: vec![],
+            },
+            explicit_type_args: vec![],
+            min_version: ErgoTreeVersion::V3,
+        };
+        /// UnsignedBigInt.mod method
+        pub static ref TO_SIGNED_METHOD_DESC: SMethodDesc = SMethodDesc {
+            name: "toSigned",
+            method_id: TO_SIGNED_METHOD_ID,
+            tpe: SFunc {
+                t_dom: vec![SType::SUnsignedBigInt],
+                t_range: SType::SBigInt.into(),
+                tpe_params: vec![],
+            },
+            explicit_type_args: vec![],
+            min_version: ErgoTreeVersion::V3,
+        };
         pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> = super::METHOD_DESC
             .into_iter()
             .map(|method| specialize_method(method, SType::SUnsignedBigInt))
+            .chain([MOD_INVERSE_METHOD_DESC.clone(), PLUS_MOD_METHOD_DESC.clone(), SUBTRACT_MOD_METHOD_DESC.clone(), MULTIPLY_MOD_METHOD_DESC.clone(), MOD_METHOD_DESC.clone(), TO_SIGNED_METHOD_DESC.clone()])
             .collect();
     }
 }
@@ -233,11 +352,13 @@ pub mod sunsignedbigint {
 mod test {
     use crate::{
         bigint256::BigInt256,
-        mir::{constant::Constant, method_call::MethodCall},
+        mir::{constant::Constant, expr::Expr, method_call::MethodCall},
         serialization::sigma_serialize_roundtrip,
         types::{stype::SType, stype_companion::STypeCompanion},
         unsignedbigint256::UnsignedBigInt,
     };
+
+    use super::sbigint::{TO_UNSIGNED_METHOD_DESC, TO_UNSIGNED_MOD_METHOD_DESC};
 
     #[test]
     fn byte_method_roundtrips() {
@@ -288,18 +409,36 @@ mod test {
         super::sbigint::METHOD_DESC
             .iter()
             .map(|m| m.as_method(STypeCompanion::SBigInt))
+            .take(super::METHOD_DESC.len())
             .for_each(|method| {
                 assert_eq!(method.method_raw.tpe.t_dom, [SType::SBigInt]);
                 let mc = MethodCall::new(Constant::from(BigInt256::from(1)).into(), method, vec![])
                     .unwrap();
                 sigma_serialize_roundtrip(&mc);
             });
+        sigma_serialize_roundtrip(
+            &MethodCall::new(
+                Constant::from(BigInt256::from(1)).into(),
+                TO_UNSIGNED_METHOD_DESC.as_method(STypeCompanion::SBigInt),
+                vec![],
+            )
+            .unwrap(),
+        );
+        sigma_serialize_roundtrip(
+            &MethodCall::new(
+                Constant::from(BigInt256::from(1)).into(),
+                TO_UNSIGNED_MOD_METHOD_DESC.as_method(STypeCompanion::SBigInt),
+                vec![Constant::from(UnsignedBigInt::from(1)).into()],
+            )
+            .unwrap(),
+        );
     }
     #[test]
     fn unsigned_bigint_method_roundtrips() {
         super::sunsignedbigint::METHOD_DESC
             .iter()
             .map(|m| m.as_method(STypeCompanion::SUnsignedBigInt))
+            .take(super::METHOD_DESC.len())
             .for_each(|method| {
                 assert_eq!(method.method_raw.tpe.t_dom, [SType::SUnsignedBigInt]);
                 let mc = MethodCall::new(
@@ -308,6 +447,20 @@ mod test {
                     vec![],
                 )
                 .unwrap();
+                sigma_serialize_roundtrip(&mc);
+            });
+        super::sunsignedbigint::METHOD_DESC
+            .iter()
+            .skip(super::METHOD_DESC.len())
+            .map(|m| m.as_method(STypeCompanion::SUnsignedBigInt))
+            .for_each(|method| {
+                let args: Vec<Expr> = vec![
+                    Constant::from(UnsignedBigInt::from(1)).into();
+                    method.method_raw.tpe.t_dom.len() - 1
+                ];
+                let mc =
+                    MethodCall::new(Constant::from(UnsignedBigInt::from(1)).into(), method, args)
+                        .unwrap();
                 sigma_serialize_roundtrip(&mc);
             });
     }

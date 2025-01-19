@@ -5,6 +5,7 @@ use core::fmt::Display;
 use ergotree_ir::ergo_tree::ErgoTree;
 use ergotree_ir::mir::constant::TryExtractInto;
 use ergotree_ir::sigma_protocol::sigma_boolean::SigmaProp;
+use snumeric::numeric_method_evalfn;
 
 use ergotree_ir::mir::expr::Expr;
 use ergotree_ir::mir::value::Value;
@@ -83,6 +84,7 @@ pub(crate) mod sheader;
 pub(crate) mod sigma_and;
 pub(crate) mod sigma_or;
 pub(crate) mod sigma_prop_bytes;
+pub(crate) mod snumeric;
 pub(crate) mod soption;
 pub(crate) mod spreheader;
 pub(crate) mod subst_const;
@@ -362,6 +364,12 @@ fn smethod_eval_fn(method: &SMethod) -> Result<EvalFn, EvalError> {
                 )))
             }
         },
+        snumeric::sbyte::TYPE_CODE
+        | snumeric::sshort::TYPE_CODE
+        | snumeric::sint::TYPE_CODE
+        | snumeric::slong::TYPE_CODE
+        | snumeric::sbigint::TYPE_CODE
+        | snumeric::sunsignedbigint::TYPE_CODE => numeric_method_evalfn(method)?,
         type_id => {
             return Err(EvalError::NotFound(format!(
                 "Eval fn: unknown type id {:?}",

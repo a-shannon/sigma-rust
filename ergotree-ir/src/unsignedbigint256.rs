@@ -129,6 +129,17 @@ impl UnsignedBigInt {
     pub fn to_be_vec(&self) -> Vec<u8> {
         self.0.to_radix_be(256)
     }
+
+    /// Convert signed 256-bit integer to unsigned using euclidean remainder. The output will be >= 0 && < modulus. Returns None if modulus == 0
+    pub fn from_signed_mod(signed: BigInt256, modulus: Self) -> Option<Self> {
+        let signed_wide: BInt<5> = <BInt<5> as BTryFrom<BInt<4>>>::try_from(signed.0).ok()?;
+        let modulus_wide: BInt<5> = modulus.widen_to().cast_signed();
+        Self::from_wide(
+            signed_wide
+                .checked_rem_euclid(modulus_wide)?
+                .cast_unsigned(),
+        )
+    }
 }
 
 impl From<u32> for UnsignedBigInt {
@@ -282,10 +293,10 @@ mod arbitrary {
 #[allow(clippy::unwrap_used)]
 mod test {
     use num_bigint::BigInt;
-    use num_traits::{Euclid, Num, Zero};
+    use num_traits::{CheckedEuclid, Euclid, Num, Zero};
     use proptest::prelude::*;
 
-    use crate::serialization::SigmaSerializable;
+    use crate::{bigint256::BigInt256, serialization::SigmaSerializable};
 
     use super::UnsignedBigInt;
     // Inefficient impl of UnsignedBigInt -> BigInt, this is only used for tests so should be acceptable
@@ -349,6 +360,12 @@ mod test {
             else if !b.is_zero() {
                 assert!(a_bigint.modinv(&b_bigint).is_none());
             }
+        }
+        #[test]
+        fn to_unsigned_mod(a in any::<BigInt256>(), modulus in any::<UnsignedBigInt>()) {
+            let a_bigint = BigInt::from_str_radix(&a.to_string(), 10).unwrap();
+            let modulus_bigint = to_bigint(modulus);
+            assert_eq!(UnsignedBigInt::from_signed_mod(a, modulus).map(to_bigint), a_bigint.checked_rem_euclid(&modulus_bigint));
         }
     }
 }
