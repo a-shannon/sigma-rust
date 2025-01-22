@@ -8,6 +8,7 @@ use sigma_util::AsVecU8;
 
 use crate::bigint256::BigInt256;
 use crate::chain::ergo_box::ErgoBox;
+use crate::ergo_tree::ErgoTreeVersion;
 use crate::mir::avl_tree_data::AvlTreeData;
 use crate::mir::constant::Literal;
 use crate::mir::constant::TryExtractFromError;
@@ -120,7 +121,9 @@ impl DataSerializer {
             SSigmaProp => {
                 Literal::SigmaProp(Box::new(SigmaProp::new(SigmaBoolean::sigma_parse(r)?)))
             }
-            SUnsignedBigInt => Literal::UnsignedBigInt(UnsignedBigInt::sigma_parse(r)?), // TODO: versioning
+            SUnsignedBigInt if r.tree_version() >= ErgoTreeVersion::V3 => {
+                Literal::UnsignedBigInt(UnsignedBigInt::sigma_parse(r)?)
+            }
             SColl(elem_type) if **elem_type == SByte => {
                 let len = r.get_u16()? as usize;
                 let mut buf = vec![0u8; len];
@@ -156,6 +159,11 @@ impl DataSerializer {
                 // since items types quantity has checked bounds, we can be sure that items count
                 // is correct
                 Literal::Tup(items.try_into()?)
+            }
+            SUnsignedBigInt => {
+                return Err(SigmaParsingError::NotSupported(
+                    "UnsignedBigInt can't be serialized on tree versions < 3",
+                ))
             }
             SBox => Literal::CBox(Arc::new(ErgoBox::sigma_parse(r)?).into()),
             SAvlTree => Literal::AvlTree(Box::new(AvlTreeData::sigma_parse(r)?)),

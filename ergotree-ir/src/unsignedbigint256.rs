@@ -4,7 +4,9 @@ use core::ops::{Div, Mul, Rem};
 use bnum::{types::U256, BInt, BTryFrom, BUint};
 use derive_more::{Add, AddAssign, BitAnd, BitOr, BitXor, Display, From, FromStr, Not, Sub};
 use num_derive::{Num, One, ToPrimitive, Zero};
-use num_traits::{Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub, Signed};
+use num_traits::{
+    Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub, Signed, Zero,
+};
 
 use crate::{
     bigint256::BigInt256,
@@ -40,10 +42,6 @@ pub struct UnsignedBigInt(U256);
 impl UnsignedBigInt {
     /// Create a BigInt256 from a slice of bytes in big-endian format. Returns None if slice.len() > 32 || slice.len() == 0
     pub fn from_be_slice(slice: &[u8]) -> Option<Self> {
-        // match scala implementation which returns exception with empty byte array, whereas bnum returns 0
-        if slice.is_empty() {
-            return None;
-        }
         U256::from_be_slice(slice).map(Self)
     }
     fn widen_to<const N: usize>(&self) -> BUint<N> {
@@ -118,16 +116,20 @@ impl UnsignedBigInt {
     ///
     /// let num = UnsignedBigInt::from_str_radix("ff", 16).unwrap();
     /// let num_bytes = num.to_be_vec();
-    /// assert_eq!(num_bytes, vec![0xff]);
+    /// assert_eq!(num_bytes, [0xff]);
     /// assert_eq!(num, UnsignedBigInt::from_be_slice(&num_bytes).unwrap());
     ///
-    /// let neg = UnsignedBigInt::from_str_radix("1", 16).unwrap();
+    /// let neg = UnsignedBigInt::from_str_radix("0", 16).unwrap();
     /// let neg_bytes = neg.to_be_vec();
-    /// assert_eq!(neg_bytes, vec![0x01]);
+    /// assert_eq!(neg_bytes, Vec::<u8>::new());
     /// assert_eq!(neg, UnsignedBigInt::from_be_slice(&neg_bytes).unwrap());
     /// ```
     pub fn to_be_vec(&self) -> Vec<u8> {
-        self.0.to_radix_be(256)
+        if self.is_zero() {
+            vec![]
+        } else {
+            self.0.to_radix_be(256)
+        }
     }
 
     /// Convert signed 256-bit integer to unsigned using euclidean remainder. The output will be >= 0 && < modulus. Returns None if modulus == 0
@@ -250,15 +252,15 @@ impl SigmaSerializable for UnsignedBigInt {
     fn sigma_parse<R: crate::serialization::sigma_byte_reader::SigmaByteRead>(
         r: &mut R,
     ) -> Result<Self, crate::serialization::SigmaParsingError> {
-        let size = r.get_u16()?;
+        let size = r.get_u16()? as usize;
         if size > 32 {
             return Err(SigmaParsingError::ValueOutOfBounds(format!(
                 "serialized BigInt size {0} bytes exceeds 32",
                 size
             )));
         }
-        let mut buf = vec![0u8; size as usize];
-        r.read_exact(&mut buf)?;
+        let mut buf = [0u8; 32];
+        r.read_exact(&mut buf[32 - size..])?;
         match UnsignedBigInt::from_be_slice(&buf) {
             Some(x) => Ok(x),
             None => Err(SigmaParsingError::ValueOutOfBounds(String::new())),
@@ -296,17 +298,32 @@ mod test {
     use num_traits::{CheckedEuclid, Euclid, Num, Zero};
     use proptest::prelude::*;
 
-    use crate::{bigint256::BigInt256, serialization::SigmaSerializable};
+    use crate::{
+        bigint256::BigInt256,
+        ergo_tree::ErgoTreeVersion,
+        serialization::{sigma_serialize_roundtrip_versioned, SigmaSerializable},
+    };
 
     use super::UnsignedBigInt;
     // Inefficient impl of UnsignedBigInt -> BigInt, this is only used for tests so should be acceptable
     fn to_bigint(num: UnsignedBigInt) -> BigInt {
         BigInt::from_str_radix(&num.to_string(), 10).unwrap()
     }
+    #[test]
+    fn serialize_zero() {
+        // zero is serialized as (length == 0, [])
+        assert_eq!(
+            UnsignedBigInt::from(0).sigma_serialize_bytes().unwrap(),
+            [0]
+        );
+        assert!(UnsignedBigInt::sigma_parse_bytes(&[0]).unwrap().is_zero());
+    }
     proptest! {
         #[test]
         fn ser_roundtrip(v in any ::<UnsignedBigInt>()) {
-            assert_eq!(v, UnsignedBigInt::sigma_parse_bytes(&v.sigma_serialize_bytes().unwrap()).unwrap());
+            (0..ErgoTreeVersion::V3.into()).for_each(
+                |version| assert!(sigma_serialize_roundtrip_versioned(&v, version.into()).is_err()));
+            assert_eq!(v, sigma_serialize_roundtrip_versioned(&v, ErgoTreeVersion::V3).unwrap());
         }
         #[test]
         fn mod_add(a in any::<UnsignedBigInt>(), b in any::<UnsignedBigInt>(), c in any::<UnsignedBigInt>()) {

@@ -139,14 +139,19 @@ impl SigmaSerializable for NonMandatoryRegisters {
         for idx in 0..regs_num {
             let expr = Expr::sigma_parse(r)?;
             let reg_val = match expr {
-                Expr::Const(c) => RegisterValue::Parsed(c),
+                Expr::Const(c) => {
+                    c.tpe.check_v6_type()?;
+                    RegisterValue::Parsed(c)
+                }
                 Expr::Tuple(t) => {
-                    RegisterValue::ParsedTupleExpr(EvaluatedTuple::new(t).map_err(|e| {
+                    let evaluated_tuple = EvaluatedTuple::new(t).map_err(|e| {
                         RegisterValueError::UnexpectedRegisterValue(format!(
                             "error parsing tuple expression from register {0:?}: {e}",
                             RegisterId::try_from(idx)
                         ))
-                    })?)
+                    })?;
+                    evaluated_tuple.as_constant().tpe.check_v6_type()?;
+                    RegisterValue::ParsedTupleExpr(evaluated_tuple)
                 }
                 _ => {
                     return Err(RegisterValueError::UnexpectedRegisterValue(format!(
@@ -283,10 +288,16 @@ pub(crate) mod arbitrary {
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(params: Self::Parameters) -> Self::Strategy {
+            let constant_gen = any::<Constant>()
+                .prop_filter("Filter types that can't be serialized in register", |c| {
+                    c.tpe.check_v6_type().is_ok()
+                })
+                .prop_map(RegisterValue::Parsed);
+
             vec(
                 if params.allow_unparseable {
                     prop_oneof![
-                        any::<Constant>().prop_map(RegisterValue::Parsed),
+                        constant_gen,
                         vec(any::<u8>(), 0..100).prop_map({
                             |bytes| RegisterValue::Invalid {
                                 bytes,
@@ -296,7 +307,7 @@ pub(crate) mod arbitrary {
                     ]
                     .boxed()
                 } else {
-                    any::<Constant>().prop_map(RegisterValue::Parsed).boxed()
+                    constant_gen.boxed()
                 },
                 0..=NonMandatoryRegisterId::NUM_REGS,
             )
@@ -312,8 +323,8 @@ pub(crate) mod arbitrary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(feature = "arbitrary")]
     use crate::serialization::sigma_serialize_roundtrip;
+    use crate::unsignedbigint256::UnsignedBigInt;
     #[cfg(feature = "arbitrary")]
     use proptest::prelude::*;
 
@@ -346,6 +357,17 @@ mod tests {
         fn ser_roundtrip(regs in any::<NonMandatoryRegisters>()) {
             prop_assert_eq![sigma_serialize_roundtrip(&regs), regs];
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_v6_type_reject() {
+        let regs = NonMandatoryRegisters::new([(
+            NonMandatoryRegisterId::R4,
+            Constant::from(UnsignedBigInt::from(1)),
+        )])
+        .unwrap();
+        sigma_serialize_roundtrip(&regs);
     }
 
     #[test]

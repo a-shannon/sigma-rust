@@ -6,7 +6,6 @@ use crate::serialization::SigmaParsingError;
 use crate::serialization::SigmaSerializable;
 use crate::serialization::SigmaSerializeResult;
 use alloc::string::String;
-use alloc::vec::Vec;
 use core::convert::TryFrom;
 use core::fmt;
 use core::hash::BuildHasher;
@@ -44,9 +43,8 @@ impl fmt::Display for ContextExtension {
 impl SigmaSerializable for ContextExtension {
     fn sigma_serialize<W: SigmaByteWrite>(&self, w: &mut W) -> SigmaSerializeResult {
         w.put_u8(self.values.len() as u8)?;
-        let values: Vec<(&u8, &Constant)> = self.values.iter().collect();
-        values.iter().try_for_each(|(idx, c)| {
-            w.put_u8(**idx)?;
+        self.values.iter().try_for_each(|(idx, c)| {
+            w.put_u8(*idx)?;
             c.sigma_serialize(w)
         })?;
         Ok(())
@@ -58,7 +56,9 @@ impl SigmaSerializable for ContextExtension {
             IndexMap::with_capacity_and_hasher(values_count as usize, Default::default());
         for _ in 0..values_count {
             let idx = r.get_u8()?;
-            values.insert(idx, Constant::sigma_parse(r)?);
+            let value = Constant::sigma_parse(r)?;
+            value.tpe.check_v6_type()?;
+            values.insert(idx, value);
         }
         Ok(ContextExtension { values })
     }
@@ -130,16 +130,22 @@ mod arbitrary {
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-            vec(any::<Constant>(), 0..10)
-                .prop_map(|constants| {
-                    let pairs = constants
-                        .into_iter()
-                        .enumerate()
-                        .map(|(idx, c)| (idx as u8, c))
-                        .collect();
-                    Self { values: pairs }
-                })
-                .boxed()
+            vec(
+                any::<Constant>().prop_filter(
+                    "Filter out types that can't be serialized in ContextExtension",
+                    |c| c.tpe.check_v6_type().is_ok(),
+                ),
+                0..10,
+            )
+            .prop_map(|constants| {
+                let pairs = constants
+                    .into_iter()
+                    .enumerate()
+                    .map(|(idx, c)| (idx as u8, c))
+                    .collect();
+                Self { values: pairs }
+            })
+            .boxed()
         }
     }
 }
@@ -149,11 +155,20 @@ mod arbitrary {
 #[allow(clippy::panic, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::serialization::sigma_serialize_roundtrip;
+    use crate::{serialization::sigma_serialize_roundtrip, unsignedbigint256::UnsignedBigInt};
     use proptest::prelude::*;
 
-    proptest! {
+    #[test]
+    #[should_panic]
+    fn test_v6_type_reject() {
+        let mut extension = ContextExtension::empty();
+        extension
+            .values
+            .insert(0, Constant::from(UnsignedBigInt::from(1)));
+        sigma_serialize_roundtrip(&extension);
+    }
 
+    proptest! {
         #[test]
         fn ser_roundtrip(v in any::<ContextExtension>()) {
             prop_assert_eq![sigma_serialize_roundtrip(&v), v];

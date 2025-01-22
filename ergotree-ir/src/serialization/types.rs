@@ -107,7 +107,7 @@ impl TypeCode {
 
     fn get_embeddable_type(
         &self,
-        _activated_version: ErgoTreeVersion,
+        tree_version: ErgoTreeVersion,
     ) -> Result<SType, SigmaParsingError> {
         use SType::*;
         // TODO: UnsignedBigInt
@@ -120,7 +120,7 @@ impl TypeCode {
             TypeCode::SBIGINT => Ok(SBigInt),
             TypeCode::SGROUP_ELEMENT => Ok(SGroupElement),
             TypeCode::SSIGMAPROP => Ok(SSigmaProp),
-            TypeCode::SUNSIGNEDBIGINT => Ok(SUnsignedBigInt),
+            TypeCode::SUNSIGNEDBIGINT if tree_version >= ErgoTreeVersion::V3 => Ok(SUnsignedBigInt),
             _ => Err(SigmaParsingError::InvalidTypeCode(*self as u8)),
         }
     }

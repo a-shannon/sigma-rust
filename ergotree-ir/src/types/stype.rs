@@ -11,6 +11,7 @@ use impl_trait_for_tuples::impl_for_tuples;
 
 use crate::bigint256::BigInt256;
 use crate::chain::ergo_box::ErgoBox;
+use crate::serialization::SigmaParsingError;
 use crate::sigma_protocol::sigma_boolean::SigmaBoolean;
 use crate::sigma_protocol::sigma_boolean::SigmaProofOfKnowledgeTree;
 use crate::sigma_protocol::sigma_boolean::SigmaProp;
@@ -110,6 +111,17 @@ impl SType {
                 | SType::SPreHeader
                 | SType::SGlobal
         )
+    }
+
+    pub(crate) fn check_v6_type(&self) -> Result<(), SigmaParsingError> {
+        match self {
+            SType::SUnsignedBigInt | SType::SOption(_) | SType::SHeader => {
+                Err(SigmaParsingError::V6TypeError)
+            }
+            SType::SColl(elem_tpe) => elem_tpe.check_v6_type(),
+            SType::STuple(tuple) => tuple.items.iter().try_for_each(SType::check_v6_type),
+            _ => Ok(()),
+        }
     }
 
     pub(crate) fn with_subst(&self, subst: &HashMap<STypeVar, SType>) -> Self {

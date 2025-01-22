@@ -1,6 +1,6 @@
 //! Serialization of Ergo types
 use crate::chain::ergo_box::RegisterValueError;
-use crate::ergo_tree::ErgoTreeHeaderError;
+use crate::ergo_tree::{ErgoTreeHeaderError, ErgoTreeVersion};
 use crate::mir::val_def::ValId;
 use crate::mir::{constant::TryExtractFromError, expr::InvalidArgumentError};
 use crate::types::type_unify::TypeUnificationError;
@@ -61,6 +61,9 @@ pub enum SigmaParsingError {
     /// Failed to parse type
     #[error("type parsing error, invalid type code: {0}({0:#04X})")]
     InvalidTypeCode(u8),
+    /// V6 type error
+    #[error("Can't use v6 types (UnsignedBigInt, Header, Option) in ContextExtension/Registers ")]
+    V6TypeError,
     /// Failed to decode VLQ
     #[error("vlq encode error: {0}")]
     VlqEncode(#[from] vlq_encode::VlqEncodingError),
@@ -231,4 +234,18 @@ pub fn sigma_serialize_roundtrip<T: SigmaSerializable>(v: &T) -> T {
     let cursor = Cursor::new(&mut data[..]);
     let mut sr = SigmaByteReader::new(cursor, ConstantStore::empty());
     T::sigma_parse(&mut sr).expect("parse failed")
+}
+
+/// Perform versioned serialization
+pub fn sigma_serialize_roundtrip_versioned<T: SigmaSerializable>(
+    v: &T,
+    tree_version: ErgoTreeVersion,
+) -> Result<T, Box<dyn core::error::Error>> {
+    let mut data = Vec::new();
+    let mut w = SigmaByteWriter::new(&mut data, None);
+    w.with_tree_version(tree_version, |w| v.sigma_serialize(w))?;
+    let cursor = Cursor::new(&mut data[..]);
+    let mut sr = SigmaByteReader::new(cursor, ConstantStore::empty());
+    sr.with_tree_version(tree_version, T::sigma_parse)
+        .map_err(From::from)
 }
