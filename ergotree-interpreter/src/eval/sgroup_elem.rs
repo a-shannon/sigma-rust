@@ -1,10 +1,14 @@
 use crate::eval::EvalError;
 
 use alloc::vec::Vec;
+use ergo_chain_types::ec_point::exponentiate;
 use ergo_chain_types::EcPoint;
+use ergotree_ir::mir::constant::TryExtractInto;
 use ergotree_ir::mir::value::Value;
 use ergotree_ir::reference::Ref;
 use ergotree_ir::serialization::SigmaSerializable;
+use ergotree_ir::unsignedbigint256::UnsignedBigInt;
+use k256::Scalar;
 
 use super::EvalFn;
 
@@ -31,16 +35,52 @@ pub(crate) static NEGATE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
     Ok(Value::GroupElement(Ref::from(negated)))
 };
 
+pub(crate) static EXPONENTIATE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, mut args| {
+    let bigint = args
+        .pop()
+        .ok_or_else(|| EvalError::UnexpectedValue("exponentiate: first argument not found".into()))?
+        .try_extract_into()?;
+    crate::eval::exponentiate::exponentiate(obj.try_extract_into()?, bigint)
+};
+
+pub(crate) static MULTIPLY_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, mut args| {
+    let obj = obj.try_extract_into::<EcPoint>()?;
+    let right = args
+        .pop()
+        .ok_or_else(|| EvalError::UnexpectedValue("exponentiate: first argument not found".into()))?
+        .try_extract_into::<EcPoint>()?;
+    Ok((obj * &right).into())
+};
+
+pub(crate) static EXPONENTIATE_UNSIGNED_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, mut args| {
+    let exponent: Scalar = args
+        .pop()
+        .ok_or_else(|| EvalError::UnexpectedValue("exponentiate: first argument not found".into()))?
+        .try_extract_into::<UnsignedBigInt>()?
+        .into();
+    Ok(exponentiate(&obj.try_extract_into()?, &exponent).into())
+};
+
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 mod tests {
     use alloc::vec::Vec;
+    use ergotree_ir::bigint256::BigInt256;
+    use ergotree_ir::mir::constant::Constant;
+    use ergotree_ir::mir::exponentiate::Exponentiate;
     use ergotree_ir::mir::expr::Expr;
     use ergotree_ir::mir::method_call::MethodCall;
+    use ergotree_ir::mir::multiply_group::MultiplyGroup;
+    use ergotree_ir::mir::value::Value;
     use ergotree_ir::types::sgroup_elem;
+    use ergotree_ir::unsignedbigint256::UnsignedBigInt;
+    use proptest::prelude::*;
+    use proptest::proptest;
 
     use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::tests::try_eval_out_wo_ctx;
+    use crate::sigma_protocol::private_input::DlogProverInput;
     use ergo_chain_types::EcPoint;
     use ergotree_ir::serialization::SigmaSerializable;
     use sigma_test_util::force_any_val;
@@ -74,5 +114,31 @@ mod tests {
         .unwrap()
         .into();
         assert_eq!(-input, eval_out_wo_ctx::<EcPoint>(&expr))
+    }
+
+    proptest! {
+        #[test]
+        fn eval_exponentiate(a in any::<EcPoint>(), b in any::<BigInt256>()) {
+            let mc: Expr = MethodCall::new(Constant::from(a.clone()).into(), sgroup_elem::EXPONENTIATE_METHOD.clone(), vec![Constant::from(b).into()]).unwrap().into();
+            let exponentiate_node: Expr = Exponentiate::new(Constant::from(a).into(), Constant::from(b).into()).unwrap().into();
+            assert_eq!(try_eval_out_wo_ctx::<Value>(&mc), try_eval_out_wo_ctx::<Value>(&exponentiate_node))
+        }
+
+        #[test]
+        fn eval_exponentiate_unsigned(left in any::<EcPoint>(), pi in any::<DlogProverInput>()) {
+            let right = UnsignedBigInt::from_be_slice(&pi.w.as_scalar_ref().to_bytes()[..]).unwrap();
+            let expected_exp = ergo_chain_types::ec_point::exponentiate(
+                &left,
+                pi.w.as_scalar_ref()
+            );
+            let mc: Expr = MethodCall::new(Constant::from(left.clone()).into(), sgroup_elem::EXPONENTIATE_UNSIGNED_METHOD.clone(), vec![Constant::from(right).into()]).unwrap().into();
+            assert_eq!(eval_out_wo_ctx::<EcPoint>(&mc), expected_exp);
+        }
+        #[test]
+        fn eval_multiply(a in any::<EcPoint>(), b in any::<EcPoint>()) {
+            let mc: Expr = MethodCall::new(Constant::from(a.clone()).into(), sgroup_elem::MULTIPLY_METHOD.clone(), vec![Constant::from(b.clone()).into()]).unwrap().into();
+            let multiply_node: Expr = MultiplyGroup::new(Constant::from(a).into(), Constant::from(b).into()).unwrap().into();
+            assert_eq!(try_eval_out_wo_ctx::<Value>(&mc), try_eval_out_wo_ctx::<Value>(&multiply_node))
+        }
     }
 }

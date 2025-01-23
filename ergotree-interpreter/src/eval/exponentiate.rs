@@ -1,7 +1,9 @@
+use ergo_chain_types::EcPoint;
+use ergotree_ir::bigint256::BigInt256;
+use ergotree_ir::mir::constant::TryExtractInto;
 use ergotree_ir::mir::exponentiate::Exponentiate;
 use ergotree_ir::mir::value::Value;
 use ergotree_ir::sigma_protocol::dlog_group;
-use k256::Scalar;
 
 use crate::eval::env::Env;
 use crate::eval::Context;
@@ -14,24 +16,19 @@ impl Evaluable for Exponentiate {
         env: &mut Env<'ctx>,
         ctx: &Context<'ctx>,
     ) -> Result<Value<'ctx>, EvalError> {
-        let left_v = self.left.eval(env, ctx)?;
-        let right_v = self.right.eval(env, ctx)?;
+        let left_v = self.left.eval(env, ctx)?.try_extract_into()?;
+        let right_v = self.right.eval(env, ctx)?.try_extract_into()?;
 
-        let exp_scalar: Option<Scalar> = match right_v.clone() {
-            Value::BigInt(bi) => dlog_group::bigint256_to_scalar(bi),
-            _ => None,
-        };
-
-        match (left_v.clone(), exp_scalar) {
-            (Value::GroupElement(group), Some(exp)) => {
-                Ok(ergo_chain_types::ec_point::exponentiate(&group, &exp).into())
-            }
-            _ => Err(EvalError::UnexpectedValue(format!(
-                "Exponentiate input should be GroupElement, BigInt (positive, <= 256 bit). Received: {0:?}",
-                (left_v, right_v)
-            ))),
-        }
+        exponentiate(left_v, right_v)
     }
+}
+
+pub(crate) fn exponentiate(
+    base: EcPoint,
+    exponent: BigInt256,
+) -> Result<Value<'static>, EvalError> {
+    let exp_scalar = dlog_group::bigint256_to_scalar(exponent);
+    Ok(ergo_chain_types::ec_point::exponentiate(&base, &exp_scalar).into())
 }
 
 #[allow(clippy::unwrap_used)]
@@ -62,7 +59,7 @@ mod tests {
 
             let expected_exp = ergo_chain_types::ec_point::exponentiate(
                 &left,
-                &dlog_group::bigint256_to_scalar(right).unwrap()
+                &dlog_group::bigint256_to_scalar(right)
             );
 
             let expr: Expr = Exponentiate {
@@ -83,7 +80,7 @@ mod tests {
 
         let expected_exp = ergo_chain_types::ec_point::exponentiate(
             &left,
-            &dlog_group::bigint256_to_scalar(right).unwrap(),
+            &dlog_group::bigint256_to_scalar(right),
         );
 
         let expr: Expr = Exponentiate {

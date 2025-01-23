@@ -288,6 +288,11 @@ fn smethod_eval_fn(method: &SMethod) -> Result<EvalFn, EvalError> {
         sgroup_elem::TYPE_CODE => match method.method_id() {
             sgroup_elem::GET_ENCODED_METHOD_ID => self::sgroup_elem::GET_ENCODED_EVAL_FN,
             sgroup_elem::NEGATE_METHOD_ID => self::sgroup_elem::NEGATE_EVAL_FN,
+            sgroup_elem::EXPONENTIATE_METHOD_ID => self::sgroup_elem::EXPONENTIATE_EVAL_FN,
+            sgroup_elem::MULTIPLY_METHOD_ID => self::sgroup_elem::MULTIPLY_EVAL_FN,
+            sgroup_elem::EXPONENTIATE_UNSIGNED_METHOD_ID => {
+                self::sgroup_elem::EXPONENTIATE_UNSIGNED_EVAL_FN
+            }
             method_id => {
                 return Err(EvalError::NotFound(format!(
                     "Eval fn: unknown method id in SGroupElement: {:?}",

@@ -1,8 +1,11 @@
 //! 256-bit unsigned big integer type
+use alloc::vec::Vec;
 use core::ops::{Div, Mul, Rem};
 
-use bnum::{types::U256, BInt, BTryFrom, BUint};
+use bnum::{cast::CastFrom, types::U256, BInt, BTryFrom, BUint};
 use derive_more::{Add, AddAssign, BitAnd, BitOr, BitXor, Display, From, FromStr, Not, Sub};
+use elliptic_curve::ops::Reduce;
+use k256::Scalar;
 use num_derive::{Num, One, ToPrimitive, Zero};
 use num_traits::{
     Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub, Signed, Zero,
@@ -150,6 +153,13 @@ impl From<u32> for UnsignedBigInt {
     }
 }
 
+impl From<UnsignedBigInt> for Scalar {
+    fn from(value: UnsignedBigInt) -> Self {
+        let bytes = *bnum::BUintD8::<32>::cast_from(value.0).to_be().digits();
+        <Scalar as Reduce<k256::U256>>::reduce_bytes(&bytes.into())
+    }
+}
+
 impl TryFrom<UnsignedBigInt> for BigInt256 {
     type Error = &'static str;
 
@@ -263,7 +273,7 @@ impl SigmaSerializable for UnsignedBigInt {
         r.read_exact(&mut buf[32 - size..])?;
         match UnsignedBigInt::from_be_slice(&buf) {
             Some(x) => Ok(x),
-            None => Err(SigmaParsingError::ValueOutOfBounds(String::new())),
+            None => Err(SigmaParsingError::ValueOutOfBounds("".into())),
         }
     }
 }
@@ -294,6 +304,7 @@ mod arbitrary {
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::unwrap_used)]
 mod test {
+    use k256::Scalar;
     use num_bigint::BigInt;
     use num_traits::{CheckedEuclid, Euclid, Num, Zero};
     use proptest::prelude::*;
@@ -301,6 +312,7 @@ mod test {
     use crate::{
         bigint256::BigInt256,
         ergo_tree::ErgoTreeVersion,
+        mir::constant::Constant,
         serialization::{sigma_serialize_roundtrip_versioned, SigmaSerializable},
     };
 
@@ -320,7 +332,15 @@ mod test {
     }
     proptest! {
         #[test]
-        fn ser_roundtrip(v in any ::<UnsignedBigInt>()) {
+        fn to_scalar(s in crate::sigma_protocol::dlog_group::tests::scalar()) {
+            let bytes = s.to_bytes();
+            let bigint = UnsignedBigInt::from_be_slice(&bytes[..]).unwrap();
+            assert_eq!(Scalar::from(bigint), s);
+        }
+
+        #[test]
+        fn ser_roundtrip(v in any::<UnsignedBigInt>()) {
+            let v = Constant::from(v);
             (0..ErgoTreeVersion::V3.into()).for_each(
                 |version| assert!(sigma_serialize_roundtrip_versioned(&v, version.into()).is_err()));
             assert_eq!(v, sigma_serialize_roundtrip_versioned(&v, ErgoTreeVersion::V3).unwrap());
