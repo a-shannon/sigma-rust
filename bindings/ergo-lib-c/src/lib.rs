@@ -46,6 +46,7 @@ mod secret_key;
 mod token;
 mod transaction;
 mod tx_builder;
+mod unsignedbigint256;
 mod wallet;
 
 pub use crate::address::*;
@@ -70,6 +71,7 @@ pub use crate::secret_key::*;
 pub use crate::token::*;
 pub use crate::transaction::*;
 pub use crate::tx_builder::*;
+pub use crate::unsignedbigint256::*;
 pub use crate::wallet::*;
 pub use ergo_lib_c_core::{
     address::{Address, AddressTypePrefix, NetworkPrefix},

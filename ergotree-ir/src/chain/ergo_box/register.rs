@@ -364,7 +364,7 @@ mod tests {
     fn test_v6_type_reject() {
         let regs = NonMandatoryRegisters::new([(
             NonMandatoryRegisterId::R4,
-            Constant::from(UnsignedBigInt::from(1)),
+            Constant::from(UnsignedBigInt::from(1u32)),
         )])
         .unwrap();
         sigma_serialize_roundtrip(&regs);

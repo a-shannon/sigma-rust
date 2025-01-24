@@ -6,6 +6,7 @@ use std::{
 use ergo_lib_c_core::{
     constant::*,
     ergo_box::{ConstErgoBoxPtr, ErgoBoxPtr},
+    unsignedbigint256::{UnsignedBigInt, UnsignedBigIntPtr},
     Error, ErrorPtr,
 };
 use paste::paste;
@@ -147,6 +148,25 @@ pub unsafe extern "C" fn ergo_lib_constant_to_i64(
             error: Error::c_api_from(Err(e)),
         },
     }
+}
+
+/// Create from i64
+#[no_mangle]
+pub unsafe extern "C" fn ergo_lib_constant_from_u256(
+    value: UnsignedBigInt,
+    constant_out: *mut ConstantPtr,
+) {
+    #[allow(clippy::unwrap_used)]
+    constant_from_u256(value, constant_out).unwrap();
+}
+
+/// Extract i64 value, returning error if wrong type
+#[no_mangle]
+pub unsafe extern "C" fn ergo_lib_constant_to_u256(
+    constant_ptr: ConstConstantPtr,
+    u256_out: UnsignedBigIntPtr,
+) -> ErrorPtr {
+    Error::c_api_from(constant_to_u256(constant_ptr, u256_out))
 }
 
 /// Create from byte array

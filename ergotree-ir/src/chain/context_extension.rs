@@ -164,7 +164,7 @@ mod tests {
         let mut extension = ContextExtension::empty();
         extension
             .values
-            .insert(0, Constant::from(UnsignedBigInt::from(1)));
+            .insert(0, Constant::from(UnsignedBigInt::from(1u32)));
         sigma_serialize_roundtrip(&extension);
     }
 

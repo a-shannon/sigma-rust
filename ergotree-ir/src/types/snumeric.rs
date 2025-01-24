@@ -430,7 +430,7 @@ mod test {
             &MethodCall::new(
                 Constant::from(BigInt256::from(1)).into(),
                 TO_UNSIGNED_MOD_METHOD_DESC.as_method(STypeCompanion::SBigInt),
-                vec![Constant::from(UnsignedBigInt::from(1)).into()],
+                vec![Constant::from(UnsignedBigInt::from(1u32)).into()],
             )
             .unwrap(),
         );
@@ -444,7 +444,7 @@ mod test {
             .for_each(|method| {
                 assert_eq!(method.method_raw.tpe.t_dom, [SType::SUnsignedBigInt]);
                 let mc = MethodCall::new(
-                    Constant::from(UnsignedBigInt::from(1)).into(),
+                    Constant::from(UnsignedBigInt::from(1u32)).into(),
                     method,
                     vec![],
                 )
@@ -457,12 +457,15 @@ mod test {
             .map(|m| m.as_method(STypeCompanion::SUnsignedBigInt))
             .for_each(|method| {
                 let args: Vec<Expr> = vec![
-                    Constant::from(UnsignedBigInt::from(1)).into();
+                    Constant::from(UnsignedBigInt::from(1u32)).into();
                     method.method_raw.tpe.t_dom.len() - 1
                 ];
-                let mc =
-                    MethodCall::new(Constant::from(UnsignedBigInt::from(1)).into(), method, args)
-                        .unwrap();
+                let mc = MethodCall::new(
+                    Constant::from(UnsignedBigInt::from(1u32)).into(),
+                    method,
+                    args,
+                )
+                .unwrap();
                 sigma_serialize_roundtrip(&mc);
             });
     }

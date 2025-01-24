@@ -36,6 +36,7 @@ pub mod secret_key;
 pub mod token;
 pub mod transaction;
 pub mod tx_builder;
+pub mod unsignedbigint256;
 pub mod util;
 pub mod wallet;
 pub use crate::error::*;

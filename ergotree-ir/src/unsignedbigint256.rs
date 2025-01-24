@@ -145,10 +145,25 @@ impl UnsignedBigInt {
                 .cast_unsigned(),
         )
     }
+
+    /// Create an `UnsignedBigInt` from limbs stored in little-endian order
+    pub fn from_limbs(limbs: [u64; 4]) -> Self {
+        Self(U256::from(limbs))
+    }
+    /// Convert `self` to underlying digits stored in little-endian order
+    pub fn to_limbs(&self) -> [u64; 4] {
+        *self.0.digits()
+    }
 }
 
 impl From<u32> for UnsignedBigInt {
     fn from(value: u32) -> Self {
+        Self(U256::from(value))
+    }
+}
+
+impl From<u64> for UnsignedBigInt {
+    fn from(value: u64) -> Self {
         Self(U256::from(value))
     }
 }
@@ -325,7 +340,7 @@ mod test {
     fn serialize_zero() {
         // zero is serialized as (length == 0, [])
         assert_eq!(
-            UnsignedBigInt::from(0).sigma_serialize_bytes().unwrap(),
+            UnsignedBigInt::from(0u32).sigma_serialize_bytes().unwrap(),
             [0]
         );
         assert!(UnsignedBigInt::sigma_parse_bytes(&[0]).unwrap().is_zero());
@@ -391,7 +406,7 @@ mod test {
             let inverse = a.mod_inv(b);
             if let Some(inverse) = inverse {
                 let inverse_bigint = a_bigint.modinv(&b_bigint);
-                assert_eq!(a.checked_mod_mul(inverse, b).unwrap(), 1.into());
+                assert_eq!(a.checked_mod_mul(inverse, b).unwrap(), 1u32.into());
                 assert_eq!(to_bigint(inverse), inverse_bigint.unwrap())
             }
             else if !b.is_zero() {

@@ -7,9 +7,7 @@ repository.workspace = true
 edition.workspace = true
 description = "C bindings for ergo-lib"
 # exclude generated C header
-exclude = [
-    "h/*"
-]
+exclude = ["h/*"]
 
 [lib]
 name = "ergo"

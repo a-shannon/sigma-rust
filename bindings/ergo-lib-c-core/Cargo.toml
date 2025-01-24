@@ -23,6 +23,7 @@ url = { workspace = true }
 bounded-integer = { workspace = true }
 serde_with = { workspace = true }
 bounded-vec = { workspace = true, features = ["serde"] }
+num-traits = { workspace = true }
 
 [features]
 default = ["mnemonic_gen", "ergo-lib/compiler", "json"]
