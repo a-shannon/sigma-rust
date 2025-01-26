@@ -4,6 +4,7 @@ use crate::ast::js_conv::constant_from_js;
 use crate::ast::js_conv::constant_to_js;
 use crate::ergo_box::ErgoBox;
 use crate::error_conversion::to_js;
+use crate::unsignedbigint256::UnsignedBigInt;
 use crate::utils::I64;
 use ergo_lib::ergo_chain_types::Base16DecodedBytes;
 use ergo_lib::ergo_chain_types::EcPoint;
@@ -269,6 +270,11 @@ impl Constant {
         let b: ergo_lib::ergotree_ir::chain::ergo_box::ErgoBox = v.clone().into();
         let c: ergo_lib::ergotree_ir::mir::constant::Constant = b.into();
         Constant(c)
+    }
+
+    /// Create from UnsignedBigInt value
+    pub fn from_u256(v: &UnsignedBigInt) -> Constant {
+        Constant(v.0.into())
     }
 
     /// Extract ErgoBox value, returning error if wrong type
