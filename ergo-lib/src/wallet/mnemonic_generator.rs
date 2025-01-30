@@ -29,9 +29,10 @@ pub enum Language {
 }
 
 /// Language error relating to mnemonic generation
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Error)]
 pub enum LanguageError {
     /// Unsupported language when trying to parse `Language` from a string
+    #[error("Invalid language string")]
     InvalidStr,
 }
 
@@ -139,37 +140,38 @@ impl MnemonicGenerator {
     const BITS_GROUP_SIZE: usize = 11;
 
     /// Create new MnemonicGenerator instance
-    pub fn new(lang: Language, strength: u32) -> Self {
-        Self { lang, strength }
-    }
-
-    /// Generate mnemonic sentence using random entrophy
-    pub fn generate(&self) -> Result<String, MnemonicGeneratorError> {
-        if MnemonicGenerator::ALLOWED_STRENGTHS.contains(&self.strength) {
-            let mut entrophy = vec![0; (self.strength / 8) as usize];
-            rand::thread_rng().fill_bytes(entrophy.as_mut_slice());
-            self.from_entrophy(entrophy)
+    pub fn new(lang: Language, strength: u32) -> Result<Self, MnemonicGeneratorError> {
+        if MnemonicGenerator::ALLOWED_STRENGTHS.contains(&strength) {
+            Ok(Self { lang, strength })
         } else {
-            Err(MnemonicGeneratorError::InvalidStrength(self.strength))
+            Err(MnemonicGeneratorError::InvalidStrength(strength))
         }
     }
 
-    /// Generate mnemonic sentence using provided entrophy
-    pub fn from_entrophy(&self, entrophy: Vec<u8>) -> Result<String, MnemonicGeneratorError> {
-        if !MnemonicGenerator::allowed_entrophy_lens().contains(&entrophy.len()) {
-            Err(MnemonicGeneratorError::InvalidEntrophyLen(entrophy.len()))
+    /// Generate mnemonic sentence using random entropy
+    pub fn generate(&self) -> String {
+        let mut entrophy = vec![0; (self.strength / 8) as usize];
+        rand::thread_rng().fill_bytes(entrophy.as_mut_slice());
+        #[allow(clippy::unwrap_used)] // entropy len is checked in constructor
+        self.from_entropy(entrophy).unwrap()
+    }
+
+    /// Generate mnemonic sentence using provided entropy
+    pub fn from_entropy(&self, entropy: Vec<u8>) -> Result<String, MnemonicGeneratorError> {
+        if !MnemonicGenerator::allowed_entrophy_lens().contains(&entropy.len()) {
+            Err(MnemonicGeneratorError::InvalidEntrophyLen(entropy.len()))
         } else {
             let mut hasher = Sha256::new();
-            hasher.update(entrophy.clone());
+            hasher.update(entropy.clone());
 
             let checksum = BitVec::<_, Msb0>::from_vec(hasher.finalize().to_vec());
-            let ent_len = entrophy.len();
-            let mut entrophy_with_checksum = BitVec::<_, Msb0>::from_vec(entrophy);
-            entrophy_with_checksum.append(&mut checksum[..ent_len / 4].into());
+            let ent_len = entropy.len();
+            let mut entropy_with_checksum = BitVec::<_, Msb0>::from_slice(&entropy);
+            entropy_with_checksum.append(&mut checksum[..ent_len / 4].into());
 
             let wl = WordList(self.lang);
             let words = wl.words();
-            let phrase = entrophy_with_checksum
+            let phrase = entropy_with_checksum
                 .chunks(MnemonicGenerator::BITS_GROUP_SIZE)
                 .map(|bv| words[bv.load_be::<usize>()])
                 .collect::<Vec<_>>()
@@ -562,7 +564,7 @@ mod tests {
             .unwrap()
             .0;
         let entrophy = base16::decode(entrophy_str).unwrap();
-        let mnemonic = MnemonicGenerator::new(lang.parse().unwrap(), strength);
+        let mnemonic = MnemonicGenerator::new(lang.parse().unwrap(), strength).unwrap();
 
         assert_eq!(
             base16::encode_lower(&Mnemonic::to_seed(sentence, pass)),
@@ -570,7 +572,7 @@ mod tests {
         );
         assert_eq!(
             mnemonic
-                .from_entrophy(entrophy)
+                .from_entropy(entrophy)
                 .unwrap()
                 .nfkd()
                 .collect::<String>(),
