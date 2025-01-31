@@ -23,6 +23,7 @@ impl MnemonicGenerator {
     }
 
     /// Generate mnemonic sentence using randomly-generated entropy
+    #[pyo3(text_signature = "() -> str")]
     fn generate(&self) -> String {
         self.0.generate()
     }

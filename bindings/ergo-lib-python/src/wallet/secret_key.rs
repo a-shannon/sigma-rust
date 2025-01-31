@@ -22,7 +22,7 @@ impl SecretKey {
     }
     /// Deserialize SecretKey from json
     #[classmethod]
-    #[pyo3(text_signature = "(s: str) -> 'SecretKey'")]
+    #[pyo3(text_signature = "(s: str) -> SecretKey")]
     fn from_json(_: &Bound<'_, PyType>, s: &str) -> Result<Self, JsonError> {
         Ok(Self(serde_json::from_str(s)?))
     }

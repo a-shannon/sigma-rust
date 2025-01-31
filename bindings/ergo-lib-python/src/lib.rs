@@ -19,6 +19,7 @@
 #![deny(clippy::todo)]
 #![deny(clippy::unimplemented)]
 
+mod chain;
 mod errors;
 mod wallet;
 use pyo3::{exceptions::PyValueError, prelude::*};
@@ -30,5 +31,6 @@ pub(crate) fn to_value_error<E: std::error::Error>(e: E) -> PyErr {
 #[pymodule]
 fn ergo_lib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
     wallet::register(m)?;
+    chain::register(m)?;
     Ok(())
 }

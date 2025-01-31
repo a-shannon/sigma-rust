@@ -1,4 +1,4 @@
-use derive_more::From;
+use derive_more::{From, Into};
 use ergo_lib::wallet::derivation_path::{
     self, ChildIndexError, ChildIndexHardened, ChildIndexNormal,
 };
@@ -10,7 +10,7 @@ use crate::to_value_error;
 /// BIP-44 <https://github.com/bitcoin/bips/blob/master/bip-0044.mediawiki>
 /// and EIP-3 <https://github.com/ergoplatform/eips/blob/master/eip-0003.md>
 #[pyclass(frozen, eq)]
-#[derive(PartialEq, Eq, Debug, Clone, From)]
+#[derive(PartialEq, Eq, Debug, Clone, From, Into)]
 pub struct DerivationPath(pub(crate) derivation_path::DerivationPath);
 
 #[pymethods]
