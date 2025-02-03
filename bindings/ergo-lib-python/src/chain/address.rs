@@ -53,7 +53,7 @@ impl From<NetworkPrefix> for address::NetworkPrefix {
  */
 #[pyclass(eq, frozen)]
 #[derive(From, Clone, PartialEq, Eq)]
-pub struct Address(address::Address);
+pub struct Address(pub(crate) address::Address);
 
 #[pymethods]
 impl Address {
