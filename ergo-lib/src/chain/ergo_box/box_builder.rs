@@ -384,7 +384,7 @@ mod tests {
         let token_num_dec = 2;
         let mut box_builder =
             ErgoBoxCandidateBuilder::new(out_box_value, force_any_val::<ErgoTree>(), 0);
-        box_builder.mint_token(token_pair.clone(), token_name, token_desc, token_num_dec);
+        box_builder.mint_token(token_pair, token_name, token_desc, token_num_dec);
         let out_box = box_builder.build().unwrap();
         assert_eq!(out_box.tokens.unwrap().get(0).unwrap(), &token_pair);
         // test registers are encoded according to https://github.com/ergoplatform/eips/blob/master/eip-0004.md
@@ -457,7 +457,7 @@ mod tests {
             let mut box_builder =
                 ErgoBoxCandidateBuilder::new(out_box_value, force_any_val::<ErgoTree>(), 0);
             box_builder.mint_token(
-                token_pair.clone(),
+                token_pair,
                 token_name.clone(),
                 token_desc.clone(),
                 token_num_dec,
@@ -476,7 +476,7 @@ mod tests {
         let out_box_value = BoxValue::SAFE_USER_MIN;
         let mut box_builder =
             ErgoBoxCandidateBuilder::new(out_box_value, force_any_val::<ErgoTree>(), 0);
-        box_builder.add_token(token.clone());
+        box_builder.add_token(token);
         let out_box = box_builder.build().unwrap();
         assert_eq!(out_box.tokens.unwrap().first(), &token);
     }

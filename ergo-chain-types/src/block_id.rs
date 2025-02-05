@@ -1,7 +1,7 @@
 //! Main "remote" type for [BlockId]()
 
 use alloc::{string::String, vec::Vec};
-use derive_more::Display;
+use derive_more::{Display, FromStr};
 
 use crate::DigestNError;
 
@@ -9,7 +9,7 @@ use super::digest32::Digest32;
 
 /// Block id
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
-#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Copy, Clone, Hash, Display)]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Debug, Copy, Clone, Hash, Display, FromStr)]
 pub struct BlockId(pub Digest32);
 
 impl From<BlockId> for Vec<i8> {

@@ -163,7 +163,7 @@ impl<T: ErgoBoxAssets + Clone> BoxSelector<T> for SimpleBoxSelector {
                             .insert(t.token_id, selected_boxes_t_amt.checked_sub(&t.amount)?);
                         Ok(())
                     }
-                    _ => Err(BoxSelectorError::NotEnoughTokens(vec![t.clone()])),
+                    _ => Err(BoxSelectorError::NotEnoughTokens(vec![*t])),
                 }
             })?;
             make_change_boxes(change_value, change_tokens)?
@@ -388,7 +388,7 @@ mod tests {
             let target_token_id = first_input_box_token.token_id;
             let target_token = Token {token_id: target_token_id,
                                       amount: target_token_amount.try_into().unwrap()};
-            let selection = s.select(inputs, target_balance, vec![target_token.clone()].as_slice()).unwrap();
+            let selection = s.select(inputs, target_balance, vec![target_token].as_slice()).unwrap();
             prop_assert!(!selection.change_boxes.is_empty());
             let out_box = ErgoBoxAssetsData {value: target_balance, tokens: vec![target_token].try_into().ok()};
             let mut change_boxes_plus_out = vec![out_box];
@@ -436,7 +436,7 @@ mod tests {
             let target_token_amount: TokenAmount = target_token_amount.try_into().unwrap();
             prop_assume!(input_token_amount >= target_token_amount);
             let target_token = Token {token_id: *target_token_id, amount: target_token_amount};
-            let selection = s.select(inputs, target_balance, vec![target_token.clone()].as_slice()).unwrap();
+            let selection = s.select(inputs, target_balance, vec![target_token].as_slice()).unwrap();
             let out_box = ErgoBoxAssetsData {value: target_balance, tokens: vec![target_token].try_into().ok()};
             let mut change_boxes_plus_out = vec![out_box];
             change_boxes_plus_out.append(&mut selection.change_boxes.clone());
@@ -466,7 +466,7 @@ mod tests {
                                                                                     .cloned().unwrap();
             let input_token_amount = *all_input_tokens.get(target_token_id).unwrap();
             let target_token = Token {token_id: *target_token_id, amount: input_token_amount};
-            let selection = s.select(inputs, target_balance, vec![target_token.clone()].as_slice()).unwrap();
+            let selection = s.select(inputs, target_balance, vec![target_token].as_slice()).unwrap();
             let out_box = ErgoBoxAssetsData {value: target_balance, tokens: vec![target_token].try_into().ok()};
             let mut change_boxes_plus_out = vec![out_box];
             change_boxes_plus_out.append(&mut selection.change_boxes.clone());
@@ -509,7 +509,7 @@ mod tests {
                                              amount: target_token2_amount_part1.try_into().unwrap()};
             let target_token2_part2 = Token {token_id: *target_token2_id,
                                              amount: target_token2_amount_part2.try_into().unwrap()};
-            let target_tokens = vec![target_token1.clone(), target_token2_part1.clone(), target_token2_part2.clone()];
+            let target_tokens = vec![target_token1, target_token2_part1, target_token2_part2];
             let selection = s.select(inputs, target_balance, target_tokens.as_slice()).unwrap();
             let out_box = ErgoBoxAssetsData {value: target_balance,
                                              tokens: BoxTokens::from_vec(vec![target_token1, target_token2_part1, target_token2_part2]).ok()};
@@ -566,7 +566,7 @@ mod tests {
             // take the first token in all input boxes as a target
             // we want to have as much tokens in the change as possible
             let target_tokens = inputs.iter()
-                .map(|b| b.tokens().unwrap().first().clone())
+                .map(|b| *b.tokens().unwrap().first())
                 .collect::<Vec<Token>>();
             let s = SimpleBoxSelector::new();
             let selection = s.select(inputs, target_balance, target_tokens.as_slice()).unwrap();
@@ -588,7 +588,7 @@ mod tests {
                         1000000,
                     );
                     for token in b.tokens().into_iter().flatten() {
-                        candidate.add_token(token.clone());
+                        candidate.add_token(token);
                     }
                     candidate.build()
                 })
@@ -645,7 +645,7 @@ mod tests {
                         1000000,
                     );
                     for token in b.tokens().into_iter().flatten() {
-                        candidate.add_token(token.clone());
+                        candidate.add_token(token);
                     }
                     candidate.build()
                 })

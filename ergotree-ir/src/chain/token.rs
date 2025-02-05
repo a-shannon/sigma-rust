@@ -11,13 +11,14 @@ use super::ergo_box::BoxId;
 use alloc::string::String;
 use alloc::vec::Vec;
 use derive_more::From;
+use derive_more::FromStr;
 use derive_more::Into;
 use ergo_chain_types::{Digest32, DigestNError};
 use sigma_ser::ScorexSerializable;
 use thiserror::Error;
 
 /// newtype for token id
-#[derive(PartialEq, Eq, Hash, Debug, Copy, Clone, From, Into)]
+#[derive(PartialEq, Eq, Hash, Debug, Copy, Clone, From, FromStr, Into)]
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
 pub struct TokenId(Digest32);
 
@@ -170,7 +171,7 @@ impl From<Token> for (Vec<i8>, i64) {
 
 /// Token represented with token id paired with it's amount
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 pub struct Token {
     /// token id
     #[cfg_attr(feature = "json", serde(rename = "tokenId"))]

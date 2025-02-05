@@ -160,12 +160,9 @@ pub unsafe fn ergo_box_candidate_builder_mint_token(
 ) -> Result<(), Error> {
     let builder_mut = mut_ptr_as_mut(builder_mut, "builder_mut")?;
     let token = const_ptr_as_ref(token_ptr, "token_ptr")?;
-    builder_mut.0.mint_token(
-        token.0.clone(),
-        token_name.into(),
-        token_desc.into(),
-        num_decimals,
-    );
+    builder_mut
+        .0
+        .mint_token(token.0, token_name.into(), token_desc.into(), num_decimals);
     Ok(())
 }
 
