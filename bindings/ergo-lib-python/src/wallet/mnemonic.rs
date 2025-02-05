@@ -4,6 +4,8 @@ use ergo_lib::wallet::{self, mnemonic::MnemonicSeed, mnemonic_generator::Languag
 use pyo3::{pyclass, pyfunction, pymethods, PyResult};
 
 use crate::to_value_error;
+/// Create a new MnemonicGenerator. Allowed languages are "english", "chinese_simplified", "chinese_traditional", "french", "italian", "japanese", "korean" and "spanish"
+/// Strength must be atleast 128 bits, allowed values are [128, 160, 192, 224, 256]
 #[pyclass(frozen)]
 pub struct MnemonicGenerator(wallet::mnemonic_generator::MnemonicGenerator);
 
@@ -11,8 +13,6 @@ pub struct MnemonicGenerator(wallet::mnemonic_generator::MnemonicGenerator);
 impl MnemonicGenerator {
     #[new]
     #[pyo3(text_signature = "(language: str, strength: int) -> MnemonicGenerator")]
-    /// Create a new MnemonicGenerator. Allowed languages are "english", "chinese_simplified", "chinese_traditional", "french", "italian", "japanese", "korean" and "spanish"
-    /// Strength must be atleast 128 bits, allowed values are [128, 160, 192, 224, 256]
     fn new(language: &str, strength: u32) -> PyResult<Self> {
         wallet::mnemonic_generator::MnemonicGenerator::new(
             Language::from_str(language).map_err(to_value_error)?,

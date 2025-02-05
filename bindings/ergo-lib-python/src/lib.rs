@@ -7,7 +7,6 @@
 #![deny(unused_mut)]
 #![deny(dead_code)]
 #![deny(unused_imports)]
-#![deny(missing_docs)]
 #![allow(unused_variables)]
 // Clippy warnings
 #![allow(clippy::new_without_default)]
@@ -19,9 +18,12 @@
 #![deny(clippy::todo)]
 #![deny(clippy::unimplemented)]
 
-mod chain;
+pub mod chain;
+mod ergo_tree;
 mod errors;
 mod wallet;
+use ergo_tree::ErgoTree;
+use errors::{JsonException, SigmaSerializationException};
 use pyo3::{exceptions::PyValueError, prelude::*};
 
 // Create python ValueError from generic error
@@ -32,5 +34,11 @@ pub(crate) fn to_value_error<E: std::error::Error>(e: E) -> PyErr {
 fn ergo_lib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
     wallet::register(m)?;
     chain::register(m)?;
+    m.add("JsonException", m.py().get_type::<JsonException>())?;
+    m.add(
+        "SigmaSerializationException",
+        m.py().get_type::<SigmaSerializationException>(),
+    )?;
+    m.add_class::<ErgoTree>()?;
     Ok(())
 }

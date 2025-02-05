@@ -2,7 +2,7 @@ use derive_more::From;
 use ergo_lib::ergotree_ir::chain::address::{self, AddressEncoder};
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 
-use crate::to_value_error;
+use crate::{ergo_tree::ErgoTree, to_value_error};
 #[pyclass(eq, frozen)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkPrefix {
@@ -12,6 +12,7 @@ pub enum NetworkPrefix {
 
 impl From<NetworkPrefix> for address::NetworkPrefix {
     fn from(value: NetworkPrefix) -> Self {
+        #[allow(clippy::unwrap_used)] // All variants of python NetworkPrefix are valid
         address::NetworkPrefix::try_from(value as u8).unwrap()
     }
 }
@@ -95,6 +96,19 @@ impl Address {
             },
         }
     }
+    /// Re-create the address from ErgoTree that was built from the address
+    /// This is the inverse of Address.ergo_tree()
+    #[staticmethod]
+    fn recreate_from_ergo_tree(tree: &ErgoTree) -> PyResult<Self> {
+        address::Address::recreate_from_ergo_tree(&tree.0)
+            .map(Self)
+            .map_err(to_value_error)
+    }
+    /// Create an ErgoTree script from the address
+    fn ergo_tree(&self) -> PyResult<ErgoTree> {
+        self.0.script().map(Into::into).map_err(to_value_error)
+    }
+
     #[pyo3(signature = (network_prefix=NetworkPrefix::Mainnet))]
     fn to_str(&self, network_prefix: NetworkPrefix) -> String {
         AddressEncoder::new(network_prefix.into()).address_to_str(&self.0)

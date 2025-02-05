@@ -1,10 +1,12 @@
-use derive_more::Into;
+use std::str::FromStr;
+
+use derive_more::{From, Into};
 use ergo_lib::ergotree_ir::{chain::token, serialization::SigmaSerializable};
 use pyo3::{exceptions::PyValueError, prelude::*};
 
 use crate::to_value_error;
 #[pyclass(eq, frozen)]
-#[derive(PartialEq, Eq, Clone, Copy, Into)]
+#[derive(PartialEq, Eq, Clone, Copy, From, Into)]
 pub struct Token(token::Token);
 
 #[pymethods]
@@ -34,11 +36,9 @@ impl TokenId {
     #[new]
     fn new(val: &Bound<'_, PyAny>) -> PyResult<Self> {
         match val.extract::<&str>() {
-            Ok(s) => {
-                token::TokenId::sigma_parse_bytes(&base16::decode(&s).map_err(to_value_error)?)
-                    .map_err(to_value_error)
-                    .map(Self)
-            }
+            Ok(s) => token::TokenId::from_str(s)
+                .map_err(to_value_error)
+                .map(Self),
             Err(_) => match val.extract::<&[u8]>() {
                 Ok(bytes) => token::TokenId::sigma_parse_bytes(bytes)
                     .map_err(to_value_error)

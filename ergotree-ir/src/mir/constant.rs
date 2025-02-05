@@ -90,6 +90,44 @@ pub enum Literal {
     Tup(TupleItems<Literal>),
 }
 
+impl Constant {
+    /// Create a new Constant::Coll from an iterator of constants. Returns an error if i is empty (type cannot be inferred), or the type for all values isn't the same
+    pub fn coll_from_iter(
+        i: impl IntoIterator<Item = Constant>,
+    ) -> Result<Constant, TryExtractFromError> {
+        let mut stype: Option<SType> = None;
+        let iter = i
+            .into_iter()
+            .map(|constant| {
+                if let Some(ref stype) = stype {
+                    if constant.tpe != *stype {
+                        return Err(TryExtractFromError(format!(
+                            "Constant.from_iter: expected tpe to be {:?}, found {:?}",
+                            stype, constant.tpe
+                        )));
+                    }
+                } else {
+                    stype = Some(constant.tpe);
+                }
+                Ok(constant.v)
+            })
+            .collect::<Result<Arc<[_]>, TryExtractFromError>>()?;
+        match stype {
+            None => Err(TryExtractFromError(
+                "Constant.from_iter does not support empty iterators".into(),
+            )),
+            Some(SType::SByte) => Ok(Constant {
+                tpe: SType::SColl(SType::SByte.into()),
+                v: Literal::Coll(CollKind::from_collection(SType::SByte, iter)?),
+            }),
+            Some(tpe) => Ok(Constant {
+                tpe: SType::SColl(tpe.clone().into()),
+                v: Literal::Coll(CollKind::from_collection(tpe, iter)?),
+            }),
+        }
+    }
+}
+
 impl core::fmt::Debug for Constant {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         format!("{:?}: {:?}", self.v, self.tpe).fmt(f)
@@ -1171,6 +1209,38 @@ pub mod tests {
             Constant::sigma_parse_bytes(&bytes).unwrap().v,
             Literal::String("�".into())
         );
+    }
+
+    #[test]
+    fn constant_from_iter() {
+        let iter1 = [
+            Constant::from(1i32),
+            Constant::from(2i32),
+            Constant::from(3i32),
+        ];
+        assert_eq!(
+            Constant::coll_from_iter(iter1).unwrap(),
+            Constant {
+                tpe: SType::SColl(SType::SInt.into()),
+                v: Literal::Coll(CollKind::WrappedColl {
+                    elem_tpe: SType::SInt,
+                    items: [
+                        Literal::from(1i32),
+                        Literal::from(2i32),
+                        Literal::from(3i32)
+                    ]
+                    .into()
+                })
+            }
+        );
+        assert!(Constant::coll_from_iter([]).is_err());
+        // tpe mismatch
+        assert!(Constant::coll_from_iter([
+            Constant::from(1i32),
+            Constant::from(2i64),
+            Constant::from(3i64)
+        ])
+        .is_err());
     }
 
     proptest! {

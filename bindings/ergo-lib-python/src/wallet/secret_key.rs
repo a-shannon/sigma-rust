@@ -1,5 +1,5 @@
 use ergo_lib::wallet::secret_key;
-use pyo3::{pyclass, pymethods, types::PyType, Bound, PyResult};
+use pyo3::{pyclass, pymethods, PyResult};
 
 use crate::{errors::JsonError, to_value_error};
 
@@ -21,21 +21,22 @@ impl SecretKey {
         Self(secret_key::SecretKey::random_dht())
     }
     /// Deserialize SecretKey from json
-    #[classmethod]
+    #[staticmethod]
     #[pyo3(text_signature = "(s: str) -> SecretKey")]
-    fn from_json(_: &Bound<'_, PyType>, s: &str) -> Result<Self, JsonError> {
+    fn from_json(s: &str) -> Result<Self, JsonError> {
         Ok(Self(serde_json::from_str(s)?))
     }
     #[pyo3(text_signature = "(self) -> str")]
-    fn json(&self) -> String {
-        serde_json::to_string(&self.0).unwrap()
+    fn json(&self) -> PyResult<String> {
+        serde_json::to_string(&self.0)
+            .map_err(JsonError::from)
+            .map_err(Into::into)
     }
-    #[pyo3(text_signature = "(self): bytes")]
-    fn to_bytes(&self) -> Vec<u8> {
+    fn __bytes__(&self) -> Vec<u8> {
         self.0.to_bytes()
     }
     #[staticmethod]
-    #[pyo3(text_signature = "(bytes): 'SecretKey'")]
+    #[pyo3(text_signature = "(bytes: bytes) -> SecretKey")]
     fn from_bytes(bytes: &[u8]) -> PyResult<SecretKey> {
         secret_key::SecretKey::from_bytes(bytes)
             .map(Self)
