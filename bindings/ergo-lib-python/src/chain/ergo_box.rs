@@ -94,7 +94,7 @@ impl ErgoBoxCandidate {
 
 #[pyclass(eq)]
 #[derive(PartialEq, Eq, Clone)]
-pub struct ErgoBox(ergo_box::ErgoBox);
+pub struct ErgoBox(pub ergo_box::ErgoBox);
 
 #[pymethods]
 impl ErgoBox {

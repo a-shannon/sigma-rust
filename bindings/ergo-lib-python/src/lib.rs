@@ -21,7 +21,7 @@
 pub mod chain;
 mod ergo_tree;
 mod errors;
-mod wallet;
+pub mod wallet;
 use ergo_tree::ErgoTree;
 use errors::{JsonException, SigmaSerializationException};
 use pyo3::{exceptions::PyValueError, prelude::*};

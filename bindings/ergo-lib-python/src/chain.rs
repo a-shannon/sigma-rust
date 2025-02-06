@@ -1,11 +1,13 @@
 pub mod address;
 pub mod constant;
-mod ergo_box;
+pub mod context_extension;
+pub mod ergo_box;
 pub mod header;
-mod token;
+pub mod token;
 
 use address::{Address, NetworkPrefix};
 use constant::Constant;
+use context_extension::ContextExtension;
 use ergo_box::{BoxId, ErgoBox, ErgoBoxCandidate, NonMandatoryRegisterId};
 use header::{BlockId, Header, PreHeader};
 use pyo3::prelude::*;
@@ -23,5 +25,6 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BlockId>()?;
     m.add_class::<Header>()?;
     m.add_class::<PreHeader>()?;
+    m.add_class::<ContextExtension>()?;
     Ok(())
 }

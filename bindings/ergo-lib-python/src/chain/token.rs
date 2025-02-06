@@ -7,7 +7,7 @@ use pyo3::{exceptions::PyValueError, prelude::*};
 use crate::to_value_error;
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, Clone, Copy, From, Into)]
-pub struct Token(token::Token);
+pub struct Token(pub token::Token);
 
 #[pymethods]
 impl Token {
