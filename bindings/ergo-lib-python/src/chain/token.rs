@@ -27,8 +27,8 @@ impl Token {
     }
 }
 
-#[pyclass(eq)]
-#[derive(PartialEq, Eq, Clone, Copy)]
+#[pyclass(eq, frozen, hash)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash)]
 pub struct TokenId(token::TokenId);
 
 #[pymethods]

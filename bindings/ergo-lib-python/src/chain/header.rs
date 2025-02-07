@@ -96,7 +96,7 @@ impl Header {
 /// Block header with the current `spendingTransaction`, that can be predicted
 /// by a miner before it's formation
 #[pyclass(eq)]
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, From, Into)]
 pub struct PreHeader(InnerPreHeader);
 
 #[pymethods]
