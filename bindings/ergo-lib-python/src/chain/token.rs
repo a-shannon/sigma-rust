@@ -5,6 +5,8 @@ use ergo_lib::ergotree_ir::{chain::token, serialization::SigmaSerializable};
 use pyo3::{exceptions::PyValueError, prelude::*};
 
 use crate::to_value_error;
+
+use super::ergo_box::BoxId;
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, Clone, Copy, From, Into)]
 pub struct Token(pub token::Token);
@@ -35,17 +37,20 @@ pub struct TokenId(token::TokenId);
 impl TokenId {
     #[new]
     fn new(val: &Bound<'_, PyAny>) -> PyResult<Self> {
-        match val.extract::<&str>() {
-            Ok(s) => token::TokenId::from_str(s)
-                .map_err(to_value_error)
-                .map(Self),
-            Err(_) => match val.extract::<&[u8]>() {
-                Ok(bytes) => token::TokenId::sigma_parse_bytes(bytes)
+        match val.extract::<BoxId>() {
+            Ok(box_id) => Ok(TokenId(token::TokenId::from(box_id.0))),
+            Err(e) => match val.extract::<&str>() {
+                Ok(s) => token::TokenId::from_str(s)
                     .map_err(to_value_error)
                     .map(Self),
-                Err(_) => Err(PyValueError::new_err(
-                    "TokenId.new: missing bytes or str argument",
-                )),
+                Err(_) => match val.extract::<&[u8]>() {
+                    Ok(bytes) => token::TokenId::sigma_parse_bytes(bytes)
+                        .map_err(to_value_error)
+                        .map(Self),
+                    Err(_) => Err(PyValueError::new_err(
+                        "TokenId.new: missing bytes or str argument",
+                    )),
+                },
             },
         }
     }

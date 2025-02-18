@@ -1,3 +1,4 @@
+use derive_more::{From, Into};
 use ergo_lib::chain::ergo_state_context::ErgoStateContext as ErgoStateContextInner;
 use pyo3::prelude::*;
 
@@ -7,7 +8,7 @@ use super::{
 };
 
 #[pyclass(eq)]
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, From, Into)]
 pub struct ErgoStateContext(ErgoStateContextInner);
 
 #[pymethods]

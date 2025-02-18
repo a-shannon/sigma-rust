@@ -1,4 +1,4 @@
-use derive_more::From;
+use derive_more::{From, Into};
 use ergo_lib::ergotree_ir::chain::address::{self, AddressEncoder};
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 
@@ -53,8 +53,8 @@ impl From<NetworkPrefix> for address::NetworkPrefix {
  * ?  - P2S (4MQyML64GnzMxZgm, BxKBaHkvrTvLZrDcZjcsxsF7aSsrN73ijeFZXtbj4CXZHHcvBtqSxQ)
  */
 #[pyclass(eq, frozen)]
-#[derive(From, Clone, PartialEq, Eq)]
-pub struct Address(pub(crate) address::Address);
+#[derive(From, Into, Clone, PartialEq, Eq)]
+pub(crate) struct Address(pub(crate) address::Address);
 
 #[pymethods]
 impl Address {

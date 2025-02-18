@@ -14,6 +14,18 @@ create_exception!(
     PyException,
     "Error during sigma serialization"
 );
+create_exception!(
+    ergo_lib_python,
+    SigmaParsingException,
+    PyException,
+    "Error during sigma serialization"
+);
+create_exception!(
+    ergo_lib_python,
+    WalletException,
+    PyException,
+    "error during wallet-related operation"
+);
 
 #[derive(From)]
 pub struct SigmaSerializationError(serialization::SigmaSerializationError);
@@ -24,9 +36,25 @@ impl From<SigmaSerializationError> for PyErr {
 }
 
 #[derive(From)]
+pub struct SigmaParsingError(serialization::SigmaParsingError);
+impl From<SigmaParsingError> for PyErr {
+    fn from(err: SigmaParsingError) -> Self {
+        SigmaParsingException::new_err(err.0.to_string())
+    }
+}
+
+#[derive(From)]
 pub struct JsonError(serde_json::Error);
 impl From<JsonError> for PyErr {
     fn from(err: JsonError) -> Self {
         JsonException::new_err(err.0.to_string())
+    }
+}
+
+#[derive(From)]
+pub struct WalletError(ergo_lib::wallet::WalletError);
+impl From<WalletError> for PyErr {
+    fn from(err: WalletError) -> Self {
+        WalletException::new_err(err.0.to_string())
     }
 }

@@ -21,9 +21,11 @@
 pub mod chain;
 mod ergo_tree;
 mod errors;
+pub mod sigma_boolean;
+pub mod transaction;
 pub mod wallet;
 use ergo_tree::ErgoTree;
-use errors::{JsonException, SigmaSerializationException};
+use errors::{JsonException, SigmaParsingException, SigmaSerializationException, WalletException};
 use pyo3::{exceptions::PyValueError, prelude::*};
 
 // Create python ValueError from generic error
@@ -34,11 +36,18 @@ pub(crate) fn to_value_error<E: std::error::Error>(e: E) -> PyErr {
 fn ergo_lib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
     wallet::register(m)?;
     chain::register(m)?;
+    transaction::register(m)?;
+    sigma_boolean::register(m)?;
     m.add("JsonException", m.py().get_type::<JsonException>())?;
     m.add(
         "SigmaSerializationException",
         m.py().get_type::<SigmaSerializationException>(),
     )?;
+    m.add(
+        "SigmaSerializationException",
+        m.py().get_type::<SigmaParsingException>(),
+    )?;
+    m.add("WalletException", m.py().get_type::<WalletException>())?;
     m.add_class::<ErgoTree>()?;
     Ok(())
 }

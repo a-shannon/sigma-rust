@@ -1,14 +1,22 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 use derive_more::{From, Into};
 use ergo_lib::{
     chain::ergo_box::box_builder::ErgoBoxCandidateBuilder,
-    ergotree_ir::chain::ergo_box::{self, box_value::BoxValue},
+    ergotree_ir::{
+        chain::ergo_box::{self, box_value::BoxValue},
+        serialization::SigmaSerializable,
+    },
 };
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 use serde_pyobject::from_pyobject;
 
-use crate::{ergo_tree::ErgoTree, errors::JsonError, to_value_error};
+use crate::{
+    ergo_tree::ErgoTree,
+    errors::{JsonError, SigmaSerializationError},
+    to_value_error,
+    transaction::TxId,
+};
 
 use super::{address::Address, constant::Constant, token::Token};
 
@@ -47,7 +55,34 @@ impl From<NonMandatoryRegisterId> for ergo_box::NonMandatoryRegisterId {
 /// Identifier of an :class:`ErgoBox`
 #[pyclass(str = "{0}", eq)]
 #[derive(PartialEq, Eq, Clone, Copy, From, Into)]
-pub struct BoxId(ergo_box::BoxId);
+pub struct BoxId(pub ergo_box::BoxId);
+
+#[pymethods]
+impl BoxId {
+    #[new]
+    fn new(val: &Bound<'_, PyAny>) -> PyResult<Self> {
+        match val.extract::<&str>() {
+            Ok(s) => ergo_box::BoxId::from_str(s)
+                .map_err(to_value_error)
+                .map(Self),
+            Err(_) => match val.extract::<&[u8]>() {
+                Ok(bytes) => ergo_box::BoxId::sigma_parse_bytes(bytes)
+                    .map_err(to_value_error)
+                    .map(Self),
+                Err(_) => Err(PyValueError::new_err(
+                    "TokenId.new: missing bytes or str argument",
+                )),
+            },
+        }
+    }
+    fn __bytes__(&self) -> Vec<u8> {
+        #[allow(clippy::unwrap_used)]
+        self.0.sigma_serialize_bytes().unwrap()
+    }
+    fn __repr__(&self) -> String {
+        format!("{:?}", self.0)
+    }
+}
 
 #[pyclass(eq)]
 #[derive(Clone, PartialEq, Eq, From, Into, Debug)]
@@ -56,7 +91,7 @@ pub struct ErgoBoxCandidate(ergo_box::ErgoBoxCandidate);
 #[pymethods]
 impl ErgoBoxCandidate {
     #[new]
-    #[pyo3(signature=(*, value, address=None, ergo_tree=None, creation_height, tokens=None, registers=None))]
+    #[pyo3(signature=(*, value, address=None, ergo_tree=None, creation_height, tokens=None, registers=None, mint_token= None, mint_token_name = None, mint_token_desc=None, mint_token_decimals=None))]
     fn new(
         value: u64,
         address: Option<Address>,
@@ -64,6 +99,10 @@ impl ErgoBoxCandidate {
         creation_height: u32,
         tokens: Option<Vec<Token>>,
         registers: Option<HashMap<NonMandatoryRegisterId, Constant>>,
+        mint_token: Option<Token>,
+        mint_token_name: Option<&str>,
+        mint_token_desc: Option<&str>,
+        mint_token_decimals: Option<usize>,
     ) -> PyResult<Self> {
         // TODO: maybe take only one argument (Address | ErgoTree)
         let tree = address
@@ -85,6 +124,22 @@ impl ErgoBoxCandidate {
         for (id, value) in registers.into_iter().flatten() {
             builder.set_register_value(id.into(), value.into());
         }
+        if let Some(mint_token) = mint_token {
+            (|| {
+                builder.mint_token(
+                    mint_token.into(),
+                    mint_token_name?.into(),
+                    mint_token_desc?.into(),
+                    mint_token_decimals?,
+                );
+                Some(())
+            })()
+            .ok_or_else(|| {
+                PyValueError::new_err(
+                    "Expected mint_token_name, mint_token_desc, mint_token_decimals",
+                )
+            })?;
+        }
         builder.build().map(Self).map_err(to_value_error)
     }
     fn __repr__(&self) -> String {
@@ -93,7 +148,7 @@ impl ErgoBoxCandidate {
 }
 
 #[pyclass(eq)]
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Clone, From, Into)]
 pub struct ErgoBox(pub ergo_box::ErgoBox);
 
 #[pymethods]
@@ -148,6 +203,13 @@ impl ErgoBox {
     fn json(&self) -> PyResult<String> {
         serde_json::to_string(&self.0)
             .map_err(JsonError::from)
+            .map_err(Into::into)
+    }
+    #[staticmethod]
+    fn from_box_candidate(candidate: ErgoBoxCandidate, tx_id: TxId, index: u16) -> PyResult<Self> {
+        ergo_box::ErgoBox::from_box_candidate(&candidate.into(), tx_id.into(), index)
+            .map(Into::into)
+            .map_err(SigmaSerializationError::from)
             .map_err(Into::into)
     }
     #[staticmethod]

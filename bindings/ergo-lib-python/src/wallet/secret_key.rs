@@ -1,3 +1,4 @@
+use derive_more::{From, Into};
 use ergo_lib::wallet::secret_key;
 use pyo3::{pyclass, pymethods, PyResult};
 
@@ -5,7 +6,7 @@ use crate::{errors::JsonError, to_value_error};
 
 /// Secret Key
 #[pyclass(eq, frozen, str = "{0:?}")]
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, From, Into)]
 pub struct SecretKey(secret_key::SecretKey);
 
 #[pymethods]
