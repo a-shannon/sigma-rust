@@ -38,6 +38,7 @@ impl Wallet {
     fn add_secret(&mut self, secret: SecretKey) {
         self.0.add_secret(secret.into());
     }
+    #[pyo3(signature = (tx, boxes_to_spend=vec![], data_boxes=vec![], state_context=None))]
     fn sign_transaction(
         &self,
         tx: &Bound<'_, PyAny>,

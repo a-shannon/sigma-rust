@@ -2,7 +2,10 @@ use derive_more::{From, Into};
 use ergo_lib::ergotree_ir::{ergo_tree, serialization::SigmaSerializable};
 use pyo3::prelude::*;
 
-use crate::{errors::SigmaSerializationError, to_value_error};
+use crate::{
+    errors::{SigmaParsingError, SigmaSerializationError},
+    to_value_error,
+};
 
 use super::chain::constant::Constant;
 
@@ -34,7 +37,8 @@ impl ErgoTree {
     fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
         ergo_tree::ErgoTree::sigma_parse_bytes(bytes)
             .map(Self)
-            .map_err(to_value_error)
+            .map_err(SigmaParsingError::from)
+            .map_err(Into::into)
     }
     fn __bytes__(&self) -> PyResult<Vec<u8>> {
         self.0

@@ -57,7 +57,7 @@ impl TxId {
 
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, Clone, From, Into)]
-pub struct UnsignedTransaction(UnsignedTransactionInner);
+pub struct UnsignedTransaction(pub UnsignedTransactionInner);
 
 #[pymethods]
 impl UnsignedTransaction {

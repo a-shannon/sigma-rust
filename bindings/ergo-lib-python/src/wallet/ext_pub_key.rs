@@ -1,5 +1,6 @@
 use super::derivation_path::DerivationPath;
 use crate::chain::address::Address;
+use crate::chain::ec_point::EcPoint;
 use crate::to_value_error;
 use derive_more::From;
 use ergo_lib::wallet::ext_pub_key::{self, ChainCode, PubKeyBytes};
@@ -15,7 +16,7 @@ pub struct ExtPubKey(ext_pub_key::ExtPubKey);
 impl ExtPubKey {
     /// Create new ExtPubKey from SEC-1 encoded compressed public key, chain code and derivation path
     #[new]
-    pub fn new(
+    fn new(
         public_key_bytes: &[u8],
         chain_code: &[u8],
         derivation_path: &DerivationPath,
@@ -31,29 +32,32 @@ impl ExtPubKey {
             .map_err(to_value_error)?,
         ))
     }
-    pub fn address(&self) -> Address {
+    fn public_key(&self) -> EcPoint {
+        self.0.public_key.clone().into()
+    }
+    fn address(&self) -> Address {
         address::Address::from(self.0.clone()).into()
     }
     /// Derive child public key with the given index
-    pub fn child(&self, index: u32) -> PyResult<ExtPubKey> {
+    fn child(&self, index: u32) -> PyResult<ExtPubKey> {
         let index = ChildIndexNormal::normal(index).map_err(to_value_error)?;
         Ok(self.0.child(index).into())
     }
 
     /// Derive a new extended pub key from the derivation path
-    pub fn derive(&self, path: DerivationPath) -> PyResult<ExtPubKey> {
+    fn derive(&self, path: DerivationPath) -> PyResult<ExtPubKey> {
         Ok(self.0.derive(path.into()).map_err(to_value_error)?.into())
     }
 
     /// Chain code of the `ExtPubKey`
     #[getter]
-    pub fn chain_code(&self) -> Vec<u8> {
+    fn chain_code(&self) -> Vec<u8> {
         self.0.chain_code().into()
     }
 
     /// Public key bytes of the `ExtPubKey`
     #[getter]
-    pub fn pub_key_bytes(&self) -> Vec<u8> {
+    fn pub_key_bytes(&self) -> Vec<u8> {
         self.0.pub_key_bytes().into()
     }
 }

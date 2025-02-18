@@ -10,7 +10,12 @@ use pyo3::{
     types::{PyFloat, PyInt, PyTuple},
 };
 
-use crate::{errors::SigmaSerializationError, to_value_error};
+use crate::{
+    errors::{SigmaParsingError, SigmaSerializationError},
+    to_value_error,
+};
+
+use super::ec_point::EcPoint;
 /// Constant value that can be used in ErgoBox registers, ErgoTree constants and ContextExtension
 #[pyclass(eq)]
 #[derive(PartialEq, Eq, Clone, Debug, From, Into)]
@@ -34,9 +39,13 @@ impl Constant {
                         )
                         .map_err(to_value_error)?,
                     )),
-                    Err(e) => Err(PyValueError::new_err(
-                        "Constant.new expected bytes, array of Constants, or tuple of Constants",
-                    )),
+                    Err(e) => match arg.extract::<EcPoint>() {
+                        Ok(ec_point) => Ok(Self(constant::Constant::from(ec_point.0))),
+                        Err(e) => Err(PyValueError::new_err(
+                            "Constant.new expected bytes, array of Constants, or tuple of Constants",
+                        )),
+                    }
+
                 },
             },
         }
@@ -70,7 +79,8 @@ impl Constant {
     fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
         constant::Constant::sigma_parse_bytes(bytes)
             .map(Self)
-            .map_err(to_value_error)
+            .map_err(SigmaParsingError::from)
+            .map_err(Into::into)
     }
 
     fn __repr__(&self) -> String {

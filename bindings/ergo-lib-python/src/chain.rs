@@ -1,6 +1,7 @@
 pub mod address;
 pub mod constant;
 pub mod context_extension;
+pub mod ec_point;
 pub mod ergo_box;
 pub mod ergo_state_context;
 pub mod header;
@@ -10,6 +11,7 @@ pub mod token;
 use address::{Address, NetworkPrefix};
 use constant::Constant;
 use context_extension::ContextExtension;
+use ec_point::EcPoint;
 use ergo_box::{BoxId, ErgoBox, ErgoBoxCandidate, NonMandatoryRegisterId};
 use ergo_state_context::ErgoStateContext;
 use header::{BlockId, Header, PreHeader};
@@ -19,6 +21,7 @@ use token::{Token, TokenId};
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NetworkPrefix>()?;
     m.add_class::<Address>()?;
+    m.add_class::<EcPoint>()?;
     m.add_class::<ErgoBoxCandidate>()?;
     m.add_class::<ErgoBox>()?;
     m.add_class::<BoxId>()?;
