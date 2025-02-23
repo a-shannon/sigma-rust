@@ -91,11 +91,13 @@ pub enum Literal {
 }
 
 impl Constant {
-    /// Create a new Constant::Coll from an iterator of constants. Returns an error if i is empty (type cannot be inferred), or the type for all values isn't the same
+    /// Create a new Constant::Coll from an iterator of constants.
+    /// Returns an error if i is empty and tpe is not provided (type cannot be inferred), or the type for all values isn't the same
     pub fn coll_from_iter(
         i: impl IntoIterator<Item = Constant>,
+        elem_tpe: Option<SType>,
     ) -> Result<Constant, TryExtractFromError> {
-        let mut stype: Option<SType> = None;
+        let mut stype: Option<SType> = elem_tpe;
         let iter = i
             .into_iter()
             .map(|constant| {
@@ -1219,7 +1221,7 @@ pub mod tests {
             Constant::from(3i32),
         ];
         assert_eq!(
-            Constant::coll_from_iter(iter1).unwrap(),
+            Constant::coll_from_iter(iter1, None).unwrap(),
             Constant {
                 tpe: SType::SColl(SType::SInt.into()),
                 v: Literal::Coll(CollKind::WrappedColl {
@@ -1233,13 +1235,17 @@ pub mod tests {
                 })
             }
         );
-        assert!(Constant::coll_from_iter([]).is_err());
+        assert!(Constant::coll_from_iter([], None).is_err());
+        assert!(Constant::coll_from_iter([], Some(SType::SBoolean)).is_ok());
         // tpe mismatch
-        assert!(Constant::coll_from_iter([
-            Constant::from(1i32),
-            Constant::from(2i64),
-            Constant::from(3i64)
-        ])
+        assert!(Constant::coll_from_iter(
+            [
+                Constant::from(1i32),
+                Constant::from(2i64),
+                Constant::from(3i64)
+            ],
+            None
+        )
         .is_err());
     }
 

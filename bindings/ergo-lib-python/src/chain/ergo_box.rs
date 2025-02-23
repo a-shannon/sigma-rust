@@ -4,7 +4,7 @@ use derive_more::{From, Into};
 use ergo_lib::{
     chain::ergo_box::box_builder::ErgoBoxCandidateBuilder,
     ergotree_ir::{
-        chain::ergo_box::{self, box_value::BoxValue},
+        chain::ergo_box::{self, box_value::BoxValue, NonMandatoryRegisters},
         serialization::SigmaSerializable,
     },
 };
@@ -13,7 +13,7 @@ use serde_pyobject::from_pyobject;
 
 use crate::{
     ergo_tree::ErgoTree,
-    errors::{JsonError, SigmaSerializationError},
+    errors::{JsonError, SigmaParsingError, SigmaSerializationError},
     to_value_error,
     transaction::TxId,
 };
@@ -90,6 +90,7 @@ pub struct ErgoBoxCandidate(ergo_box::ErgoBoxCandidate);
 
 #[pymethods]
 impl ErgoBoxCandidate {
+    #[allow(clippy::too_many_arguments)]
     #[new]
     #[pyo3(signature=(*, value, address=None, ergo_tree=None, creation_height, tokens=None, registers=None, mint_token= None, mint_token_name = None, mint_token_desc=None, mint_token_decimals=None))]
     fn new(
@@ -142,6 +143,32 @@ impl ErgoBoxCandidate {
         }
         builder.build().map(Self).map_err(to_value_error)
     }
+    #[getter]
+    fn value(&self) -> u64 {
+        *self.0.value.as_u64()
+    }
+    #[getter]
+    fn creation_height(&self) -> u32 {
+        self.0.creation_height
+    }
+    #[getter]
+    fn tokens(&self) -> Vec<Token> {
+        self.0
+            .tokens
+            .iter()
+            .flatten()
+            .copied()
+            .map(Into::into)
+            .collect()
+    }
+    #[getter]
+    fn registers(&self) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
+        extract_registers(&self.0.additional_registers)
+    }
+    #[getter]
+    fn ergo_tree(&self) -> ErgoTree {
+        self.0.ergo_tree.clone().into()
+    }
     fn __repr__(&self) -> String {
         format!("{:?}", self.0)
     }
@@ -183,17 +210,7 @@ impl ErgoBox {
     }
     #[getter]
     fn registers(&self) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
-        ergo_box::NonMandatoryRegisterId::REG_IDS
-            .into_iter()
-            .flat_map(|id| {
-                Some((
-                    NonMandatoryRegisterId::from(id),
-                    self.0.additional_registers.get_constant(id).transpose()?,
-                ))
-            })
-            .map(|(id, val)| val.map(|val| (id, val.into())))
-            .collect::<Result<_, _>>()
-            .map_err(to_value_error)
+        extract_registers(&self.0.additional_registers)
     }
     #[getter]
     fn ergo_tree(&self) -> ErgoTree {
@@ -216,7 +233,36 @@ impl ErgoBox {
     fn from_json(json: &str) -> PyResult<Self> {
         Ok(Self(serde_json::from_str(json).map_err(JsonError::from)?))
     }
+    #[staticmethod]
+    fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
+        ergo_box::ErgoBox::sigma_parse_bytes(bytes)
+            .map(Self)
+            .map_err(SigmaParsingError::from)
+            .map_err(Into::into)
+    }
+    fn __bytes__(&self) -> PyResult<Vec<u8>> {
+        self.0
+            .sigma_serialize_bytes()
+            .map_err(SigmaSerializationError::from)
+            .map_err(Into::into)
+    }
     fn __repr__(&self) -> String {
         format!("{:?}", self.0)
     }
+}
+
+fn extract_registers(
+    additional_registers: &NonMandatoryRegisters,
+) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
+    ergo_box::NonMandatoryRegisterId::REG_IDS
+        .into_iter()
+        .flat_map(|id| {
+            Some((
+                NonMandatoryRegisterId::from(id),
+                additional_registers.get_constant(id).transpose()?,
+            ))
+        })
+        .map(|(id, val)| val.map(|val| (id, val.into())))
+        .collect::<Result<_, _>>()
+        .map_err(to_value_error)
 }

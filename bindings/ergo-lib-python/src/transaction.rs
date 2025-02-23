@@ -23,7 +23,7 @@ use crate::{
 };
 
 pub mod data_input;
-mod input;
+pub mod input;
 pub mod tx_builder;
 
 #[pyclass(eq, frozen, hash, str = "{0}")]
@@ -75,12 +75,15 @@ impl UnsignedTransaction {
         .map(Self)
         .map_err(to_value_error)
     }
+    #[getter]
     fn id(&self) -> TxId {
         self.0.id().into()
     }
+    #[getter]
     fn inputs(&self) -> Vec<UnsignedInput> {
         self.0.inputs.iter().cloned().map(Into::into).collect()
     }
+    #[getter]
     fn data_inputs(&self) -> Vec<DataInput> {
         self.0
             .data_inputs
@@ -91,6 +94,7 @@ impl UnsignedTransaction {
             .map(Into::into)
             .collect()
     }
+    #[getter]
     fn output_candidates(&self) -> Vec<ErgoBoxCandidate> {
         self.0
             .output_candidates
@@ -243,6 +247,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ProverResult>()?;
     m.add_class::<UnsignedTransaction>()?;
     m.add_class::<Transaction>()?;
+    m.add_class::<ReducedTransaction>()?;
     m.add_class::<TxBuilder>()?;
     m.add_class::<TxId>()?;
     Ok(())

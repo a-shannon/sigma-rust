@@ -293,6 +293,21 @@ impl HintsBag {
             .collect()
     }
 
+    /// SimulatedCommitment hints only
+    pub fn simulated_commitments(&self) -> Vec<SimulatedCommitment> {
+        self.hints
+            .clone()
+            .into_iter()
+            .filter_map(|hint| {
+                if let Hint::CommitmentHint(CommitmentHint::SimulatedCommitment(v)) = hint {
+                    Some(v)
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
     /// OwnCommitment hints only
     pub fn own_commitments(&self) -> Vec<OwnCommitment> {
         self.hints

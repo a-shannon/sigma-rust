@@ -48,6 +48,13 @@ impl Input {
     fn new(box_id: BoxId, spending_proof: ProverResult) -> Self {
         Input(InputInner::new(box_id.into(), spending_proof.into()))
     }
+    #[staticmethod]
+    fn from_unsigned_input(unsigned_input: UnsignedInput, proof_bytes: Vec<u8>) -> Self {
+        Input(InputInner::from_unsigned_input(
+            unsigned_input.into(),
+            proof_bytes.into(),
+        ))
+    }
     #[getter]
     fn box_id(&self) -> BoxId {
         self.0.box_id.into()
@@ -55,6 +62,12 @@ impl Input {
     #[getter]
     fn spending_proof(&self) -> ProverResult {
         self.0.spending_proof.clone().into()
+    }
+    fn __bytes__(&self) -> PyResult<Vec<u8>> {
+        self.0
+            .sigma_serialize_bytes()
+            .map_err(SigmaSerializationError::from)
+            .map_err(Into::into)
     }
 }
 

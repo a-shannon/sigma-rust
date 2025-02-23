@@ -16,6 +16,13 @@ pub struct FirstDlogProverMessage {
     pub(crate) a: Box<EcPoint>,
 }
 
+impl FirstDlogProverMessage {
+    /// `a` of `SigmaProtocol`
+    pub fn a(&self) -> &EcPoint {
+        &self.a
+    }
+}
+
 impl From<EcPoint> for FirstDlogProverMessage {
     fn from(ecp: EcPoint) -> Self {
         FirstDlogProverMessage { a: ecp.into() }

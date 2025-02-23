@@ -9,7 +9,7 @@ pub mod parameters;
 pub mod token;
 
 use address::{Address, NetworkPrefix};
-use constant::Constant;
+use constant::{Constant, SType};
 use context_extension::ContextExtension;
 use ec_point::EcPoint;
 use ergo_box::{BoxId, ErgoBox, ErgoBoxCandidate, NonMandatoryRegisterId};
@@ -18,6 +18,7 @@ use header::{BlockId, Header, PreHeader};
 use parameters::Parameters;
 use pyo3::prelude::*;
 use token::{Token, TokenId};
+
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<NetworkPrefix>()?;
     m.add_class::<Address>()?;
@@ -29,6 +30,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Token>()?;
     m.add_class::<NonMandatoryRegisterId>()?;
     m.add_class::<Constant>()?;
+    m.add_class::<SType>()?;
     m.add_class::<BlockId>()?;
     m.add_class::<Header>()?;
     m.add_class::<PreHeader>()?;

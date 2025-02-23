@@ -2,7 +2,7 @@ use derive_more::{From, Into};
 use ergo_lib::ergotree_ir::chain::address::{self, AddressEncoder};
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 
-use crate::{ergo_tree::ErgoTree, to_value_error};
+use crate::{ergo_tree::ErgoTree, sigma_boolean::ProveDlog, to_value_error};
 #[pyclass(eq, frozen)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkPrefix {
@@ -95,6 +95,10 @@ impl Address {
                 None => Err(PyValueError::new_err("expected str= or bytes= argument")),
             },
         }
+    }
+    #[staticmethod]
+    fn p2pk(prove_dlog: ProveDlog) -> Address {
+        address::Address::P2Pk(prove_dlog.into()).into()
     }
     /// Re-create the address from ErgoTree that was built from the address
     /// This is the inverse of Address.ergo_tree()

@@ -6,7 +6,7 @@ use crate::chain::ec_point::EcPoint;
 
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, From, Into, Clone)]
-struct ProveDlog(ProveDlogInner);
+pub(crate) struct ProveDlog(pub(crate) ProveDlogInner);
 
 #[pymethods]
 impl ProveDlog {

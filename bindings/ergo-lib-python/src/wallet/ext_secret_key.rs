@@ -4,7 +4,7 @@ use pyo3::{pyclass, pymethods, PyResult};
 
 use crate::to_value_error;
 
-use super::{derivation_path::DerivationPath, ext_pub_key::ExtPubKey};
+use super::{derivation_path::DerivationPath, ext_pub_key::ExtPubKey, secret_key::SecretKey};
 
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, From)]
@@ -34,6 +34,11 @@ impl ExtSecretKey {
     #[pyo3(text_signature = "(self, up_path: DerivationPath)")]
     pub fn derive(&self, up_path: DerivationPath) -> PyResult<Self> {
         self.0.derive(up_path.0).map(Self).map_err(to_value_error)
+    }
+
+    /// Return secret key
+    pub fn secret_key(&self) -> SecretKey {
+        self.0.secret_key().into()
     }
 
     pub fn public_key(&self) -> PyResult<ExtPubKey> {
