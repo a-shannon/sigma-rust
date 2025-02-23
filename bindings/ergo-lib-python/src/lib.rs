@@ -21,8 +21,10 @@
 pub mod chain;
 mod ergo_tree;
 mod errors;
+pub mod multi_sig;
 pub mod sigma_boolean;
 pub mod transaction;
+mod verifier;
 pub mod wallet;
 use ergo_tree::ErgoTree;
 use errors::{JsonException, SigmaParsingException, SigmaSerializationException, WalletException};
@@ -38,6 +40,8 @@ fn ergo_lib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
     chain::register(m)?;
     transaction::register(m)?;
     sigma_boolean::register(m)?;
+    multi_sig::register(m)?;
+    verifier::register(m)?;
     m.add("JsonException", m.py().get_type::<JsonException>())?;
     m.add(
         "SigmaSerializationException",

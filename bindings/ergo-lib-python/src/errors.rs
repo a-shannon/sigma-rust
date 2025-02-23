@@ -52,7 +52,7 @@ impl From<JsonError> for PyErr {
 }
 
 #[derive(From)]
-pub struct WalletError(ergo_lib::wallet::WalletError);
+pub struct WalletError(pub ergo_lib::wallet::WalletError);
 impl From<WalletError> for PyErr {
     fn from(err: WalletError) -> Self {
         WalletException::new_err(err.0.to_string())

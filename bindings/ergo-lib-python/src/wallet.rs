@@ -1,5 +1,6 @@
 use box_selector::{select_boxes_simple, BoxSelection};
 use derivation_path::DerivationPath;
+use ergo_lib::ergotree_ir::sigma_protocol::sigma_boolean::SigmaBoolean;
 use ergo_lib::wallet::signing::TransactionContext;
 use ergo_lib::wallet::Wallet as WalletInner;
 use ext_secret_key::ExtSecretKey;
@@ -12,10 +13,13 @@ use pyo3::{
 };
 use secret_key::SecretKey;
 
+use crate::chain::address::Address;
 use crate::chain::ergo_box::ErgoBox;
 use crate::chain::ergo_state_context::ErgoStateContext;
 use crate::errors::WalletError;
+use crate::multi_sig::hints_bag::TransactionHintsBag;
 use crate::to_value_error;
+use crate::transaction::input::Input;
 use crate::transaction::{ReducedTransaction, Transaction, UnsignedTransaction};
 
 pub mod box_selector;
@@ -38,13 +42,14 @@ impl Wallet {
     fn add_secret(&mut self, secret: SecretKey) {
         self.0.add_secret(secret.into());
     }
-    #[pyo3(signature = (tx, boxes_to_spend=vec![], data_boxes=vec![], state_context=None))]
+    #[pyo3(signature = (tx, boxes_to_spend=vec![], data_boxes=vec![], state_context=None, *, hints_bag=None))]
     fn sign_transaction(
         &self,
         tx: &Bound<'_, PyAny>,
         boxes_to_spend: Vec<ErgoBox>,
         data_boxes: Vec<ErgoBox>,
-        state_context: Option<ErgoStateContext>,
+        state_context: Option<&ErgoStateContext>,
+        hints_bag: Option<&TransactionHintsBag>,
     ) -> PyResult<Transaction> {
         match tx.extract::<ReducedTransaction>() {
             Ok(reduced_tx) => self
@@ -55,17 +60,12 @@ impl Wallet {
                 .map_err(Into::into),
             Err(e) => match tx.extract::<UnsignedTransaction>() {
                 Ok(unsigned_tx) => {
-                    let tx_context = TransactionContext::new(
-                        unsigned_tx.0,
-                        boxes_to_spend.into_iter().map(Into::into).collect(),
-                        data_boxes.into_iter().map(Into::into).collect(),
-                    )
-                    .map_err(to_value_error)?;
+                    let tx_context = build_tx_context(unsigned_tx, boxes_to_spend, data_boxes)?;
                     let state_context = state_context
-                        .ok_or_else(|| PyValueError::new_err("missing argument state_context"))?
-                        .into();
+                        .map(AsRef::as_ref)
+                        .ok_or_else(|| PyValueError::new_err("missing argument state_context"))?;
                     self.0
-                        .sign_transaction(tx_context, &state_context, None)
+                        .sign_transaction(tx_context, state_context, hints_bag.map(AsRef::as_ref))
                         .map(Into::into)
                         .map_err(WalletError::from)
                         .map_err(Into::into)
@@ -76,6 +76,90 @@ impl Wallet {
             },
         }
     }
+    #[pyo3(signature = (tx, boxes_to_spend=vec![], data_boxes=vec![], state_context=None))]
+    fn generate_commitments(
+        &self,
+        tx: &Bound<'_, PyAny>,
+        boxes_to_spend: Vec<ErgoBox>,
+        data_boxes: Vec<ErgoBox>,
+        state_context: Option<&ErgoStateContext>,
+    ) -> PyResult<TransactionHintsBag> {
+        match tx.extract::<ReducedTransaction>() {
+            Ok(reduced_tx) => self
+                .0
+                .generate_commitments_for_reduced_transaction(reduced_tx.into())
+                .map(Into::into)
+                .map_err(Into::into)
+                .map_err(WalletError)
+                .map_err(Into::into),
+            Err(e) => match tx.extract::<UnsignedTransaction>() {
+                Ok(unsigned_tx) => {
+                    let tx_context = build_tx_context(unsigned_tx, boxes_to_spend, data_boxes)?;
+                    let state_context = state_context
+                        .map(AsRef::as_ref)
+                        .ok_or_else(|| PyValueError::new_err("missing argument state_context"))?;
+                    self.0
+                        .generate_commitments(tx_context, state_context)
+                        .map(Into::into)
+                        .map_err(Into::into)
+                        .map_err(WalletError)
+                        .map_err(Into::into)
+                }
+                Err(e) => Err(PyValueError::new_err(
+                    "Expected ReducedTransaction or Transaction",
+                )),
+            },
+        }
+    }
+
+    #[pyo3(signature = (tx, input_idx, boxes_to_spend, data_boxes, state_context, *, hints_bag=None))]
+    fn sign_tx_input(
+        &self,
+        tx: UnsignedTransaction,
+        input_idx: usize,
+        boxes_to_spend: Vec<ErgoBox>,
+        data_boxes: Vec<ErgoBox>,
+        state_context: &ErgoStateContext,
+        hints_bag: Option<&TransactionHintsBag>,
+    ) -> PyResult<Input> {
+        let tx_context = build_tx_context(tx, boxes_to_spend, data_boxes)?;
+        self.0
+            .sign_tx_input(
+                input_idx,
+                tx_context,
+                state_context.as_ref(),
+                hints_bag.map(AsRef::as_ref),
+            )
+            .map(Into::into)
+            .map_err(WalletError::from)
+            .map_err(Into::into)
+    }
+    fn sign_message_using_p2pk(&self, address: &Address, message: &[u8]) -> PyResult<Vec<u8>> {
+        if let Address(ergo_lib::ergotree_ir::chain::address::Address::P2Pk(d)) = address.clone() {
+            let sb = SigmaBoolean::from(d);
+            self.0
+                .sign_message(sb, message)
+                .map_err(WalletError::from)
+                .map_err(Into::into)
+        } else {
+            Err(PyValueError::new_err(
+                "wallet::sign_message_using_p2pk: Address:P2Pk expected",
+            ))
+        }
+    }
+}
+
+fn build_tx_context(
+    unsigned_tx: UnsignedTransaction,
+    boxes_to_spend: Vec<ErgoBox>,
+    data_boxes: Vec<ErgoBox>,
+) -> PyResult<TransactionContext<ergo_lib::chain::transaction::unsigned::UnsignedTransaction>> {
+    TransactionContext::new(
+        unsigned_tx.0,
+        boxes_to_spend.into_iter().map(Into::into).collect(),
+        data_boxes.into_iter().map(Into::into).collect(),
+    )
+    .map_err(to_value_error)
 }
 // Register all classes & functions of this module. This does not create a submodule because of a python limitation that would prevent 'from ergo_lib import submodule'
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -84,6 +168,7 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ExtSecretKey>()?;
     m.add_class::<DerivationPath>()?;
     m.add_class::<BoxSelection>()?;
+    m.add_class::<Wallet>()?;
     m.add_function(wrap_pyfunction!(select_boxes_simple, m)?)?;
     m.add_function(wrap_pyfunction!(mnemonic::to_seed, m)?)?;
     Ok(())
