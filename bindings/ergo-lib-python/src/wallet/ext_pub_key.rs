@@ -7,7 +7,6 @@ use ergo_lib::wallet::ext_pub_key::{self, ChainCode, PubKeyBytes};
 use ergo_lib::{ergotree_ir::chain::address, wallet::derivation_path::ChildIndexNormal};
 use pyo3::{pyclass, pymethods, PyResult};
 
-#[allow(dead_code)]
 #[derive(From, Clone, PartialEq, Eq)]
 #[pyclass(frozen, eq)]
 pub struct ExtPubKey(ext_pub_key::ExtPubKey);
@@ -45,8 +44,12 @@ impl ExtPubKey {
     }
 
     /// Derive a new extended pub key from the derivation path
-    fn derive(&self, path: DerivationPath) -> PyResult<ExtPubKey> {
-        Ok(self.0.derive(path.into()).map_err(to_value_error)?.into())
+    fn derive(&self, up_path: DerivationPath) -> PyResult<ExtPubKey> {
+        Ok(self
+            .0
+            .derive(up_path.into())
+            .map_err(to_value_error)?
+            .into())
     }
 
     /// Chain code of the `ExtPubKey`
@@ -59,5 +62,9 @@ impl ExtPubKey {
     #[getter]
     fn pub_key_bytes(&self) -> Vec<u8> {
         self.0.pub_key_bytes().into()
+    }
+    #[getter]
+    fn derivation_path(&self) -> DerivationPath {
+        self.0.derivation_path.clone().into()
     }
 }

@@ -6,12 +6,11 @@ use ergo_lib::{
     },
     ergotree_ir::serialization::SigmaSerializable,
 };
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyType};
 
 use crate::{
     chain::{context_extension::ContextExtension, ergo_box::BoxId},
-    errors::{JsonError, SigmaSerializationError},
-    to_value_error,
+    errors::{JsonError, SigmaParsingError, SigmaSerializationError},
 };
 
 #[pyclass(eq)]
@@ -48,8 +47,12 @@ impl Input {
     fn new(box_id: BoxId, spending_proof: ProverResult) -> Self {
         Input(InputInner::new(box_id.into(), spending_proof.into()))
     }
-    #[staticmethod]
-    fn from_unsigned_input(unsigned_input: UnsignedInput, proof_bytes: Vec<u8>) -> Self {
+    #[classmethod]
+    fn from_unsigned_input(
+        _: &Bound<'_, PyType>,
+        unsigned_input: UnsignedInput,
+        proof_bytes: Vec<u8>,
+    ) -> Self {
         Input(InputInner::from_unsigned_input(
             unsigned_input.into(),
             proof_bytes.into(),
@@ -77,6 +80,13 @@ pub struct ProverResult(ProverResultInner);
 
 #[pymethods]
 impl ProverResult {
+    #[classmethod]
+    fn from_bytes(_: &Bound<'_, PyType>, b: &[u8]) -> PyResult<Self> {
+        ProverResultInner::sigma_parse_bytes(b)
+            .map(Self)
+            .map_err(SigmaParsingError::from)
+            .map_err(Into::into)
+    }
     #[getter]
     fn proof(&self) -> Vec<u8> {
         self.0.proof.clone().into()
@@ -94,13 +104,6 @@ impl ProverResult {
         self.0
             .sigma_serialize_bytes()
             .map_err(SigmaSerializationError::from)
-            .map_err(Into::into)
-    }
-    #[staticmethod]
-    fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        ProverResultInner::sigma_parse_bytes(bytes)
-            .map(Self)
-            .map_err(to_value_error)
             .map_err(Into::into)
     }
 }

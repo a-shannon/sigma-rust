@@ -4,13 +4,14 @@ use data_input::DataInput;
 use derive_more::{From, Into};
 use ergo_lib::{
     chain::transaction::{
-        reduced::reduce_tx, unsigned::UnsignedTransaction as UnsignedTransactionInner,
-        Transaction as TransactionInner, TxId as TxIdInner,
+        ergo_transaction::ErgoTransaction, reduced::reduce_tx,
+        unsigned::UnsignedTransaction as UnsignedTransactionInner, Transaction as TransactionInner,
+        TxId as TxIdInner,
     },
     ergotree_ir::serialization::SigmaSerializable,
 };
 use input::{Input, ProverResult, UnsignedInput};
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyType};
 use tx_builder::TxBuilder;
 
 use crate::{
@@ -18,8 +19,8 @@ use crate::{
         ergo_box::{ErgoBox, ErgoBoxCandidate},
         ergo_state_context::ErgoStateContext,
     },
-    errors::{JsonError, SigmaParsingError, SigmaSerializationError},
-    to_value_error,
+    errors::{JsonError, SigmaParsingError, SigmaSerializationError, WalletError},
+    from_json, to_value_error,
 };
 
 pub mod data_input;
@@ -103,12 +104,13 @@ impl UnsignedTransaction {
             .map(Into::into)
             .collect()
     }
-    #[staticmethod]
-    fn from_json(s: &str) -> PyResult<Self> {
-        serde_json::from_str(s)
-            .map(Self)
-            .map_err(JsonError::from)
-            .map_err(Into::into)
+    #[getter]
+    fn outputs(&self) -> Vec<ErgoBox> {
+        self.0.outputs().iter().cloned().map(Into::into).collect()
+    }
+    #[classmethod]
+    fn from_json(_: &Bound<'_, PyType>, s: Bound<'_, PyAny>) -> PyResult<Self> {
+        from_json(s).map(Self)
     }
     fn json(&self) -> PyResult<String> {
         serde_json::to_string(&self.0)
@@ -136,6 +138,21 @@ impl Transaction {
         )
         .map(Self)
         .map_err(to_value_error)
+    }
+    #[classmethod]
+    fn from_json(_: &Bound<'_, PyType>, json: Bound<'_, PyAny>) -> PyResult<Self> {
+        from_json(json).map(Self)
+    }
+    #[classmethod]
+    fn from_bytes(_: &Bound<'_, PyType>, b: &[u8]) -> PyResult<Self> {
+        TransactionInner::sigma_parse_bytes(b)
+            .map(Self)
+            .map_err(SigmaParsingError::from)
+            .map_err(Into::into)
+    }
+    #[getter]
+    fn id(&self) -> TxId {
+        self.0.id().into()
     }
     #[getter]
     fn inputs(&self) -> Vec<Input> {
@@ -165,29 +182,14 @@ impl Transaction {
     fn outputs(&self) -> Vec<ErgoBox> {
         self.0.outputs.iter().cloned().map(Into::into).collect()
     }
-    #[staticmethod]
-    fn from_json(json: &str) -> PyResult<Self> {
-        serde_json::from_str(json)
-            .map(Self)
-            .map_err(JsonError::from)
-            .map_err(Into::into)
-    }
-    #[staticmethod]
-    fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        TransactionInner::sigma_parse_bytes(bytes)
-            .map(Self)
-            .map_err(SigmaParsingError::from)
-            .map_err(Into::into)
-    }
+
     fn __bytes__(&self) -> PyResult<Vec<u8>> {
         self.0
             .sigma_serialize_bytes()
             .map_err(SigmaSerializationError::from)
             .map_err(Into::into)
     }
-    fn id(&self) -> TxId {
-        self.0.id().into()
-    }
+
     fn json(&self) -> PyResult<String> {
         serde_json::to_string(&self.0)
             .map_err(JsonError::from)
@@ -200,8 +202,9 @@ pub struct ReducedTransaction(ergo_lib::chain::transaction::reduced::ReducedTran
 
 #[pymethods]
 impl ReducedTransaction {
-    #[staticmethod]
+    #[classmethod]
     pub fn from_unsigned_tx(
+        _: &Bound<'_, PyType>,
         unsigned_tx: &UnsignedTransaction,
         boxes_to_spend: Vec<ErgoBox>,
         data_boxes: Vec<ErgoBox>,
@@ -216,7 +219,9 @@ impl ReducedTransaction {
         )
         .map_err(to_value_error)?;
         reduce_tx(tx_context, &state_context.into())
-            .map_err(to_value_error)
+            .map_err(Into::into)
+            .map_err(WalletError)
+            .map_err(Into::into)
             .map(ReducedTransaction::from)
     }
 
@@ -227,9 +232,9 @@ impl ReducedTransaction {
             .map_err(Into::into)
     }
 
-    #[staticmethod]
-    pub fn from_bytes(bytes: &[u8]) -> PyResult<ReducedTransaction> {
-        ergo_lib::chain::transaction::reduced::ReducedTransaction::sigma_parse_bytes(bytes)
+    #[classmethod]
+    pub fn from_bytes(_: &Bound<'_, PyType>, b: &[u8]) -> PyResult<ReducedTransaction> {
+        ergo_lib::chain::transaction::reduced::ReducedTransaction::sigma_parse_bytes(b)
             .map(ReducedTransaction)
             .map_err(SigmaParsingError::from)
             .map_err(Into::into)

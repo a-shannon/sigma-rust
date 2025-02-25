@@ -1,8 +1,9 @@
-use box_selector::{select_boxes_simple, BoxSelection};
+use box_selector::{select_boxes_simple, BoxSelection, ErgoBoxAssetsData};
 use derivation_path::DerivationPath;
 use ergo_lib::ergotree_ir::sigma_protocol::sigma_boolean::SigmaBoolean;
 use ergo_lib::wallet::signing::TransactionContext;
 use ergo_lib::wallet::Wallet as WalletInner;
+use ext_pub_key::ExtPubKey;
 use ext_secret_key::ExtSecretKey;
 use mnemonic::MnemonicGenerator;
 use pyo3::exceptions::PyValueError;
@@ -166,9 +167,11 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SecretKey>()?;
     m.add_class::<MnemonicGenerator>()?;
     m.add_class::<ExtSecretKey>()?;
+    m.add_class::<ExtPubKey>()?;
     m.add_class::<DerivationPath>()?;
     m.add_class::<BoxSelection>()?;
     m.add_class::<Wallet>()?;
+    m.add_class::<ErgoBoxAssetsData>()?;
     m.add_function(wrap_pyfunction!(select_boxes_simple, m)?)?;
     m.add_function(wrap_pyfunction!(mnemonic::to_seed, m)?)?;
     Ok(())

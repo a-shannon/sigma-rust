@@ -27,13 +27,29 @@ pub mod transaction;
 mod verifier;
 pub mod wallet;
 use ergo_tree::ErgoTree;
-use errors::{JsonException, SigmaParsingException, SigmaSerializationException, WalletException};
-use pyo3::{exceptions::PyValueError, prelude::*};
+use errors::{
+    JsonError, JsonException, RegisterValueException, SigmaParsingException,
+    SigmaSerializationException, WalletException,
+};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
+use serde::de::DeserializeOwned;
+use serde_pyobject::from_pyobject;
 
 // Create python ValueError from generic error
 pub(crate) fn to_value_error<E: std::error::Error>(e: E) -> PyErr {
     PyValueError::new_err(e.to_string())
 }
+
+pub(crate) fn from_json<T: DeserializeOwned>(json: Bound<'_, PyAny>) -> PyResult<T> {
+    let res = match json.downcast_into::<PyDict>() {
+        Ok(dict) => from_pyobject::<T, PyDict>(dict).map_err(to_value_error)?,
+        Err(json) => {
+            serde_json::from_str(json.into_inner().extract::<&str>()?).map_err(JsonError::from)?
+        }
+    };
+    Ok(res)
+}
+
 #[pymodule]
 fn ergo_lib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
     wallet::register(m)?;
@@ -52,6 +68,10 @@ fn ergo_lib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.py().get_type::<SigmaParsingException>(),
     )?;
     m.add("WalletException", m.py().get_type::<WalletException>())?;
+    m.add(
+        "RegisterValueException",
+        m.py().get_type::<RegisterValueException>(),
+    )?;
     m.add_class::<ErgoTree>()?;
     Ok(())
 }

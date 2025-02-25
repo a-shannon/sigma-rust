@@ -16,10 +16,10 @@ pub struct ContextExtension(ContextExtensionInner);
 #[pymethods]
 impl ContextExtension {
     #[new]
-    #[pyo3(signature=(dict=None))]
-    pub fn new(dict: Option<IndexMap<u8, Constant>>) -> Self {
+    #[pyo3(signature=(values=None))]
+    pub fn new(values: Option<IndexMap<u8, Constant>>) -> Self {
         ContextExtension(ContextExtensionInner {
-            values: dict
+            values: values
                 .into_iter()
                 .flatten()
                 .map(|(k, v)| (k, v.into()))

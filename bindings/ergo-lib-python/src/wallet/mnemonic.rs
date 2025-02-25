@@ -12,7 +12,6 @@ pub struct MnemonicGenerator(wallet::mnemonic_generator::MnemonicGenerator);
 #[pymethods]
 impl MnemonicGenerator {
     #[new]
-    #[pyo3(text_signature = "(language: str, strength: int) -> MnemonicGenerator")]
     fn new(language: &str, strength: u32) -> PyResult<Self> {
         wallet::mnemonic_generator::MnemonicGenerator::new(
             Language::from_str(language).map_err(to_value_error)?,
@@ -22,14 +21,10 @@ impl MnemonicGenerator {
         .map_err(to_value_error)
     }
 
-    /// Generate mnemonic sentence using randomly-generated entropy
-    #[pyo3(text_signature = "() -> str")]
     fn generate(&self) -> String {
         self.0.generate()
     }
 
-    /// Generate mnemonic sentence using provided entropy
-    #[pyo3(text_signature = "(entropy: bytes) -> MnemonicGenerator")]
     #[allow(clippy::wrong_self_convention)]
     pub fn from_entropy(&self, entropy: Vec<u8>) -> PyResult<String> {
         self.0.from_entropy(entropy).map_err(to_value_error)
@@ -39,7 +34,7 @@ impl MnemonicGenerator {
 /// Create new MnemonicSeed from seed phrase and optional password
 /// Can be turned into ExtSecretKey using ExtSecretKey.derive_master(to_seed(seed_phrase, password))
 #[pyfunction]
-#[pyo3(signature = (seed_phrase, password = ""))]
-pub fn to_seed(seed_phrase: &str, password: &str) -> MnemonicSeed {
-    wallet::mnemonic::Mnemonic::to_seed(seed_phrase, password)
+#[pyo3(signature = (mnemonic_phrase, password = ""))]
+pub fn to_seed(mnemonic_phrase: &str, password: &str) -> MnemonicSeed {
+    wallet::mnemonic::Mnemonic::to_seed(mnemonic_phrase, password)
 }

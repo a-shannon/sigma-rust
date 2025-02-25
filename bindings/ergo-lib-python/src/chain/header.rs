@@ -4,10 +4,11 @@ use derive_more::{From, Into};
 use ergo_lib::ergo_chain_types::{
     BlockId as InnerBlockId, Digest32, Header as InnerHeader, PreHeader as InnerPreHeader,
 };
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyType};
+use serde::Deserialize;
 use sigma_ser::ScorexSerializable;
 
-use crate::{errors::JsonError, to_value_error};
+use crate::{from_json, to_value_error};
 
 #[pyclass(eq, frozen, hash)]
 #[derive(PartialEq, Eq, Clone, Copy, Hash)]
@@ -30,6 +31,9 @@ impl BlockId {
             },
         }
     }
+    fn __bytes__(&self) -> Vec<u8> {
+        self.0 .0 .0.into()
+    }
     fn __str__(&self) -> String {
         self.0.to_string()
     }
@@ -39,17 +43,14 @@ impl BlockId {
 }
 
 #[pyclass(eq, frozen)]
-#[derive(PartialEq, Eq, Clone, From, Into)]
+#[derive(PartialEq, Eq, Clone, From, Into, Deserialize)]
 pub struct Header(InnerHeader);
 
 #[pymethods]
 impl Header {
-    #[staticmethod]
-    fn from_json(s: &str) -> PyResult<Self> {
-        serde_json::from_str(s)
-            .map(Self)
-            .map_err(JsonError::from)
-            .map_err(Into::into)
+    #[classmethod]
+    fn from_json(_: &Bound<'_, PyType>, json: Bound<'_, PyAny>) -> PyResult<Self> {
+        from_json(json)
     }
     #[getter]
     fn version(&self) -> u8 {

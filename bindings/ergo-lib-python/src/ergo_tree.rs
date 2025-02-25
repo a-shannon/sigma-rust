@@ -1,6 +1,6 @@
 use derive_more::{From, Into};
 use ergo_lib::ergotree_ir::{ergo_tree, serialization::SigmaSerializable};
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyType};
 
 use crate::{
     errors::{SigmaParsingError, SigmaSerializationError},
@@ -24,8 +24,6 @@ impl ErgoTree {
             .map_err(to_value_error)
             .map(|constants| constants.into_iter().map(Into::into).collect())
     }
-    /// Set constant at index to constant. Returns an exception if ErgoTree was not parsed or constant tpe does not match
-    /// Returns a new ErgoTree
     fn with_constant(&self, index: usize, constant: Constant) -> PyResult<Self> {
         self.0
             .clone()
@@ -33,9 +31,9 @@ impl ErgoTree {
             .map(Self)
             .map_err(to_value_error)
     }
-    #[staticmethod]
-    fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        ergo_tree::ErgoTree::sigma_parse_bytes(bytes)
+    #[classmethod]
+    fn from_bytes(_: &Bound<'_, PyType>, b: &[u8]) -> PyResult<Self> {
+        ergo_tree::ErgoTree::sigma_parse_bytes(b)
             .map(Self)
             .map_err(SigmaParsingError::from)
             .map_err(Into::into)

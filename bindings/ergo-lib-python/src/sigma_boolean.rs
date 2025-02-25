@@ -14,6 +14,10 @@ impl ProveDlog {
     fn new(ec_point: EcPoint) -> Self {
         ProveDlogInner::new(ec_point.into()).into()
     }
+    #[getter]
+    fn h(&self) -> EcPoint {
+        (*self.0.h).clone().into()
+    }
     fn __repr__(&self) -> String {
         format!("{:?}", self.0)
     }

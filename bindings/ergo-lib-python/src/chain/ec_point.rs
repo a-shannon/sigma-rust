@@ -13,8 +13,8 @@ pub struct EcPoint(pub(crate) EcPointInner);
 #[pymethods]
 impl EcPoint {
     #[new]
-    fn new(bytes: &[u8]) -> PyResult<Self> {
-        EcPointInner::sigma_parse_bytes(bytes)
+    fn new(b: &[u8]) -> PyResult<Self> {
+        EcPointInner::sigma_parse_bytes(b)
             .map(Self)
             .map_err(to_value_error)
     }

@@ -1,9 +1,9 @@
 use derive_more::{From, Into};
 use ergo_lib::ergotree_ir::chain::address::{self, AddressEncoder};
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyType};
 
 use crate::{ergo_tree::ErgoTree, sigma_boolean::ProveDlog, to_value_error};
-#[pyclass(eq, frozen)]
+#[pyclass(eq, eq_int, frozen)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkPrefix {
     Mainnet = 0x00,
@@ -60,21 +60,13 @@ pub(crate) struct Address(pub(crate) address::Address);
 impl Address {
     /// Build a new address from a str, ErgoTree or bytes
     #[new]
-    #[pyo3(signature = (**kwds))]
-    fn new(kwds: Option<&Bound<'_, PyDict>>) -> PyResult<Self> {
-        let kwds =
-            kwds.ok_or_else(|| PyValueError::new_err("No arguments given to Address.new"))?;
+    #[pyo3(signature = (arg, network_prefix=None))]
+    fn new(arg: &Bound<'_, PyAny>, network_prefix: Option<NetworkPrefix>) -> PyResult<Self> {
+        let encoder =
+            network_prefix.map(|prefix| AddressEncoder::new(address::NetworkPrefix::from(prefix)));
 
-        let encoder = if let Some(prefix) = kwds.get_item("network_prefix")? {
-            Some(AddressEncoder::new(address::NetworkPrefix::from(
-                prefix.extract::<NetworkPrefix>()?,
-            )))
-        } else {
-            None
-        };
-        match kwds.get_item("str")? {
-            Some(s) => {
-                let s = s.extract::<&str>()?;
+        match arg.extract::<&str>() {
+            Ok(s) => {
                 if let Some(encoder) = encoder {
                     encoder
                         .parse_address_from_str(s)
@@ -86,34 +78,31 @@ impl Address {
                         .map(Self)
                 }
             }
-            None => match kwds.get_item("bytes")? {
-                Some(bytes) => {
-                    AddressEncoder::unchecked_parse_address_from_bytes(bytes.extract::<&[u8]>()?)
-                        .map_err(to_value_error)
-                        .map(Self)
-                }
-                None => Err(PyValueError::new_err("expected str= or bytes= argument")),
+            Err(e) => match arg.extract::<&[u8]>() {
+                Ok(bytes) => AddressEncoder::unchecked_parse_address_from_bytes(bytes)
+                    .map_err(to_value_error)
+                    .map(Self),
+                Err(e) => Err(PyValueError::new_err("expected str or bytes argument")),
             },
         }
     }
-    #[staticmethod]
-    fn p2pk(prove_dlog: ProveDlog) -> Address {
+    #[classmethod]
+    fn p2pk(_: &Bound<'_, PyType>, prove_dlog: ProveDlog) -> Address {
         address::Address::P2Pk(prove_dlog.into()).into()
     }
     /// Re-create the address from ErgoTree that was built from the address
     /// This is the inverse of Address.ergo_tree()
-    #[staticmethod]
-    fn recreate_from_ergo_tree(tree: &ErgoTree) -> PyResult<Self> {
+    #[classmethod]
+    fn recreate_from_ergo_tree(_: &Bound<'_, PyType>, tree: &ErgoTree) -> PyResult<Self> {
         address::Address::recreate_from_ergo_tree(&tree.0)
             .map(Self)
             .map_err(to_value_error)
     }
     /// Create an ErgoTree script from the address
-    fn ergo_tree(&self) -> PyResult<ErgoTree> {
+    pub(crate) fn ergo_tree(&self) -> PyResult<ErgoTree> {
         self.0.script().map(Into::into).map_err(to_value_error)
     }
 
-    #[pyo3(signature = (network_prefix=NetworkPrefix::Mainnet))]
     fn to_str(&self, network_prefix: NetworkPrefix) -> String {
         AddressEncoder::new(network_prefix.into()).address_to_str(&self.0)
     }

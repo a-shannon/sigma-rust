@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use derive_more::{From, Into};
 use ergo_lib::ergotree_ir::{chain::token, serialization::SigmaSerializable};
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyType};
 
 use crate::to_value_error;
 
@@ -20,6 +20,14 @@ impl Token {
             amount: amount.try_into().map_err(to_value_error)?,
         }))
     }
+    #[getter]
+    fn token_id(&self) -> TokenId {
+        self.0.token_id.into()
+    }
+    #[getter]
+    fn amount(&self) -> u64 {
+        *self.0.amount.as_u64()
+    }
     fn __repr__(&self) -> String {
         format!(
             "Token(token_id={:?}, token_amount={})",
@@ -30,29 +38,30 @@ impl Token {
 }
 
 #[pyclass(eq, frozen, hash)]
-#[derive(PartialEq, Eq, Clone, Copy, Hash)]
+#[derive(PartialEq, Eq, Clone, Copy, Hash, From)]
 pub struct TokenId(token::TokenId);
 
 #[pymethods]
 impl TokenId {
     #[new]
     fn new(val: &Bound<'_, PyAny>) -> PyResult<Self> {
-        match val.extract::<BoxId>() {
-            Ok(box_id) => Ok(TokenId(token::TokenId::from(box_id.0))),
-            Err(e) => match val.extract::<&str>() {
-                Ok(s) => token::TokenId::from_str(s)
+        match val.extract::<&str>() {
+            Ok(s) => token::TokenId::from_str(s)
+                .map_err(to_value_error)
+                .map(Self),
+            Err(_) => match val.extract::<&[u8]>() {
+                Ok(bytes) => token::TokenId::sigma_parse_bytes(bytes)
                     .map_err(to_value_error)
                     .map(Self),
-                Err(_) => match val.extract::<&[u8]>() {
-                    Ok(bytes) => token::TokenId::sigma_parse_bytes(bytes)
-                        .map_err(to_value_error)
-                        .map(Self),
-                    Err(_) => Err(PyValueError::new_err(
-                        "TokenId.new: missing bytes or str argument",
-                    )),
-                },
+                Err(_) => Err(PyValueError::new_err(
+                    "TokenId.new: missing bytes or str argument",
+                )),
             },
         }
+    }
+    #[classmethod]
+    fn from_box_id(_: &Bound<'_, PyType>, box_id: &BoxId) -> Self {
+        TokenId(token::TokenId::from(box_id.0))
     }
     fn __bytes__(&self) -> Vec<u8> {
         self.0.into()

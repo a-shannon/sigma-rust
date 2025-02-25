@@ -26,6 +26,12 @@ create_exception!(
     PyException,
     "error during wallet-related operation"
 );
+create_exception!(
+    ergo_lib_python,
+    RegisterValueException,
+    PyException,
+    "error parsing register value"
+);
 
 #[derive(From)]
 pub struct SigmaSerializationError(serialization::SigmaSerializationError);
@@ -56,5 +62,13 @@ pub struct WalletError(pub ergo_lib::wallet::WalletError);
 impl From<WalletError> for PyErr {
     fn from(err: WalletError) -> Self {
         WalletException::new_err(err.0.to_string())
+    }
+}
+
+#[derive(From)]
+pub struct RegisterValueError(pub ergo_lib::ergotree_ir::chain::ergo_box::RegisterValueError);
+impl From<RegisterValueError> for PyErr {
+    fn from(err: RegisterValueError) -> Self {
+        RegisterValueException::new_err(err.0.to_string())
     }
 }

@@ -8,13 +8,18 @@ use ergo_lib::{
         serialization::SigmaSerializable,
     },
 };
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
+use pyo3::{
+    exceptions::PyValueError,
+    prelude::*,
+    types::{PyDict, PyType},
+};
+use serde::{Deserialize, Serialize};
 use serde_pyobject::from_pyobject;
 
 use crate::{
     ergo_tree::ErgoTree,
-    errors::{JsonError, SigmaParsingError, SigmaSerializationError},
-    to_value_error,
+    errors::{JsonError, RegisterValueError, SigmaParsingError, SigmaSerializationError},
+    from_json, to_value_error,
     transaction::TxId,
 };
 
@@ -92,11 +97,10 @@ pub struct ErgoBoxCandidate(ergo_box::ErgoBoxCandidate);
 impl ErgoBoxCandidate {
     #[allow(clippy::too_many_arguments)]
     #[new]
-    #[pyo3(signature=(*, value, address=None, ergo_tree=None, creation_height, tokens=None, registers=None, mint_token= None, mint_token_name = None, mint_token_desc=None, mint_token_decimals=None))]
+    #[pyo3(signature=(*, value, script, creation_height, tokens=None, registers=None, mint_token= None, mint_token_name = None, mint_token_desc=None, mint_token_decimals=None))]
     fn new(
         value: u64,
-        address: Option<Address>,
-        ergo_tree: Option<ErgoTree>,
+        script: &Bound<'_, PyAny>,
         creation_height: u32,
         tokens: Option<Vec<Token>>,
         registers: Option<HashMap<NonMandatoryRegisterId, Constant>>,
@@ -105,18 +109,16 @@ impl ErgoBoxCandidate {
         mint_token_desc: Option<&str>,
         mint_token_decimals: Option<usize>,
     ) -> PyResult<Self> {
-        // TODO: maybe take only one argument (Address | ErgoTree)
-        let tree = address
-            .map(|addr| addr.0.script())
-            .transpose()
-            .map_err(to_value_error)?
-            .xor(ergo_tree.map(|tree| tree.into()))
-            .ok_or_else(|| {
-                PyValueError::new_err("Expected only one of address or ergo_tree arguments")
-            })?;
+        let tree = match script.extract::<ErgoTree>() {
+            Ok(tree) => tree,
+            Err(e) => match script.extract::<Address>() {
+                Ok(addr) => addr.ergo_tree()?,
+                Err(e) => return Err(PyValueError::new_err("expected ErgoTree or Address")),
+            },
+        };
         let mut builder = ErgoBoxCandidateBuilder::new(
             BoxValue::new(value).map_err(to_value_error)?,
-            tree,
+            tree.0,
             creation_height,
         );
         for token in tokens.into_iter().flatten() {
@@ -143,6 +145,22 @@ impl ErgoBoxCandidate {
         }
         builder.build().map(Self).map_err(to_value_error)
     }
+    // this is only exists to fix stubtest errors
+    #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature=(*, value, script, creation_height, tokens=None, registers=None, mint_token= None, mint_token_name = None, mint_token_desc=None, mint_token_decimals=None))]
+    fn __init__(
+        &self,
+        value: u64,
+        script: &Bound<'_, PyAny>,
+        creation_height: u32,
+        tokens: Option<Vec<Token>>,
+        registers: Option<HashMap<NonMandatoryRegisterId, Constant>>,
+        mint_token: Option<Token>,
+        mint_token_name: Option<&str>,
+        mint_token_desc: Option<&str>,
+        mint_token_decimals: Option<usize>,
+    ) {
+    }
     #[getter]
     fn value(&self) -> u64 {
         *self.0.value.as_u64()
@@ -162,7 +180,7 @@ impl ErgoBoxCandidate {
             .collect()
     }
     #[getter]
-    fn registers(&self) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
+    fn additional_registers(&self) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
         extract_registers(&self.0.additional_registers)
     }
     #[getter]
@@ -175,7 +193,7 @@ impl ErgoBoxCandidate {
 }
 
 #[pyclass(eq)]
-#[derive(PartialEq, Eq, Clone, From, Into)]
+#[derive(PartialEq, Eq, Clone, From, Into, Deserialize, Serialize)]
 pub struct ErgoBox(pub ergo_box::ErgoBox);
 
 #[pymethods]
@@ -209,33 +227,46 @@ impl ErgoBox {
             .collect()
     }
     #[getter]
-    fn registers(&self) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
+    fn additional_registers(&self) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
         extract_registers(&self.0.additional_registers)
     }
     #[getter]
     fn ergo_tree(&self) -> ErgoTree {
         self.0.ergo_tree.clone().into()
     }
+    #[getter]
+    fn transaction_id(&self) -> TxId {
+        self.0.transaction_id.into()
+    }
+    #[getter]
+    fn index(&self) -> u16 {
+        self.0.index
+    }
     #[pyo3(text_signature = "(self) -> str")]
     fn json(&self) -> PyResult<String> {
-        serde_json::to_string(&self.0)
+        serde_json::to_string(self)
             .map_err(JsonError::from)
             .map_err(Into::into)
     }
-    #[staticmethod]
-    fn from_box_candidate(candidate: ErgoBoxCandidate, tx_id: TxId, index: u16) -> PyResult<Self> {
+    #[classmethod]
+    fn from_box_candidate(
+        _: &Bound<'_, PyType>,
+        candidate: ErgoBoxCandidate,
+        tx_id: TxId,
+        index: u16,
+    ) -> PyResult<Self> {
         ergo_box::ErgoBox::from_box_candidate(&candidate.into(), tx_id.into(), index)
             .map(Into::into)
             .map_err(SigmaSerializationError::from)
             .map_err(Into::into)
     }
-    #[staticmethod]
-    fn from_json(json: &str) -> PyResult<Self> {
-        Ok(Self(serde_json::from_str(json).map_err(JsonError::from)?))
+    #[classmethod]
+    fn from_json(_: &Bound<'_, PyType>, json: Bound<'_, PyAny>) -> PyResult<Self> {
+        from_json(json)
     }
-    #[staticmethod]
-    fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        ergo_box::ErgoBox::sigma_parse_bytes(bytes)
+    #[classmethod]
+    fn from_bytes(_: &Bound<'_, PyType>, b: &[u8]) -> PyResult<Self> {
+        ergo_box::ErgoBox::sigma_parse_bytes(b)
             .map(Self)
             .map_err(SigmaParsingError::from)
             .map_err(Into::into)
@@ -264,5 +295,6 @@ fn extract_registers(
         })
         .map(|(id, val)| val.map(|val| (id, val.into())))
         .collect::<Result<_, _>>()
-        .map_err(to_value_error)
+        .map_err(RegisterValueError::from)
+        .map_err(Into::into)
 }

@@ -3,7 +3,7 @@ use ergo_lib::{
     ergotree_interpreter::sigma_protocol::prover::hint::{Hint, HintsBag as HintsBagInner},
     wallet::TransactionHintsBag as TransactionHintsBagInner,
 };
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyType};
 
 use crate::errors::JsonError;
 
@@ -27,6 +27,20 @@ impl HintsBag {
                 Err(e) => {
                     return Err(PyValueError::new_err(
                         "Expected RealCommitment or SimulatedCommitment",
+                    ))
+                }
+            },
+        }
+        Ok(())
+    }
+    fn add_proof(&mut self, proof: &Bound<'_, PyAny>) -> PyResult<()> {
+        match proof.extract::<RealSecretProof>() {
+            Ok(real) => self.0.add_hint(Hint::SecretProven(real.0.into())),
+            Err(_) => match proof.extract::<SimulatedSecretProof>() {
+                Ok(simulated) => self.0.add_hint(Hint::SecretProven(simulated.0.into())),
+                Err(e) => {
+                    return Err(PyValueError::new_err(
+                        "Expected RealSecretProof or SimulatedSecretProof",
                     ))
                 }
             },
@@ -79,13 +93,13 @@ impl HintsBag {
             .for_each(|proof| new_bag.add_hint(Hint::SecretProven(proof)));
         new_bag.into()
     }
+    fn json(&self) -> PyResult<String> {
+        self.without_secrets().private_json()
+    }
     fn private_json(&self) -> PyResult<String> {
         serde_json::to_string(&self.0)
             .map_err(JsonError::from)
             .map_err(Into::into)
-    }
-    fn json(&self) -> PyResult<String> {
-        self.without_secrets().private_json()
     }
 }
 
@@ -99,8 +113,8 @@ impl TransactionHintsBag {
     fn new() -> Self {
         TransactionHintsBag(TransactionHintsBagInner::empty())
     }
-    #[staticmethod]
-    fn from_json(s: &str) -> PyResult<Self> {
+    #[classmethod]
+    fn from_json(_: &Bound<'_, PyType>, s: &str) -> PyResult<Self> {
         serde_json::from_str(s)
             .map(Self)
             .map_err(JsonError::from)

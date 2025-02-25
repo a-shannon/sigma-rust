@@ -11,7 +11,7 @@ use ergo_lib::ergotree_ir::{
 use pyo3::{
     exceptions::PyValueError,
     prelude::*,
-    types::{PyBytes, PyDict, PyFloat, PyInt, PyList, PyTuple},
+    types::{PyBytes, PyDict, PyFloat, PyInt, PyList, PyTuple, PyType},
     IntoPyObjectExt,
 };
 
@@ -38,20 +38,13 @@ pub enum SType {
     SOption(Py<SType>),
     SColl(Py<SType>),
     STuple(Py<PyTuple>),
-    SFunc(),
-    SContext(),
     SString(),
     SHeader(),
-    SPreHeader(),
-    SGlobal(),
 }
 
 impl SType {
     fn from_stype(py: Python, tpe: &stype::SType) -> PyResult<Self> {
         Ok(match tpe {
-            stype::SType::STypeVar(_) | stype::SType::SAny => {
-                return Err(PyValueError::new_err("unexpected tpe"))
-            }
             stype::SType::SUnit => SType::SUnit(),
             stype::SType::SBoolean => SType::SBoolean(),
             stype::SType::SByte => SType::SByte(),
@@ -77,13 +70,15 @@ impl SType {
                     .collect::<PyResult<Vec<_>>>()?;
                 SType::STuple(PyTuple::new(py, elements)?.unbind())
             }
-            // TODO: consider adding SFunc type to python after 6.0 since it might be useful then
-            stype::SType::SFunc(sfunc) => SType::SFunc(),
-            stype::SType::SContext => SType::SContext(),
             stype::SType::SString => SType::SString(),
             stype::SType::SHeader => SType::SHeader(),
-            stype::SType::SPreHeader => SType::SPreHeader(),
-            stype::SType::SGlobal => SType::SGlobal(),
+            // TODO: consider adding SFunc type to python after 6.0 since it might be useful then
+            stype::SType::STypeVar(_)
+            | stype::SType::SAny
+            | stype::SType::SPreHeader
+            | stype::SType::SGlobal
+            | stype::SType::SContext
+            | stype::SType::SFunc(_) => return Err(PyValueError::new_err("unexpected tpe")),
         })
     }
     fn to_stype(&self, py: Python) -> PyResult<stype::SType> {
@@ -114,12 +109,8 @@ impl SType {
                 )
                 .map_err(to_value_error)?,
             ),
-            SType::SFunc() => return Err(PyValueError::new_err("SFunc not supported")),
-            SType::SContext() => stype::SType::SContext,
             SType::SString() => stype::SType::SString,
             SType::SHeader() => stype::SType::SHeader,
-            SType::SPreHeader() => stype::SType::SPreHeader,
-            SType::SGlobal() => stype::SType::SGlobal,
         })
     }
 }
@@ -156,16 +147,8 @@ impl SType {
                 .reduce(|res1, res2| res1.and_then(|res1| res2.map(|res2| res1 == res2)))
                 .transpose()?
                 .unwrap_or(true),
-            (SType::SContext(), SType::SContext()) => true,
             (SType::SString(), SType::SString()) => true,
             (SType::SHeader(), SType::SHeader()) => true,
-            (SType::SPreHeader(), SType::SPreHeader()) => true,
-            (SType::SGlobal(), SType::SGlobal()) => true,
-            (SType::SFunc(), _) | (_, SType::SFunc()) => {
-                return Err(PyValueError::new_err(
-                    "comparing SType.SFunc is not supported",
-                ))
-            }
             _ => false,
         })
     }
@@ -220,8 +203,8 @@ impl Constant {
         constant_to_py(py, self.clone())
     }
 
-    #[staticmethod]
-    fn from_i256(py: Python, v: &Bound<'_, PyInt>) -> PyResult<Self> {
+    #[classmethod]
+    fn from_i256(_: &Bound<'_, PyType>, py: Python, v: &Bound<'_, PyInt>) -> PyResult<Self> {
         let kwargs = PyDict::new(py);
         kwargs.set_item("length", 32)?;
         kwargs.set_item("byteorder", "big")?;
@@ -233,23 +216,23 @@ impl Constant {
         )))
     }
 
-    #[staticmethod]
-    fn from_i64(v: i64) -> Constant {
+    #[classmethod]
+    fn from_i64(_: &Bound<'_, PyType>, v: i64) -> Constant {
         Constant(constant::Constant::from(v))
     }
 
-    #[staticmethod]
-    fn from_i32(v: i32) -> Constant {
+    #[classmethod]
+    fn from_i32(_: &Bound<'_, PyType>, v: i32) -> Constant {
         Constant(constant::Constant::from(v))
     }
 
-    #[staticmethod]
-    fn from_i16(v: i16) -> Constant {
+    #[classmethod]
+    fn from_i16(_: &Bound<'_, PyType>, v: i16) -> Constant {
         Constant(constant::Constant::from(v))
     }
 
-    #[staticmethod]
-    fn from_i8(v: i8) -> Constant {
+    #[classmethod]
+    fn from_i8(_: &Bound<'_, PyType>, v: i8) -> Constant {
         Constant(constant::Constant::from(v))
     }
 
@@ -262,9 +245,9 @@ impl Constant {
     }
 
     /// Parse serialized Constant from byte-array
-    #[staticmethod]
-    fn from_bytes(bytes: &[u8]) -> PyResult<Self> {
-        constant::Constant::sigma_parse_bytes(bytes)
+    #[classmethod]
+    fn from_bytes(_: &Bound<'_, PyType>, b: &[u8]) -> PyResult<Self> {
+        constant::Constant::sigma_parse_bytes(b)
             .map(Self)
             .map_err(SigmaParsingError::from)
             .map_err(Into::into)
