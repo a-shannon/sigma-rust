@@ -50,16 +50,19 @@ impl Address {
             },
         }
     }
+
     #[classmethod]
     fn p2pk(_: &Bound<'_, PyType>, prove_dlog: ProveDlog) -> Address {
         address::Address::P2Pk(prove_dlog.into()).into()
     }
+
     #[classmethod]
     fn recreate_from_ergo_tree(_: &Bound<'_, PyType>, tree: &ErgoTree) -> PyResult<Self> {
         address::Address::recreate_from_ergo_tree(&tree.0)
             .map(Self)
             .map_err(to_value_error)
     }
+
     pub(crate) fn ergo_tree(&self) -> PyResult<ErgoTree> {
         self.0.script().map(Into::into).map_err(to_value_error)
     }
