@@ -12,7 +12,7 @@ use ergo_lib::{
 };
 use pyo3::{exceptions::PyNotImplementedError, prelude::*};
 
-use crate::{chain::ec_point::EcPoint, sigma_boolean::ProveDlog};
+use crate::{chain::ec_point::EcPoint, sigma_protocol::ProveDlog};
 
 #[derive(From, Into, Clone, PartialEq, Eq)]
 #[pyclass(frozen, eq)]

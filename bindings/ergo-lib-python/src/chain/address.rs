@@ -2,7 +2,7 @@ use derive_more::{From, Into};
 use ergo_lib::ergotree_ir::chain::address::{self, AddressEncoder};
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyType};
 
-use crate::{ergo_tree::ErgoTree, sigma_boolean::ProveDlog, to_value_error};
+use crate::{ergo_tree::ErgoTree, sigma_protocol::ProveDlog, to_value_error};
 #[pyclass(eq, eq_int, frozen)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum NetworkPrefix {

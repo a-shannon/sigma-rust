@@ -164,15 +164,21 @@ fn build_tx_context(
 }
 // Register all classes & functions of this module. This does not create a submodule because of a python limitation that would prevent 'from ergo_lib import submodule'
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<SecretKey>()?;
-    m.add_class::<MnemonicGenerator>()?;
-    m.add_class::<ExtSecretKey>()?;
-    m.add_class::<ExtPubKey>()?;
-    m.add_class::<DerivationPath>()?;
-    m.add_class::<BoxSelection>()?;
-    m.add_class::<Wallet>()?;
-    m.add_class::<ErgoBoxAssetsData>()?;
-    m.add_function(wrap_pyfunction!(select_boxes_simple, m)?)?;
-    m.add_function(wrap_pyfunction!(mnemonic::to_seed, m)?)?;
+    let submodule = PyModule::new(m.py(), "wallet")?;
+    submodule.add_class::<SecretKey>()?;
+    submodule.add_class::<MnemonicGenerator>()?;
+    submodule.add_class::<ExtSecretKey>()?;
+    submodule.add_class::<ExtPubKey>()?;
+    submodule.add_class::<DerivationPath>()?;
+    submodule.add_class::<BoxSelection>()?;
+    submodule.add_class::<Wallet>()?;
+    submodule.add_class::<ErgoBoxAssetsData>()?;
+    submodule.add_function(wrap_pyfunction!(select_boxes_simple, m)?)?;
+    submodule.add_function(wrap_pyfunction!(mnemonic::to_seed, m)?)?;
+    m.add_submodule(&submodule)?;
+    m.py()
+        .import("sys")?
+        .getattr("modules")?
+        .set_item("ergo_lib_python.wallet", submodule)?;
     Ok(())
 }

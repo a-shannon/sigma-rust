@@ -23,6 +23,7 @@ use crate::{
 use super::{ec_point::EcPoint, ergo_box::ErgoBox};
 
 #[pyclass]
+#[allow(clippy::enum_variant_names)]
 pub enum SType {
     SUnit(),
     SBoolean(),

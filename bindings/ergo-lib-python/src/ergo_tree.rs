@@ -45,3 +45,14 @@ impl ErgoTree {
             .map_err(Into::into)
     }
 }
+
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let submodule = PyModule::new(m.py(), "ergo_tree")?;
+    submodule.add_class::<ErgoTree>()?;
+    m.add_submodule(&submodule)?;
+    m.py()
+        .import("sys")?
+        .getattr("modules")?
+        .set_item("ergo_lib_python.ergo_tree", submodule)?;
+    Ok(())
+}

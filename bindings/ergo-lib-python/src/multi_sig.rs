@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 
 use crate::{
     chain::{ergo_box::ErgoBox, ergo_state_context::ErgoStateContext},
-    sigma_boolean::ProveDlog,
+    sigma_protocol::ProveDlog,
     to_value_error,
     transaction::Transaction,
 };
@@ -52,13 +52,19 @@ fn extract_hints(
     .map_err(to_value_error)
 }
 
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<HintsBag>()?;
-    m.add_class::<TransactionHintsBag>()?;
-    m.add_class::<RealCommitment>()?;
-    m.add_class::<SimulatedCommitment>()?;
-    m.add_class::<RealSecretProof>()?;
-    m.add_class::<SimulatedSecretProof>()?;
-    m.add_function(wrap_pyfunction!(extract_hints, m)?)?;
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    let submodule = PyModule::new(m.py(), "multi_sig")?;
+    submodule.add_class::<HintsBag>()?;
+    submodule.add_class::<TransactionHintsBag>()?;
+    submodule.add_class::<RealCommitment>()?;
+    submodule.add_class::<SimulatedCommitment>()?;
+    submodule.add_class::<RealSecretProof>()?;
+    submodule.add_class::<SimulatedSecretProof>()?;
+    submodule.add_function(wrap_pyfunction!(extract_hints, m)?)?;
+    m.add_submodule(&submodule)?;
+    m.py()
+        .import("sys")?
+        .getattr("modules")?
+        .set_item("ergo_lib_python.multi_sig", submodule)?;
     Ok(())
 }

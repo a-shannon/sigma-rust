@@ -20,22 +20,29 @@ use pyo3::prelude::*;
 use token::{Token, TokenId};
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<NetworkPrefix>()?;
-    m.add_class::<Address>()?;
-    m.add_class::<EcPoint>()?;
-    m.add_class::<ErgoBoxCandidate>()?;
-    m.add_class::<ErgoBox>()?;
-    m.add_class::<BoxId>()?;
-    m.add_class::<TokenId>()?;
-    m.add_class::<Token>()?;
-    m.add_class::<NonMandatoryRegisterId>()?;
-    m.add_class::<Constant>()?;
-    m.add_class::<SType>()?;
-    m.add_class::<BlockId>()?;
-    m.add_class::<Header>()?;
-    m.add_class::<PreHeader>()?;
-    m.add_class::<ContextExtension>()?;
-    m.add_class::<Parameters>()?;
-    m.add_class::<ErgoStateContext>()?;
+    let submodule = PyModule::new(m.py(), "chain")?;
+    submodule.add_class::<NetworkPrefix>()?;
+    submodule.add_class::<Address>()?;
+    submodule.add_class::<EcPoint>()?;
+    submodule.add_class::<ErgoBoxCandidate>()?;
+    submodule.add_class::<ErgoBox>()?;
+    submodule.add_class::<BoxId>()?;
+    submodule.add_class::<TokenId>()?;
+    submodule.add_class::<Token>()?;
+    submodule.add_class::<NonMandatoryRegisterId>()?;
+    submodule.add_class::<Constant>()?;
+    submodule.add_class::<SType>()?;
+    submodule.add_class::<BlockId>()?;
+    submodule.add_class::<Header>()?;
+    submodule.add_class::<PreHeader>()?;
+    submodule.add_class::<ContextExtension>()?;
+    submodule.add_class::<Parameters>()?;
+    submodule.add_class::<ErgoStateContext>()?;
+    m.add_submodule(&submodule)?;
+    submodule
+        .py()
+        .import("sys")?
+        .getattr("modules")?
+        .set_item("ergo_lib_python.chain", submodule)?;
     Ok(())
 }

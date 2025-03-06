@@ -24,6 +24,12 @@ impl ProveDlog {
 }
 
 pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ProveDlog>()?;
+    let submodule = PyModule::new(m.py(), "sigma_protocol")?;
+    submodule.add_class::<ProveDlog>()?;
+    m.add_submodule(&submodule)?;
+    m.py()
+        .import("sys")?
+        .getattr("modules")?
+        .set_item("ergo_lib_python.sigma_protocol", submodule)?;
     Ok(())
 }

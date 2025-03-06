@@ -140,6 +140,19 @@ impl Transaction {
         .map_err(to_value_error)
     }
     #[classmethod]
+    fn from_unsigned_tx(
+        _: &Bound<'_, PyType>,
+        unsigned_tx: UnsignedTransaction,
+        proofs: Vec<Vec<u8>>,
+    ) -> PyResult<Self> {
+        TransactionInner::from_unsigned_tx(
+            unsigned_tx.into(),
+            proofs.into_iter().map(Into::into).collect(),
+        )
+        .map(Self)
+        .map_err(to_value_error)
+    }
+    #[classmethod]
     fn from_json(_: &Bound<'_, PyType>, json: Bound<'_, PyAny>) -> PyResult<Self> {
         from_json(json).map(Self)
     }
@@ -246,14 +259,20 @@ impl ReducedTransaction {
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<UnsignedInput>()?;
-    m.add_class::<Input>()?;
-    m.add_class::<DataInput>()?;
-    m.add_class::<ProverResult>()?;
-    m.add_class::<UnsignedTransaction>()?;
-    m.add_class::<Transaction>()?;
-    m.add_class::<ReducedTransaction>()?;
-    m.add_class::<TxBuilder>()?;
-    m.add_class::<TxId>()?;
+    let submodule = PyModule::new(m.py(), "transaction")?;
+    submodule.add_class::<UnsignedInput>()?;
+    submodule.add_class::<Input>()?;
+    submodule.add_class::<DataInput>()?;
+    submodule.add_class::<ProverResult>()?;
+    submodule.add_class::<UnsignedTransaction>()?;
+    submodule.add_class::<Transaction>()?;
+    submodule.add_class::<ReducedTransaction>()?;
+    submodule.add_class::<TxBuilder>()?;
+    submodule.add_class::<TxId>()?;
+    m.add_submodule(&submodule)?;
+    m.py()
+        .import("sys")?
+        .getattr("modules")?
+        .set_item("ergo_lib_python.transaction", submodule)?;
     Ok(())
 }

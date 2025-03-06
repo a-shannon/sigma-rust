@@ -19,6 +19,12 @@ fn verify_signature(address: &Address, message: &[u8], signature: &[u8]) -> PyRe
 }
 
 pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(verify_signature, m)?)?;
+    let submodule = PyModule::new(m.py(), "verifier")?;
+    submodule.add_function(wrap_pyfunction!(verify_signature, m)?)?;
+    m.add_submodule(&submodule)?;
+    m.py()
+        .import("sys")?
+        .getattr("modules")?
+        .set_item("ergo_lib_python.verifier", submodule)?;
     Ok(())
 }

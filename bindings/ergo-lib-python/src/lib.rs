@@ -18,19 +18,15 @@
 #![deny(clippy::todo)]
 #![deny(clippy::unimplemented)]
 
-pub mod chain;
+pub(crate) mod chain;
 mod ergo_tree;
 mod errors;
-pub mod multi_sig;
-pub mod sigma_boolean;
-pub mod transaction;
+pub(crate) mod multi_sig;
+pub(crate) mod sigma_protocol;
+pub(crate) mod transaction;
 mod verifier;
 pub mod wallet;
-use ergo_tree::ErgoTree;
-use errors::{
-    JsonError, JsonException, RegisterValueException, SigmaParsingException,
-    SigmaSerializationException, WalletException,
-};
+use errors::JsonError;
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 use serde::de::DeserializeOwned;
 use serde_pyobject::from_pyobject;
@@ -51,27 +47,15 @@ pub(crate) fn from_json<T: DeserializeOwned>(json: Bound<'_, PyAny>) -> PyResult
 }
 
 #[pymodule]
-fn ergo_lib_python(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn ergo_lib_python(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     wallet::register(m)?;
     chain::register(m)?;
     transaction::register(m)?;
-    sigma_boolean::register(m)?;
+    sigma_protocol::register(m)?;
     multi_sig::register(m)?;
     verifier::register(m)?;
-    m.add("JsonException", m.py().get_type::<JsonException>())?;
-    m.add(
-        "SigmaSerializationException",
-        m.py().get_type::<SigmaSerializationException>(),
-    )?;
-    m.add(
-        "SigmaSerializationException",
-        m.py().get_type::<SigmaParsingException>(),
-    )?;
-    m.add("WalletException", m.py().get_type::<WalletException>())?;
-    m.add(
-        "RegisterValueException",
-        m.py().get_type::<RegisterValueException>(),
-    )?;
-    m.add_class::<ErgoTree>()?;
+    errors::register(m)?;
+    ergo_tree::register(m)?;
+    m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }

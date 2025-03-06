@@ -2,7 +2,7 @@ use derive_more::{From, Into};
 use ergo_lib::wallet::secret_key;
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyType};
 
-use crate::{errors::JsonError, from_json, sigma_boolean::ProveDlog, to_value_error};
+use crate::{errors::JsonError, from_json, sigma_protocol::ProveDlog, to_value_error};
 
 /// Secret Key
 #[pyclass(eq, frozen, str = "{0:?}")]
