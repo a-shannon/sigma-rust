@@ -17,48 +17,12 @@ impl From<NetworkPrefix> for address::NetworkPrefix {
     }
 }
 
-/**
- * An address is a short string corresponding to some script used to protect a box. Unlike (string-encoded) binary
- * representation of a script, an address has some useful characteristics:
- *
- * - Integrity of an address could be checked., as it is incorporating a checksum.
- * - A prefix of address is showing network and an address type.
- * - An address is using an encoding (namely, Base58) which is avoiding similarly l0Oking characters, friendly to
- * double-clicking and line-breaking in emails.
- *
- *
- *
- * An address is encoding network type, address type, checksum, and enough information to watch for a particular scripts.
- *
- * Possible network types are:
- * Mainnet - 0x00
- * Testnet - 0x10
- *
- * For an address type, we form content bytes as follows:
- *
- * P2PK - serialized (compressed) public key
- * P2SH - first 192 bits of the Blake2b256 hash of serialized script bytes
- * P2S  - serialized script
- *
- * Address examples for testnet:
- *
- * 3   - P2PK (3WvsT2Gm4EpsM9Pg18PdY6XyhNNMqXDsvJTbbf6ihLvAmSb7u5RN)
- * ?   - P2SH (rbcrmKEYduUvADj9Ts3dSVSG27h54pgrq5fPuwB)
- * ?   - P2S (Ms7smJwLGbUAjuWQ)
- *
- * for mainnet:
- *
- * 9  - P2PK (9fRAWhdxEsTcdb8PhGNrZfwqa65zfkuYHAMmkQLcic1gdLSV5vA)
- * ?  - P2SH (8UApt8czfFVuTgQmMwtsRBZ4nfWquNiSwCWUjMg)
- * ?  - P2S (4MQyML64GnzMxZgm, BxKBaHkvrTvLZrDcZjcsxsF7aSsrN73ijeFZXtbj4CXZHHcvBtqSxQ)
- */
 #[pyclass(eq, frozen)]
 #[derive(From, Into, Clone, PartialEq, Eq)]
 pub(crate) struct Address(pub(crate) address::Address);
 
 #[pymethods]
 impl Address {
-    /// Build a new address from a str, ErgoTree or bytes
     #[new]
     #[pyo3(signature = (arg, network_prefix=None))]
     fn new(arg: &Bound<'_, PyAny>, network_prefix: Option<NetworkPrefix>) -> PyResult<Self> {
@@ -90,15 +54,12 @@ impl Address {
     fn p2pk(_: &Bound<'_, PyType>, prove_dlog: ProveDlog) -> Address {
         address::Address::P2Pk(prove_dlog.into()).into()
     }
-    /// Re-create the address from ErgoTree that was built from the address
-    /// This is the inverse of Address.ergo_tree()
     #[classmethod]
     fn recreate_from_ergo_tree(_: &Bound<'_, PyType>, tree: &ErgoTree) -> PyResult<Self> {
         address::Address::recreate_from_ergo_tree(&tree.0)
             .map(Self)
             .map_err(to_value_error)
     }
-    /// Create an ErgoTree script from the address
     pub(crate) fn ergo_tree(&self) -> PyResult<ErgoTree> {
         self.0.script().map(Into::into).map_err(to_value_error)
     }
