@@ -95,6 +95,11 @@ pub struct ErgoBoxCandidate(ergo_box::ErgoBoxCandidate);
 
 #[pymethods]
 impl ErgoBoxCandidate {
+    #[allow(non_snake_case)]
+    #[classattr]
+    fn SAFE_USER_MIN() -> u64 {
+        *BoxValue::SAFE_USER_MIN.as_u64()
+    }
     #[allow(clippy::too_many_arguments)]
     #[new]
     #[pyo3(signature=(*, value, script, creation_height, tokens=None, registers=None, mint_token= None, mint_token_name = None, mint_token_desc=None, mint_token_decimals=None))]

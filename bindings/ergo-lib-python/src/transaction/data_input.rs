@@ -16,6 +16,10 @@ impl DataInput {
             box_id: box_id.into(),
         })
     }
+    #[getter]
+    fn box_id(&self) -> BoxId {
+        self.0.box_id.into()
+    }
     fn __repr__(&self) -> String {
         format!("DataInput({:?})", self.0.box_id)
     }

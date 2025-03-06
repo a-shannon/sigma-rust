@@ -44,7 +44,6 @@ impl TxBuilder {
         self.0
             .set_data_inputs(data_inputs.into_iter().map(Into::into).collect());
     }
-
     fn set_context_extension(&mut self, box_id: BoxId, context_extension: ContextExtension) {
         self.0
             .set_context_extension(box_id.into(), context_extension.into());
