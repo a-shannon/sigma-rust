@@ -8,7 +8,6 @@ __all__ = ['NetworkPrefix', 'Address', 'EcPoint', 'ErgoBoxCandidate', 'ErgoBox',
 # Types are written as 'SType' here because SType can't be named until after its definition exits. Also using SType directly causes sphinx-autoapi to error due to recursion limit
 # sphinx-autoapi unfortunately recognizes type of base class as str, so we need to manually override __init__ and class documentation to avoid confusion
 class SType:
-
     """Type of a :py:class:`Constant`"""
     @typing.final
     class SUnit('SType'):
@@ -147,8 +146,6 @@ class EcPoint:
         ...
     ...
 
-type _ConstantValue = bytes | EcPoint | bool | ErgoBox
-
 @typing.final
 class Constant:
     """
@@ -156,7 +153,7 @@ class Constant:
     Constants can be built from byte-arrays, integers, ErgoBox, collections of constants, etc. For the full list see parameter description
 
     """
-    def __init__(self, arg: _ConstantValue | list[Self] | tuple[Self, ...], elem_tpe: Optional[SType] = None):
+    def __init__(self, arg: bytes | EcPoint | bool | ErgoBox | list[Self] | tuple[Self, ...], elem_tpe: Optional[SType] = None):
         """
         Example:
             >>> # Build a signed 32-bit integer Constant
@@ -210,7 +207,7 @@ class Constant:
         """Return type of Constant"""
         ...
     @property
-    def value(self) -> _ConstantValue | list[Self] | tuple[Self]:
+    def value(self) -> bytes | EcPoint | bool | ErgoBox | list[Self] | tuple[Self]:
         ...
     def __bytes__(self) -> bytes:
         """Serialize Constant to byte array using ``bytes()``"""

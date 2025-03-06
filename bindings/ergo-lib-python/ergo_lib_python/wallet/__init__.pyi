@@ -125,6 +125,7 @@ class ExtSecretKey:
     def derive_master(cls, seed: bytes) -> Self:
         """Create new ExtSecretKey from seed.
         Example:
+
             >>> mnemonic = MnemonicGenerator("english", 128).generate()
             >>> seed = to_seed(mnemonic, password="")
             >>> ext_secret_key = ExtSecretKey.derive_master(seed)
