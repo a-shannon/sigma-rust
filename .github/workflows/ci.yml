@@ -63,12 +63,19 @@ jobs:
   test_coverage:
     name: Code coverage in tests
     runs-on: ubuntu-latest
-    container:
-      image: xd009642/tarpaulin:latest
-      options: --security-opt seccomp=unconfined
     steps:
       - name: Checkout repository
         uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          override: true
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.12.0
+      - name: Install cargo-tarpaulin
+        uses: actions-rs/cargo@v1
+        with:
+          command: binstall
+          args: cargo-tarpaulin --no-confirm
       - name: Generate code coverage
         run: |
           cargo tarpaulin --avoid-cfg-tarpaulin --timeout=360 --out lcov --exclude-files 'bindings/**/*.*' --exclude-files 'ergo-rest/src/reqwest.rs' --exclude-files 'ergo-rest/src/reqwest/**/*.*' --exclude-files 'ergo-rest/src/wasm_timer.rs' --exclude-files 'ergo-rest/src/wasm_timer/**/*.*'
@@ -231,7 +238,7 @@ jobs:
 
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: nightly-2024-01-26
+          toolchain: nightly-2024-07-19
           override: true
 
       - name: install deps
