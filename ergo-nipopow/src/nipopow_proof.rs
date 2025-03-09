@@ -185,15 +185,19 @@ impl ScorexSerializable for NipopowProof {
 }
 
 /// `NipopowProof` errors
-#[derive(PartialEq, Eq, Debug, Clone, From)]
+#[derive(PartialEq, Eq, Debug, Clone, From, thiserror::Error)]
 pub enum NipopowProofError {
     /// Errors from `AutolykosPowScheme`
+    #[error("{0:?}")]
     AutolykosPowSchemeError(autolykos_pow_scheme::AutolykosPowSchemeError),
     /// `k` parameter == 0. Must be >= 1.
+    #[error("k parameter == 0. Must be >= 1")]
     ZeroKParameter,
     /// Can not prove non-anchored (first block is non-Genesis) chain
+    #[error("Can not prove non-anchored (first block is non-Genesis) chain")]
     NonAnchoredChain,
     /// Chain must be of length `>= k + m`
+    #[error("Chain must be of length `>= k + m`")]
     ChainTooShort,
 }
 

@@ -11,8 +11,8 @@ use sigma_ser::ScorexSerializable;
 use crate::{from_json, to_value_error};
 
 #[pyclass(eq, frozen, hash)]
-#[derive(PartialEq, Eq, Clone, Copy, Hash)]
-pub struct BlockId(InnerBlockId);
+#[derive(PartialEq, Eq, Clone, Copy, Hash, From, Into)]
+pub(crate) struct BlockId(InnerBlockId);
 
 #[pymethods]
 impl BlockId {

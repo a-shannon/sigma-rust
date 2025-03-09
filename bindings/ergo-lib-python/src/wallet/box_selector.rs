@@ -14,7 +14,7 @@ use pyo3::prelude::*;
 
 #[pyclass(eq, frozen)]
 #[derive(Clone, PartialEq, Eq, From, Into)]
-pub struct ErgoBoxAssetsData(ErgoBoxAssetsDataInner);
+pub(crate) struct ErgoBoxAssetsData(ErgoBoxAssetsDataInner);
 
 #[pymethods]
 impl ErgoBoxAssetsData {
@@ -89,7 +89,7 @@ impl BoxSelection {
 /// Select boxes whose value and tokens sum to target_balance and target_tokens.
 /// This uses a simple strategy where boxes are sorted by token amounts and selected in descending order
 #[pyfunction]
-pub fn select_boxes_simple(
+pub(crate) fn select_boxes_simple(
     inputs: Vec<ErgoBox>,
     target_balance: u64,
     target_tokens: Vec<Token>,

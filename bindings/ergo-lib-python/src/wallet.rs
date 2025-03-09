@@ -31,7 +31,7 @@ mod mnemonic;
 mod secret_key;
 
 #[pyclass]
-pub struct Wallet(WalletInner);
+pub(crate) struct Wallet(WalletInner);
 #[pymethods]
 impl Wallet {
     #[new]
@@ -163,7 +163,7 @@ fn build_tx_context(
     .map_err(to_value_error)
 }
 // Register all classes & functions of this module. This does not create a submodule because of a python limitation that would prevent 'from ergo_lib import submodule'
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let submodule = PyModule::new(m.py(), "wallet")?;
     submodule.add_class::<SecretKey>()?;
     submodule.add_class::<MnemonicGenerator>()?;

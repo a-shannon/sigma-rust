@@ -2,7 +2,7 @@ pub mod address;
 pub mod constant;
 pub mod context_extension;
 pub mod ec_point;
-pub mod ergo_box;
+pub(crate) mod ergo_box;
 pub mod ergo_state_context;
 pub mod header;
 pub mod parameters;
@@ -19,7 +19,7 @@ use parameters::Parameters;
 use pyo3::prelude::*;
 use token::{Token, TokenId};
 
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let submodule = PyModule::new(m.py(), "chain")?;
     submodule.add_class::<NetworkPrefix>()?;
     submodule.add_class::<Address>()?;

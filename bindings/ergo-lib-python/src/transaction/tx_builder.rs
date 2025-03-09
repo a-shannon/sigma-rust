@@ -19,7 +19,7 @@ use super::{data_input::DataInput, UnsignedTransaction};
 
 #[pyclass]
 #[derive(Clone)]
-pub struct TxBuilder(TxBuilderInner<ergo_lib::ergotree_ir::chain::ergo_box::ErgoBox>);
+pub(crate) struct TxBuilder(TxBuilderInner<ergo_lib::ergotree_ir::chain::ergo_box::ErgoBox>);
 
 #[pymethods]
 impl TxBuilder {

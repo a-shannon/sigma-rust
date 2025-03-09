@@ -17,7 +17,7 @@ pub struct ContextExtension(ContextExtensionInner);
 impl ContextExtension {
     #[new]
     #[pyo3(signature=(values=None))]
-    pub fn new(values: Option<IndexMap<u8, Constant>>) -> Self {
+    pub(crate) fn new(values: Option<IndexMap<u8, Constant>>) -> Self {
         ContextExtension(ContextExtensionInner {
             values: values
                 .into_iter()

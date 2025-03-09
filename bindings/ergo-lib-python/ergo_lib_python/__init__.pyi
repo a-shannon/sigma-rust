@@ -11,6 +11,7 @@ from ergo_lib_python import verifier
 from ergo_lib_python import sigma_protocol
 from ergo_lib_python import exceptions
 from ergo_lib_python import ergo_tree
+from ergo_lib_python import nipopow
 
 __version__: str = ...
-__all__ = ['wallet', 'chain', 'transaction', 'sigma_protocol', 'multi_sig', 'verifier', 'exceptions', 'ergo_tree', '__version__']
+__all__ = ['wallet', 'chain', 'transaction', 'sigma_protocol', 'multi_sig', 'verifier', 'exceptions', 'ergo_tree', 'nipopow', '__version__']

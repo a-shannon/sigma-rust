@@ -11,7 +11,7 @@ use super::hints::{RealCommitment, RealSecretProof, SimulatedCommitment, Simulat
 
 #[pyclass]
 #[derive(From, Into, Clone)]
-pub struct HintsBag(HintsBagInner);
+pub(crate) struct HintsBag(HintsBagInner);
 
 #[pymethods]
 impl HintsBag {
@@ -105,7 +105,7 @@ impl HintsBag {
 
 #[pyclass]
 #[derive(Clone, From, Into, AsRef)]
-pub struct TransactionHintsBag(TransactionHintsBagInner);
+pub(crate) struct TransactionHintsBag(TransactionHintsBagInner);
 
 #[pymethods]
 impl TransactionHintsBag {

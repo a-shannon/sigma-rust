@@ -7,7 +7,7 @@ use crate::{errors::JsonError, from_json, sigma_protocol::ProveDlog, to_value_er
 /// Secret Key
 #[pyclass(eq, frozen, str = "{0:?}")]
 #[derive(PartialEq, Eq, Clone, From, Into)]
-pub struct SecretKey(secret_key::SecretKey);
+pub(crate) struct SecretKey(secret_key::SecretKey);
 
 #[pymethods]
 impl SecretKey {

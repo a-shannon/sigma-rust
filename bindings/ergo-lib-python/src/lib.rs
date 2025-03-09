@@ -22,6 +22,7 @@ pub(crate) mod chain;
 mod ergo_tree;
 mod errors;
 pub(crate) mod multi_sig;
+mod nipopow;
 pub(crate) mod sigma_protocol;
 pub(crate) mod transaction;
 mod verifier;
@@ -56,6 +57,7 @@ fn ergo_lib_python(_py: Python, m: &Bound<'_, PyModule>) -> PyResult<()> {
     verifier::register(m)?;
     errors::register(m)?;
     ergo_tree::register(m)?;
+    nipopow::register(m)?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())
 }

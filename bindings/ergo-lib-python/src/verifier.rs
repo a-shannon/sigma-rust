@@ -18,7 +18,7 @@ fn verify_signature(address: &Address, message: &[u8], signature: &[u8]) -> PyRe
     }
 }
 
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let submodule = PyModule::new(m.py(), "verifier")?;
     submodule.add_function(wrap_pyfunction!(verify_signature, m)?)?;
     m.add_submodule(&submodule)?;

@@ -8,7 +8,7 @@ use crate::to_value_error;
 
 #[pyclass(eq, frozen, str)]
 #[derive(PartialEq, Eq, Display, Clone, From, Into)]
-pub struct EcPoint(pub(crate) EcPointInner);
+pub(crate) struct EcPoint(pub(crate) EcPointInner);
 
 #[pymethods]
 impl EcPoint {

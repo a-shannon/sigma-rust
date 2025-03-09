@@ -11,7 +11,7 @@ use super::chain::constant::Constant;
 
 #[pyclass(eq)]
 #[derive(PartialEq, Eq, Clone, From, Into)]
-pub struct ErgoTree(pub ergo_tree::ErgoTree);
+pub(crate) struct ErgoTree(pub ergo_tree::ErgoTree);
 
 #[pymethods]
 impl ErgoTree {

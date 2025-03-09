@@ -16,7 +16,7 @@ use crate::{chain::ec_point::EcPoint, sigma_protocol::ProveDlog};
 
 #[derive(From, Into, Clone, PartialEq, Eq)]
 #[pyclass(frozen, eq)]
-pub struct RealCommitment(pub(crate) RealCommitmentInner);
+pub(crate) struct RealCommitment(pub(crate) RealCommitmentInner);
 
 #[pymethods]
 impl RealCommitment {
@@ -35,7 +35,7 @@ impl RealCommitment {
 }
 #[derive(From, Into, Clone, PartialEq, Eq)]
 #[pyclass(frozen, eq)]
-pub struct SimulatedCommitment(pub(crate) SimulatedCommitmentInner);
+pub(crate) struct SimulatedCommitment(pub(crate) SimulatedCommitmentInner);
 
 #[pymethods]
 impl SimulatedCommitment {
@@ -55,7 +55,7 @@ impl SimulatedCommitment {
 
 #[derive(From, Into, Clone)]
 #[pyclass(frozen)]
-pub struct RealSecretProof(pub(crate) RealSecretProofInner);
+pub(crate) struct RealSecretProof(pub(crate) RealSecretProofInner);
 
 #[pymethods]
 impl RealSecretProof {
@@ -78,7 +78,7 @@ impl RealSecretProof {
 
 #[derive(From, Into, Clone)]
 #[pyclass(frozen)]
-pub struct SimulatedSecretProof(pub(crate) SimulatedSecretProofInner);
+pub(crate) struct SimulatedSecretProof(pub(crate) SimulatedSecretProofInner);
 
 #[pymethods]
 impl SimulatedSecretProof {

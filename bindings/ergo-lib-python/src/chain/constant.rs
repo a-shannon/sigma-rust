@@ -24,7 +24,7 @@ use super::{ec_point::EcPoint, ergo_box::ErgoBox};
 
 #[pyclass]
 #[allow(clippy::enum_variant_names)]
-pub enum SType {
+pub(crate) enum SType {
     SUnit(),
     SBoolean(),
     SByte(),
@@ -157,7 +157,7 @@ impl SType {
 /// Constant value that can be used in ErgoBox registers, ErgoTree constants and ContextExtension
 #[pyclass(eq)]
 #[derive(PartialEq, Eq, Clone, Debug, From, Into)]
-pub struct Constant(constant::Constant);
+pub(crate) struct Constant(constant::Constant);
 
 #[pymethods]
 impl Constant {

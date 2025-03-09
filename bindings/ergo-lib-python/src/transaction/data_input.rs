@@ -6,7 +6,7 @@ use crate::chain::ergo_box::BoxId;
 
 #[pyclass(eq)]
 #[derive(PartialEq, Eq, Copy, Clone, From, Into)]
-pub struct DataInput(DataInputInner);
+pub(crate) struct DataInput(DataInputInner);
 
 #[pymethods]
 impl DataInput {

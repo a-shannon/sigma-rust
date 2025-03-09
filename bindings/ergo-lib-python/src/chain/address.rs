@@ -5,7 +5,7 @@ use pyo3::{exceptions::PyValueError, prelude::*, types::PyType};
 use crate::{ergo_tree::ErgoTree, sigma_protocol::ProveDlog, to_value_error};
 #[pyclass(eq, eq_int, frozen)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NetworkPrefix {
+pub(crate) enum NetworkPrefix {
     Mainnet = 0x00,
     Testnet = 0x10,
 }

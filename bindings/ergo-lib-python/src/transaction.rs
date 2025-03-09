@@ -29,7 +29,7 @@ pub mod tx_builder;
 
 #[pyclass(eq, frozen, hash, str = "{0}")]
 #[derive(Copy, Clone, PartialEq, Eq, Hash, From, Into)]
-pub struct TxId(TxIdInner);
+pub(crate) struct TxId(TxIdInner);
 
 #[pymethods]
 impl TxId {
@@ -58,7 +58,7 @@ impl TxId {
 
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, Clone, From, Into)]
-pub struct UnsignedTransaction(pub UnsignedTransactionInner);
+pub(crate) struct UnsignedTransaction(pub UnsignedTransactionInner);
 
 #[pymethods]
 impl UnsignedTransaction {
@@ -121,7 +121,7 @@ impl UnsignedTransaction {
 
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, Clone, From, Into)]
-pub struct Transaction(TransactionInner);
+pub(crate) struct Transaction(TransactionInner);
 
 #[pymethods]
 impl Transaction {
@@ -211,12 +211,12 @@ impl Transaction {
 }
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, Debug, Clone, From, Into)]
-pub struct ReducedTransaction(ergo_lib::chain::transaction::reduced::ReducedTransaction);
+pub(crate) struct ReducedTransaction(ergo_lib::chain::transaction::reduced::ReducedTransaction);
 
 #[pymethods]
 impl ReducedTransaction {
     #[classmethod]
-    pub fn from_unsigned_tx(
+    fn from_unsigned_tx(
         _: &Bound<'_, PyType>,
         unsigned_tx: &UnsignedTransaction,
         boxes_to_spend: Vec<ErgoBox>,
@@ -238,7 +238,7 @@ impl ReducedTransaction {
             .map(ReducedTransaction::from)
     }
 
-    pub fn __bytes__(&self) -> PyResult<Vec<u8>> {
+    fn __bytes__(&self) -> PyResult<Vec<u8>> {
         self.0
             .sigma_serialize_bytes()
             .map_err(SigmaSerializationError::from)
@@ -246,19 +246,19 @@ impl ReducedTransaction {
     }
 
     #[classmethod]
-    pub fn from_bytes(_: &Bound<'_, PyType>, b: &[u8]) -> PyResult<ReducedTransaction> {
+    fn from_bytes(_: &Bound<'_, PyType>, b: &[u8]) -> PyResult<ReducedTransaction> {
         ergo_lib::chain::transaction::reduced::ReducedTransaction::sigma_parse_bytes(b)
             .map(ReducedTransaction)
             .map_err(SigmaParsingError::from)
             .map_err(Into::into)
     }
 
-    pub fn unsigned_tx(&self) -> UnsignedTransaction {
+    fn unsigned_tx(&self) -> UnsignedTransaction {
         self.0.unsigned_tx.clone().into()
     }
 }
 
-pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     let submodule = PyModule::new(m.py(), "transaction")?;
     submodule.add_class::<UnsignedInput>()?;
     submodule.add_class::<Input>()?;

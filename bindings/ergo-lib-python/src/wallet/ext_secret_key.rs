@@ -11,13 +11,13 @@ use super::{
 
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, From)]
-pub struct ExtSecretKey(ext_secret_key::ExtSecretKey);
+pub(crate) struct ExtSecretKey(ext_secret_key::ExtSecretKey);
 
 #[pymethods]
 impl ExtSecretKey {
     #[classmethod]
     #[pyo3(signature = (mnemonic_phrase, password=""))]
-    pub fn from_mnemonic(
+    fn from_mnemonic(
         _: &Bound<'_, PyType>,
         mnemonic_phrase: &str,
         password: &str,
@@ -27,28 +27,28 @@ impl ExtSecretKey {
             .map(Self)
     }
     #[classmethod]
-    pub fn derive_master(_: &Bound<'_, PyType>, seed: &[u8]) -> PyResult<Self> {
+    fn derive_master(_: &Bound<'_, PyType>, seed: &[u8]) -> PyResult<Self> {
         ext_secret_key::ExtSecretKey::derive_master(seed.try_into().map_err(to_value_error)?)
             .map(Self)
             .map_err(to_value_error)
     }
-    pub fn path(&self) -> DerivationPath {
+    fn path(&self) -> DerivationPath {
         self.0.path().into()
     }
 
-    pub fn child(&self, index: &str) -> PyResult<ExtSecretKey> {
+    fn child(&self, index: &str) -> PyResult<ExtSecretKey> {
         let idx = index.parse::<ChildIndex>().map_err(to_value_error)?;
         Ok(self.0.child(idx).map_err(to_value_error)?.into())
     }
-    pub fn derive(&self, up_path: DerivationPath) -> PyResult<Self> {
+    fn derive(&self, up_path: DerivationPath) -> PyResult<Self> {
         self.0.derive(up_path.0).map(Self).map_err(to_value_error)
     }
 
-    pub fn secret_key(&self) -> SecretKey {
+    fn secret_key(&self) -> SecretKey {
         self.0.secret_key().into()
     }
 
-    pub fn public_key(&self) -> PyResult<ExtPubKey> {
+    fn public_key(&self) -> PyResult<ExtPubKey> {
         self.0
             .public_key()
             .map(ExtPubKey::from)

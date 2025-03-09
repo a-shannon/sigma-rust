@@ -28,7 +28,7 @@ use super::{address::Address, constant::Constant, token::Token};
 #[pyclass(eq, frozen, hash, ord)]
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy)]
 #[repr(u8)]
-pub enum NonMandatoryRegisterId {
+pub(crate) enum NonMandatoryRegisterId {
     R4 = 4,
     R5 = 5,
     R6 = 6,
@@ -60,7 +60,7 @@ impl From<NonMandatoryRegisterId> for ergo_box::NonMandatoryRegisterId {
 /// Identifier of an :class:`ErgoBox`
 #[pyclass(str = "{0}", eq)]
 #[derive(PartialEq, Eq, Clone, Copy, From, Into)]
-pub struct BoxId(pub ergo_box::BoxId);
+pub(crate) struct BoxId(pub ergo_box::BoxId);
 
 #[pymethods]
 impl BoxId {
@@ -91,7 +91,7 @@ impl BoxId {
 
 #[pyclass(eq)]
 #[derive(Clone, PartialEq, Eq, From, Into, Debug)]
-pub struct ErgoBoxCandidate(ergo_box::ErgoBoxCandidate);
+pub(crate) struct ErgoBoxCandidate(ergo_box::ErgoBoxCandidate);
 
 #[pymethods]
 impl ErgoBoxCandidate {
@@ -199,7 +199,7 @@ impl ErgoBoxCandidate {
 
 #[pyclass(eq)]
 #[derive(PartialEq, Eq, Clone, From, Into, Deserialize, Serialize)]
-pub struct ErgoBox(pub ergo_box::ErgoBox);
+pub(crate) struct ErgoBox(pub ergo_box::ErgoBox);
 
 #[pymethods]
 impl ErgoBox {

@@ -15,7 +15,7 @@ use crate::{
 
 #[pyclass(eq)]
 #[derive(PartialEq, Eq, Clone, From, Into)]
-pub struct UnsignedInput(UnsignedInputInner);
+pub(crate) struct UnsignedInput(UnsignedInputInner);
 
 #[pymethods]
 impl UnsignedInput {

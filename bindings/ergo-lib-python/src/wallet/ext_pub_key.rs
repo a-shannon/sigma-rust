@@ -9,7 +9,7 @@ use pyo3::{pyclass, pymethods, PyResult};
 
 #[derive(From, Clone, PartialEq, Eq)]
 #[pyclass(frozen, eq)]
-pub struct ExtPubKey(ext_pub_key::ExtPubKey);
+pub(crate) struct ExtPubKey(ext_pub_key::ExtPubKey);
 
 #[pymethods]
 impl ExtPubKey {

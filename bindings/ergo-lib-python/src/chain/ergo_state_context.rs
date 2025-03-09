@@ -9,7 +9,7 @@ use super::{
 
 #[pyclass(eq)]
 #[derive(Clone, PartialEq, Eq, From, Into, AsRef)]
-pub struct ErgoStateContext(pub(crate) ErgoStateContextInner);
+pub(crate) struct ErgoStateContext(pub(crate) ErgoStateContextInner);
 
 #[pymethods]
 impl ErgoStateContext {

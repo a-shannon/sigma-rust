@@ -11,13 +11,13 @@ use crate::to_value_error;
 /// and EIP-3 <https://github.com/ergoplatform/eips/blob/master/eip-0003.md>
 #[pyclass(frozen, eq)]
 #[derive(PartialEq, Eq, Debug, Clone, From, Into)]
-pub struct DerivationPath(pub(crate) derivation_path::DerivationPath);
+pub(crate) struct DerivationPath(pub(crate) derivation_path::DerivationPath);
 
 #[pymethods]
 impl DerivationPath {
     #[new]
     #[pyo3(signature = (acc=0, address_indices=vec![0]))]
-    pub fn new(acc: u32, address_indices: Vec<u32>) -> PyResult<DerivationPath> {
+    fn new(acc: u32, address_indices: Vec<u32>) -> PyResult<DerivationPath> {
         let acc = ChildIndexHardened::from_31_bit(acc).map_err(to_value_error)?;
         let address_indices = address_indices
             .iter()
@@ -31,12 +31,12 @@ impl DerivationPath {
     }
 
     #[classmethod]
-    pub fn master_path(_: &Bound<'_, PyType>) -> Self {
+    fn master_path(_: &Bound<'_, PyType>) -> Self {
         Self(derivation_path::DerivationPath::master_path())
     }
 
     #[classmethod]
-    pub fn from_str(_: &Bound<'_, PyType>, path: &str) -> PyResult<DerivationPath> {
+    fn from_str(_: &Bound<'_, PyType>, path: &str) -> PyResult<DerivationPath> {
         Ok(Self(
             path.parse::<derivation_path::DerivationPath>()
                 .map_err(to_value_error)?,
@@ -44,19 +44,19 @@ impl DerivationPath {
     }
 
     #[getter]
-    pub fn depth(&self) -> usize {
+    fn depth(&self) -> usize {
         self.0.depth()
     }
 
-    pub fn next(&self) -> PyResult<DerivationPath> {
+    fn next(&self) -> PyResult<DerivationPath> {
         Ok(Self(self.0.next().map_err(to_value_error)?))
     }
 
-    pub fn __str__(&self) -> String {
+    fn __str__(&self) -> String {
         self.0.to_string()
     }
 
-    pub fn ledger_bytes(&self) -> Vec<u8> {
+    fn ledger_bytes(&self) -> Vec<u8> {
         self.0.ledger_bytes()
     }
 }

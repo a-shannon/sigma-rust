@@ -7,7 +7,7 @@ use crate::to_value_error;
 /// Create a new MnemonicGenerator. Allowed languages are "english", "chinese_simplified", "chinese_traditional", "french", "italian", "japanese", "korean" and "spanish"
 /// Strength must be atleast 128 bits, allowed values are [128, 160, 192, 224, 256]
 #[pyclass(frozen)]
-pub struct MnemonicGenerator(wallet::mnemonic_generator::MnemonicGenerator);
+pub(crate) struct MnemonicGenerator(wallet::mnemonic_generator::MnemonicGenerator);
 
 #[pymethods]
 impl MnemonicGenerator {
@@ -35,6 +35,6 @@ impl MnemonicGenerator {
 /// Can be turned into ExtSecretKey using ExtSecretKey.derive_master(to_seed(seed_phrase, password))
 #[pyfunction]
 #[pyo3(signature = (mnemonic_phrase, password = ""))]
-pub fn to_seed(mnemonic_phrase: &str, password: &str) -> MnemonicSeed {
+pub(crate) fn to_seed(mnemonic_phrase: &str, password: &str) -> MnemonicSeed {
     wallet::mnemonic::Mnemonic::to_seed(mnemonic_phrase, password)
 }

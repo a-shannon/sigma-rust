@@ -7,7 +7,7 @@ use crate::from_json;
 
 #[pyclass(eq)]
 #[derive(Clone, PartialEq, Eq, From, Into, Deserialize)]
-pub struct Parameters(ParametersInner);
+pub(crate) struct Parameters(ParametersInner);
 
 #[pymethods]
 impl Parameters {

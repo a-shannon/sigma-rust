@@ -9,7 +9,7 @@ use crate::to_value_error;
 use super::ergo_box::BoxId;
 #[pyclass(eq, frozen)]
 #[derive(PartialEq, Eq, Clone, Copy, From, Into)]
-pub struct Token(pub token::Token);
+pub(crate) struct Token(pub token::Token);
 
 #[pymethods]
 impl Token {
@@ -39,7 +39,7 @@ impl Token {
 
 #[pyclass(eq, frozen, hash)]
 #[derive(PartialEq, Eq, Clone, Copy, Hash, From)]
-pub struct TokenId(token::TokenId);
+pub(crate) struct TokenId(token::TokenId);
 
 #[pymethods]
 impl TokenId {
