@@ -314,8 +314,8 @@ pub(crate) mod tests {
     use alloc::vec;
     use proptest::prelude::*;
 
-    pub(crate) fn primitive_type() -> BoxedStrategy<SType> {
-        prop_oneof![
+    pub(crate) fn primitive_type(include_v6_types: bool) -> BoxedStrategy<SType> {
+        let strategy = prop_oneof![
             Just(SType::SAny),
             Just(SType::SUnit),
             Just(SType::SBoolean),
@@ -326,7 +326,6 @@ pub(crate) mod tests {
             Just(SType::SBigInt),
             Just(SType::SGroupElement),
             Just(SType::SSigmaProp),
-            Just(SType::SUnsignedBigInt),
             Just(SType::SBox),
             Just(SType::SAvlTree),
             Just(SType::SContext),
@@ -335,15 +334,21 @@ pub(crate) mod tests {
             Just(SType::SPreHeader),
             Just(SType::SGlobal),
         ]
-        .boxed()
+        .boxed();
+        if include_v6_types {
+            strategy
+                .prop_union(prop_oneof![Just(SType::SUnsignedBigInt)].boxed())
+                .boxed()
+        } else {
+            strategy
+        }
     }
-
     impl Arbitrary for SType {
-        type Parameters = ();
+        type Parameters = bool;
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-            prop_oneof![primitive_type(), Just(SType::STypeVar(STypeVar::t())),]
+            prop_oneof![primitive_type(_args), Just(SType::STypeVar(STypeVar::t())),]
                 .prop_recursive(
                     4,  // no more than this branches deep
                     64, // total elements target

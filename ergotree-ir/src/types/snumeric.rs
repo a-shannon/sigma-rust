@@ -354,8 +354,9 @@ pub mod sunsignedbigint {
 mod test {
     use crate::{
         bigint256::BigInt256,
+        ergo_tree::ErgoTreeVersion,
         mir::{constant::Constant, expr::Expr, method_call::MethodCall},
-        serialization::sigma_serialize_roundtrip,
+        serialization::roundtrip_new_feature,
         types::{stype::SType, stype_companion::STypeCompanion},
         unsignedbigint256::UnsignedBigInt,
     };
@@ -370,7 +371,7 @@ mod test {
             .for_each(|method| {
                 assert_eq!(method.method_raw.tpe.t_dom, [SType::SByte]);
                 let mc = MethodCall::new(Constant::from(1i8).into(), method, vec![]).unwrap();
-                sigma_serialize_roundtrip(&mc);
+                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
             });
     }
     #[test]
@@ -381,7 +382,7 @@ mod test {
             .for_each(|method| {
                 assert_eq!(method.method_raw.tpe.t_dom, [SType::SShort]);
                 let mc = MethodCall::new(Constant::from(1i16).into(), method, vec![]).unwrap();
-                sigma_serialize_roundtrip(&mc);
+                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
             });
     }
     #[test]
@@ -392,7 +393,7 @@ mod test {
             .for_each(|method| {
                 assert_eq!(method.method_raw.tpe.t_dom, [SType::SInt]);
                 let mc = MethodCall::new(Constant::from(1i32).into(), method, vec![]).unwrap();
-                sigma_serialize_roundtrip(&mc);
+                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
             });
     }
     #[test]
@@ -403,7 +404,7 @@ mod test {
             .for_each(|method| {
                 assert_eq!(method.method_raw.tpe.t_dom, [SType::SLong]);
                 let mc = MethodCall::new(Constant::from(1i64).into(), method, vec![]).unwrap();
-                sigma_serialize_roundtrip(&mc);
+                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
             });
     }
     #[test]
@@ -416,24 +417,22 @@ mod test {
                 assert_eq!(method.method_raw.tpe.t_dom, [SType::SBigInt]);
                 let mc = MethodCall::new(Constant::from(BigInt256::from(1)).into(), method, vec![])
                     .unwrap();
-                sigma_serialize_roundtrip(&mc);
+                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
             });
-        sigma_serialize_roundtrip(
-            &MethodCall::new(
-                Constant::from(BigInt256::from(1)).into(),
-                TO_UNSIGNED_METHOD_DESC.as_method(STypeCompanion::SBigInt),
-                vec![],
-            )
-            .unwrap(),
-        );
-        sigma_serialize_roundtrip(
-            &MethodCall::new(
-                Constant::from(BigInt256::from(1)).into(),
-                TO_UNSIGNED_MOD_METHOD_DESC.as_method(STypeCompanion::SBigInt),
-                vec![Constant::from(UnsignedBigInt::from(1u32)).into()],
-            )
-            .unwrap(),
-        );
+        let to_unsigned_mc = MethodCall::new(
+            Constant::from(BigInt256::from(1)).into(),
+            TO_UNSIGNED_METHOD_DESC.as_method(STypeCompanion::SBigInt),
+            vec![],
+        )
+        .unwrap();
+        roundtrip_new_feature(&to_unsigned_mc, ErgoTreeVersion::V3);
+        let to_unsigned_mod_mc = MethodCall::new(
+            Constant::from(BigInt256::from(1)).into(),
+            TO_UNSIGNED_MOD_METHOD_DESC.as_method(STypeCompanion::SBigInt),
+            vec![Constant::from(UnsignedBigInt::from(1u32)).into()],
+        )
+        .unwrap();
+        roundtrip_new_feature(&to_unsigned_mod_mc, ErgoTreeVersion::V3);
     }
     #[test]
     fn unsigned_bigint_method_roundtrips() {
@@ -449,7 +448,7 @@ mod test {
                     vec![],
                 )
                 .unwrap();
-                sigma_serialize_roundtrip(&mc);
+                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
             });
         super::sunsignedbigint::METHOD_DESC
             .iter()
@@ -466,7 +465,7 @@ mod test {
                     args,
                 )
                 .unwrap();
-                sigma_serialize_roundtrip(&mc);
+                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
             });
     }
 }

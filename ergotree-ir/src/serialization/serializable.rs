@@ -152,7 +152,9 @@ pub trait SigmaSerializable: Sized {
     fn sigma_serialize_bytes(&self) -> Result<Vec<u8>, SigmaSerializationError> {
         let mut data = Vec::new();
         let mut w = SigmaByteWriter::new(&mut data, None);
-        self.sigma_serialize(&mut w)?;
+        w.with_tree_version(ErgoTreeVersion::MAX_SCRIPT_VERSION, |w| {
+            self.sigma_serialize(w)
+        })?;
         Ok(data)
     }
 
@@ -160,7 +162,10 @@ pub trait SigmaSerializable: Sized {
     fn sigma_parse_bytes(bytes: &[u8]) -> Result<Self, SigmaParsingError> {
         let cursor = Cursor::new(bytes);
         let mut sr = SigmaByteReader::new(cursor, ConstantStore::empty());
-        Self::sigma_parse(&mut sr)
+        // Set version to max for convenience when parsing new types like UnsignedBigInt from bytes/base16
+        sr.with_tree_version(ErgoTreeVersion::MAX_SCRIPT_VERSION, |sr| {
+            Self::sigma_parse(sr)
+        })
     }
 }
 
@@ -248,4 +253,21 @@ pub fn sigma_serialize_roundtrip_versioned<T: SigmaSerializable>(
     let mut sr = SigmaByteReader::new(cursor, ConstantStore::empty());
     sr.with_tree_version(tree_version, T::sigma_parse)
         .map_err(From::from)
+}
+
+/// Perform serialization roundtrip for a feature that's only supported after `since`
+#[allow(clippy::expect_used)]
+pub fn roundtrip_new_feature<T: SigmaSerializable + core::fmt::Debug + PartialEq>(
+    v: &T,
+    since: ErgoTreeVersion,
+) {
+    for version in 0u8..since.into() {
+        assert!(sigma_serialize_roundtrip_versioned(v, version.into()).is_err());
+    }
+    for version in u8::from(since)..=ErgoTreeVersion::MAX_SCRIPT_VERSION.into() {
+        assert_eq!(
+            *v,
+            sigma_serialize_roundtrip_versioned(v, version.into()).expect("roundtrip failed")
+        );
+    }
 }

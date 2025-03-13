@@ -166,8 +166,9 @@ mod test {
     use proptest::prelude::*;
 
     use crate::{
+        ergo_tree::ErgoTreeVersion,
         mir::{expr::Expr, method_call::MethodCall},
-        serialization::SigmaSerializable,
+        serialization::roundtrip_new_feature,
         types::{stype::SType, stype_param::STypeVar},
     };
 
@@ -182,7 +183,7 @@ mod test {
                vec![vec![0i8].into()],
                type_args,
            ).unwrap();
-           assert_eq!(MethodCall::sigma_parse_bytes(&mc.sigma_serialize_bytes().unwrap()).unwrap(), mc);
+           roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
        }
     }
 }

@@ -27,7 +27,7 @@ impl<R: Read> SigmaByteReader<R> {
             substitute_placeholders: false,
             val_def_type_store: ValDefTypeStore::new(),
             was_deserialize: false,
-            version: ErgoTreeVersion::MAX_SCRIPT_VERSION,
+            version: ErgoTreeVersion::V0,
         }
     }
 

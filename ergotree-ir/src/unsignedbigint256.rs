@@ -328,7 +328,7 @@ mod test {
         bigint256::BigInt256,
         ergo_tree::ErgoTreeVersion,
         mir::constant::Constant,
-        serialization::{sigma_serialize_roundtrip_versioned, SigmaSerializable},
+        serialization::{roundtrip_new_feature, SigmaSerializable},
     };
 
     use super::UnsignedBigInt;
@@ -356,9 +356,7 @@ mod test {
         #[test]
         fn ser_roundtrip(v in any::<UnsignedBigInt>()) {
             let v = Constant::from(v);
-            (0..ErgoTreeVersion::V3.into()).for_each(
-                |version| assert!(sigma_serialize_roundtrip_versioned(&v, version.into()).is_err()));
-            assert_eq!(v, sigma_serialize_roundtrip_versioned(&v, ErgoTreeVersion::V3).unwrap());
+            roundtrip_new_feature(&v, ErgoTreeVersion::V3);
         }
         #[test]
         fn mod_add(a in any::<UnsignedBigInt>(), b in any::<UnsignedBigInt>(), c in any::<UnsignedBigInt>()) {

@@ -53,7 +53,14 @@ impl DataSerializer {
             }
             Literal::GroupElement(ecp) => ecp.sigma_serialize(w)?,
             Literal::SigmaProp(s) => s.value().sigma_serialize(w)?,
-            Literal::UnsignedBigInt(v) => v.sigma_serialize(w)?,
+            Literal::UnsignedBigInt(v) if w.tree_version() >= ErgoTreeVersion::V3 => {
+                v.sigma_serialize(w)?
+            }
+            Literal::UnsignedBigInt(_) => {
+                return Err(SigmaSerializationError::NotSupported(
+                    "Can't serialize UnsignedBigInt with tree version < 3".into(),
+                ))
+            }
             Literal::AvlTree(a) => a.sigma_serialize(w)?,
             Literal::CBox(b) => b.sigma_serialize(w)?,
             Literal::Coll(ct) => match ct {

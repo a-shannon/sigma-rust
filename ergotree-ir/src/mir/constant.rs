@@ -1062,7 +1062,6 @@ pub(crate) mod arbitrary {
             any::<i64>().prop_map(|v| BigInt256::from(v).into()),
             any::<EcPoint>().prop_map_into(),
             any::<SigmaProp>().prop_map_into(),
-            any::<UnsignedBigInt>().prop_map_into(),
             // although it's not strictly a primitive type, byte array is widely used as one
             vec(any::<i8>(), 0..100).prop_map_into(),
         ]

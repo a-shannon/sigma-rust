@@ -65,15 +65,12 @@ impl SigmaSerializable for MethodCall {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use alloc::vec;
-    use core2::io::{Cursor, Seek, SeekFrom};
 
     use crate::ergo_tree::ErgoTreeVersion;
     use crate::mir::constant::Constant;
     use crate::mir::expr::Expr;
     use crate::mir::method_call::MethodCall;
-    use crate::serialization::constant_store::ConstantStore;
-    use crate::serialization::sigma_byte_reader::{SigmaByteRead, SigmaByteReader};
-    use crate::serialization::{sigma_serialize_roundtrip, SigmaSerializable};
+    use crate::serialization::{roundtrip_new_feature, sigma_serialize_roundtrip};
     use crate::types::stype::SType;
     use crate::types::stype_param::STypeVar;
     use crate::types::{scoll, sglobal};
@@ -104,25 +101,6 @@ mod tests {
         )
         .unwrap()
         .into();
-        let serialized = mc.sigma_serialize_bytes().unwrap();
-        let mut cursor = Cursor::new(&serialized);
-        let mut reader = SigmaByteReader::new(&mut cursor, ConstantStore::empty());
-        for version in
-            u8::from(ErgoTreeVersion::V0)..sglobal::SERIALIZE_METHOD.method_raw.min_version.into()
-        {
-            reader.with_tree_version(version.into(), |r| assert!(Expr::sigma_parse(r).is_err()));
-            reader.seek(SeekFrom::Start(0)).unwrap();
-        }
-        for version in u8::from(sglobal::SERIALIZE_METHOD.method_raw.min_version)
-            ..=ErgoTreeVersion::MAX_SCRIPT_VERSION.into()
-        {
-            assert_eq!(
-                mc,
-                reader
-                    .with_tree_version(version.into(), Expr::sigma_parse)
-                    .unwrap()
-            );
-            reader.seek(SeekFrom::Start(0)).unwrap();
-        }
+        roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
     }
 }

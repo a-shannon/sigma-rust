@@ -18,7 +18,7 @@ impl<'a, W: Write> SigmaByteWriter<'a, W> {
     pub fn new(w: &'a mut W, constant_store: Option<ConstantStore>) -> SigmaByteWriter<'a, W> {
         SigmaByteWriter {
             inner: w,
-            tree_version: ErgoTreeVersion::MAX_SCRIPT_VERSION,
+            tree_version: ErgoTreeVersion::V0,
             constant_store,
         }
     }

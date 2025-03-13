@@ -2,6 +2,7 @@ use crate::eval::EvalError;
 use alloc::boxed::Box;
 use alloc::{string::ToString, sync::Arc};
 
+use ergotree_ir::serialization::sigma_byte_writer::SigmaByteWrite;
 use ergotree_ir::{
     mir::{
         constant::{Constant, TryExtractInto},
@@ -172,7 +173,7 @@ pub(crate) static DESERIALIZE_EVAL_FN: EvalFn = |mc, _env, ctx, obj, args| {
     ))
 };
 
-pub(crate) static SERIALIZE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
+pub(crate) static SERIALIZE_EVAL_FN: EvalFn = |_mc, _env, ctx, obj, args| {
     if obj != Value::Global {
         return Err(EvalError::UnexpectedValue(format!(
             "sglobal.groupGenerator expected obj to be Value::Global, got {:?}",
@@ -188,7 +189,9 @@ pub(crate) static SERIALIZE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
 
     let mut buf = vec![];
     let mut writer = SigmaByteWriter::new(&mut buf, None);
-    DataSerializer::sigma_serialize(&arg.v, &mut writer)?;
+    writer.with_tree_version(ctx.tree_version(), |writer| {
+        DataSerializer::sigma_serialize(&arg.v, writer)
+    })?;
     Ok(Value::from(buf))
 };
 
@@ -234,6 +237,7 @@ mod tests {
     use ergotree_ir::sigma_protocol::sigma_boolean::SigmaProp;
     use ergotree_ir::types::sgroup_elem::GET_ENCODED_METHOD;
     use ergotree_ir::types::stype_param::STypeVar;
+    use ergotree_ir::unsignedbigint256::UnsignedBigInt;
     use proptest::proptest;
 
     use crate::eval::tests::{eval_out, eval_out_wo_ctx, try_eval_out_with_version};
@@ -572,6 +576,10 @@ mod tests {
             else {
                 res.unwrap();
             }
+        }
+        #[test]
+        fn serialize_unsigned_bigint(v in any::<UnsignedBigInt>()) {
+            assert_eq!(deserialize(&serialize(v), SType::SUnsignedBigInt), Constant::from(v));
         }
     }
 }

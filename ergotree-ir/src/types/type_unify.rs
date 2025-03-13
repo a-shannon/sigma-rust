@@ -98,7 +98,7 @@ mod tests {
     proptest! {
 
         #[test]
-        fn prim_types(t in primitive_type()) {
+        fn prim_types(t in primitive_type(true)) {
             prop_assert_eq!(unify_one(&t, &t), unified_without_subst());
             prop_assert_eq!(unify_one(&SAny, &t), unified_without_subst());
             prop_assert_eq!(unify_one(&SAny, &SColl(t.clone().into())), unified_without_subst());

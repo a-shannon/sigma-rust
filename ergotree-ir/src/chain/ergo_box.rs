@@ -482,6 +482,7 @@ pub mod arbitrary {
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 mod tests {
+
     use super::*;
     use crate::chain::token::arbitrary::ArbTokenIdParam;
     use crate::serialization::sigma_serialize_roundtrip;
