@@ -4,7 +4,7 @@ from typing import Self, Optional, cast
 from ergo_lib_python import transaction
 from ergo_lib_python.sigma_protocol import ProveDlog
 from ergo_lib_python import ergo_tree
-__all__ = ['NetworkPrefix', 'Address', 'EcPoint', 'ErgoBoxCandidate', 'ErgoBox', 'BoxId', 'TokenId', 'Token', 'NonMandatoryRegisterId', 'Constant', 'SType', 'BlockId', 'Header', 'PreHeader', 'ContextExtension', 'Parameters', 'ErgoStateContext']
+__all__ = ['NetworkPrefix', 'Address', 'EcPoint', 'ErgoBoxCandidate', 'ErgoBox', 'BoxId', 'TokenId', 'Token', 'NonMandatoryRegisterId', 'NonMandatoryRegisters', 'Constant', 'SType', 'BlockId', 'Header', 'PreHeader', 'ContextExtension', 'Parameters', 'ErgoStateContext']
 # Types are written as 'SType' here because SType can't be named until after its definition exits. Also using SType directly causes sphinx-autoapi to error due to recursion limit
 # sphinx-autoapi unfortunately recognizes type of base class as str, so we need to manually override __init__ and class documentation to avoid confusion
 class SType:
@@ -360,9 +360,23 @@ class NonMandatoryRegisterId:
     R9: Self
     def __int__(self) -> int:
         ...
+@typing.final
+class NonMandatoryRegisters:
+    """Stores non-mandatory registers for :py:class:`ErgoBox` or :py:class:`ErgoBoxCandidate`. Immutable"""
+    def __getitem__(self, index: NonMandatoryRegisterId) -> Constant:
+        """:raises KeyError: if index does not exist"""
+        ...
+    def __len__(self) -> int:
+        ...
+    def __bytes__(self) -> bytes:
+        """Serialize registers to byte representation"""
+
 
 @typing.final
 class ErgoBoxCandidate:
+    """
+    :py:class:`ErgoBox` candidate not yet included in any transaction on the chain
+    """
     SAFE_USER_MIN: int = ... #Recommended (safe) minimal box value to use in case box size estimation is unavailable. Allows box size up to 2777 bytes with current min box value per byte of 360 nanoERGs
     """Contains the same fields as :py:class:`ErgoBox`, except for transaction id and index, that will be calculated after full transaction formation."""
     def __new__(cls, *,
@@ -420,7 +434,7 @@ class ErgoBoxCandidate:
         """Tokens of box"""
         ...
     @property
-    def additional_registers(self) -> dict[NonMandatoryRegisterId, Constant]:
+    def additional_registers(self) -> NonMandatoryRegisters:
         """Additional registers of box"""
         ...
     @property
@@ -492,7 +506,7 @@ class ErgoBox:
         """Tokens in box"""
         ...
     @property
-    def additional_registers(self) -> dict[NonMandatoryRegisterId, Constant]:
+    def additional_registers(self) -> NonMandatoryRegisters:
         """Additional registers in box
 
            :raises RegisterValueException: if parsing register value fails

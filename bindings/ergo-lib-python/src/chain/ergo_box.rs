@@ -4,12 +4,14 @@ use derive_more::{From, Into};
 use ergo_lib::{
     chain::ergo_box::box_builder::ErgoBoxCandidateBuilder,
     ergotree_ir::{
-        chain::ergo_box::{self, box_value::BoxValue, NonMandatoryRegisters},
+        chain::ergo_box::{
+            self, box_value::BoxValue, NonMandatoryRegisters as NonMandatoryRegistersInner,
+        },
         serialization::SigmaSerializable,
     },
 };
 use pyo3::{
-    exceptions::PyValueError,
+    exceptions::{PyKeyError, PyValueError},
     prelude::*,
     types::{PyDict, PyType},
 };
@@ -26,7 +28,7 @@ use crate::{
 use super::{address::Address, constant::Constant, token::Token};
 
 #[pyclass(eq, frozen, hash, ord)]
-#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy, Debug)]
 #[repr(u8)]
 pub(crate) enum NonMandatoryRegisterId {
     R4 = 4,
@@ -185,8 +187,8 @@ impl ErgoBoxCandidate {
             .collect()
     }
     #[getter]
-    fn additional_registers(&self) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
-        extract_registers(&self.0.additional_registers)
+    fn additional_registers(&self) -> NonMandatoryRegisters {
+        NonMandatoryRegisters(self.0.additional_registers.clone())
     }
     #[getter]
     fn ergo_tree(&self) -> ErgoTree {
@@ -232,8 +234,8 @@ impl ErgoBox {
             .collect()
     }
     #[getter]
-    fn additional_registers(&self) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
-        extract_registers(&self.0.additional_registers)
+    fn additional_registers(&self) -> NonMandatoryRegisters {
+        NonMandatoryRegisters(self.0.additional_registers.clone())
     }
     #[getter]
     fn ergo_tree(&self) -> ErgoTree {
@@ -287,19 +289,27 @@ impl ErgoBox {
     }
 }
 
-fn extract_registers(
-    additional_registers: &NonMandatoryRegisters,
-) -> PyResult<HashMap<NonMandatoryRegisterId, Constant>> {
-    ergo_box::NonMandatoryRegisterId::REG_IDS
-        .into_iter()
-        .flat_map(|id| {
-            Some((
-                NonMandatoryRegisterId::from(id),
-                additional_registers.get_constant(id).transpose()?,
-            ))
-        })
-        .map(|(id, val)| val.map(|val| (id, val.into())))
-        .collect::<Result<_, _>>()
-        .map_err(RegisterValueError::from)
-        .map_err(Into::into)
+#[pyclass(eq, frozen)]
+#[derive(PartialEq, Eq, From, Into)]
+pub(crate) struct NonMandatoryRegisters(NonMandatoryRegistersInner);
+
+#[pymethods]
+impl NonMandatoryRegisters {
+    fn __len__(&self) -> usize {
+        self.0.len()
+    }
+    fn __getitem__(&self, index: NonMandatoryRegisterId) -> PyResult<Constant> {
+        self.0
+            .get_constant(index.into())
+            .map_err(RegisterValueError::from)
+            .map_err(PyErr::from)?
+            .ok_or_else(|| PyKeyError::new_err(format!("{index:?} out of bounds")))
+            .map(Into::into)
+    }
+    fn __bytes__(&self) -> PyResult<Vec<u8>> {
+        self.0
+            .sigma_serialize_bytes()
+            .map_err(SigmaSerializationError::from)
+            .map_err(Into::into)
+    }
 }

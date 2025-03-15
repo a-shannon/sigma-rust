@@ -32,7 +32,7 @@ impl ContextExtension {
     fn __contains__(&self, index: u8) -> bool {
         self.0.values.contains_key(&index)
     }
-    fn __getitem__(&mut self, index: u8) -> PyResult<Constant> {
+    fn __getitem__(&self, index: u8) -> PyResult<Constant> {
         self.0
             .values
             .get(&index)

@@ -12,7 +12,7 @@ use address::{Address, NetworkPrefix};
 use constant::{Constant, SType};
 use context_extension::ContextExtension;
 use ec_point::EcPoint;
-use ergo_box::{BoxId, ErgoBox, ErgoBoxCandidate, NonMandatoryRegisterId};
+use ergo_box::{BoxId, ErgoBox, ErgoBoxCandidate, NonMandatoryRegisterId, NonMandatoryRegisters};
 use ergo_state_context::ErgoStateContext;
 use header::{BlockId, Header, PreHeader};
 use parameters::Parameters;
@@ -30,6 +30,7 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     submodule.add_class::<TokenId>()?;
     submodule.add_class::<Token>()?;
     submodule.add_class::<NonMandatoryRegisterId>()?;
+    submodule.add_class::<NonMandatoryRegisters>()?;
     submodule.add_class::<Constant>()?;
     submodule.add_class::<SType>()?;
     submodule.add_class::<BlockId>()?;
