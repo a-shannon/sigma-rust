@@ -146,11 +146,11 @@ pub trait WriteSigmaVlqExt: io::Write {
     }
 
     /// Encode an optional value
-    fn put_option<T>(
+    fn put_option<T, E: From<io::Error>>(
         &mut self,
         opt: Option<T>,
-        put_value: &dyn Fn(&mut Self, T) -> io::Result<()>,
-    ) -> io::Result<()> {
+        put_value: impl Fn(&mut Self, T) -> Result<(), E>,
+    ) -> Result<(), E> {
         match opt {
             Some(s) => {
                 self.put_u8(1)?;
@@ -251,16 +251,16 @@ pub trait ReadSigmaVlqExt: io::Read + io::Seek {
     }
 
     /// Read and decode an optional value using supplied function
-    fn get_option<T>(
+    fn get_option<T, E: From<VlqEncodingError> + From<io::Error>>(
         &mut self,
-        get_value: &dyn Fn(&mut Self) -> Result<T, VlqEncodingError>,
-    ) -> Option<T> {
-        let is_opt = self.get_u8().ok()?;
-        match is_opt {
-            1 => Some(get_value(self).ok()?),
+        get_value: impl Fn(&mut Self) -> Result<T, E>,
+    ) -> Result<Option<T>, E> {
+        let is_opt = self.get_u8()?;
+        Ok(match is_opt {
+            1 => Some(get_value(self)?),
             // Should only ever be 0 or 1
             _ => None,
-        }
+        })
     }
 }
 

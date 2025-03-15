@@ -96,6 +96,34 @@ pub enum Literal {
     Tup(TupleItems<Literal>),
 }
 
+impl Literal {
+    fn tpe(&self) -> Result<SType, &'static str> {
+        let tpe = match self {
+            Literal::Unit => SType::SUnit,
+            Literal::Boolean(_) => SType::SBoolean,
+            Literal::Byte(_) => SType::SByte,
+            Literal::Short(_) => SType::SShort,
+            Literal::Int(_) => SType::SInt,
+            Literal::Long(_) => SType::SLong,
+            Literal::String(_) => SType::SString,
+            Literal::BigInt(_) => SType::SBigInt,
+            Literal::UnsignedBigInt(_) => SType::SUnsignedBigInt,
+            Literal::SigmaProp(_) => SType::SSigmaProp,
+            Literal::GroupElement(_) => SType::SGroupElement,
+            Literal::AvlTree(_) => SType::SAvlTree,
+            Literal::Header(_) => SType::SHeader,
+            Literal::CBox(_) => SType::SBox,
+            Literal::Coll(coll_kind) => SType::SColl(coll_kind.elem_tpe().clone().into()),
+            Literal::Opt(Some(literal)) => SType::SOption(literal.tpe()?.into()),
+            Literal::Opt(None) => return Err("Can not infer type of Option.None"),
+            Literal::Tup(bounded_vec) => SType::STuple(STuple {
+                items: bounded_vec.try_mapped_ref(Literal::tpe)?,
+            }),
+        };
+        Ok(tpe)
+    }
+}
+
 impl Constant {
     /// Create a new Constant::Coll from an iterator of constants.
     /// Returns an error if i is empty and tpe is not provided (type cannot be inferred), or the type for all values isn't the same
@@ -357,83 +385,77 @@ impl<T: LiftIntoSType + Into<Literal>> From<Option<T>> for Literal {
     }
 }
 
-impl<'ctx> TryFrom<Value<'ctx>> for Constant {
+impl<'ctx> TryFrom<Value<'ctx>> for Literal {
     type Error = String;
     #[allow(clippy::unwrap_used)]
     fn try_from(value: Value<'ctx>) -> Result<Self, Self::Error> {
         match value {
-            Value::Boolean(b) => Ok(Constant::from(b)),
-            Value::Byte(b) => Ok(Constant::from(b)),
-            Value::Short(s) => Ok(Constant::from(s)),
-            Value::Int(i) => Ok(Constant::from(i)),
-            Value::Long(l) => Ok(Constant::from(l)),
-            Value::BigInt(b) => Ok(Constant::from(b)),
-            Value::Unit => Ok(Constant {
-                tpe: SType::SUnit,
-                v: Literal::Unit,
-            }),
-            Value::SigmaProp(s) => Ok(Constant::from(*s)),
-            Value::UnsignedBigInt(b) => Ok(Constant::from(b)),
-            Value::GroupElement(e) => Ok(Constant::from(e)),
-            Value::CBox(i) => Ok(Constant::from(i.to_static())),
+            Value::Boolean(b) => Ok(Literal::from(b)),
+            Value::Byte(b) => Ok(Literal::from(b)),
+            Value::Short(s) => Ok(Literal::from(s)),
+            Value::Int(i) => Ok(Literal::from(i)),
+            Value::Long(l) => Ok(Literal::from(l)),
+            Value::BigInt(b) => Ok(Literal::from(b)),
+            Value::Unit => Ok(Literal::Unit),
+            Value::SigmaProp(s) => Ok(Literal::from(*s)),
+            Value::UnsignedBigInt(b) => Ok(Literal::from(b)),
+            Value::GroupElement(e) => Ok(Literal::from(e)),
+            Value::CBox(i) => Ok(Literal::from(i.to_static())),
             Value::Coll(coll) => {
-                let (v, tpe) = match coll {
-                    CollKind::NativeColl(n) => (
-                        Literal::Coll(CollKind::NativeColl(n)),
-                        SType::SColl(Arc::new(SType::SByte)),
-                    ),
+                let v = match coll {
+                    CollKind::NativeColl(n) => Literal::Coll(CollKind::NativeColl(n)),
                     CollKind::WrappedColl { elem_tpe, items } => {
                         let new_items = items
                             .iter()
-                            .map(|v| Ok(Constant::try_from(v.clone())?.v))
+                            .map(|v| Literal::try_from(v.clone()))
                             .collect::<Result<Arc<[_]>, String>>()?;
 
-                        (
-                            Literal::Coll(CollKind::WrappedColl {
-                                elem_tpe: elem_tpe.clone(),
-                                items: new_items,
-                            }),
-                            SType::SColl(Arc::new(elem_tpe)),
-                        )
+                        Literal::Coll(CollKind::WrappedColl {
+                            elem_tpe: elem_tpe.clone(),
+                            items: new_items,
+                        })
                     }
                 };
-                Ok(Constant { v, tpe })
+                Ok(v)
             }
             Value::Opt(lit) => match lit {
                 Some(v) => {
-                    let c = Constant::try_from((*v).clone())?;
-                    Ok(Constant {
-                        v: Literal::Opt(Some(Box::new(c.v))),
-                        tpe: c.tpe,
-                    })
+                    let v = Literal::try_from((*v).clone())?;
+                    Ok(Literal::Opt(Some(Box::new(v))))
                 }
-                None => Err("Can't convert from Value::Opt(None) to Constant".into()),
+                None => Ok(Literal::Opt(None)),
             },
             Value::Tup(t) => {
-                if let Ok(t) = t.try_mapped::<_, _, String>(|v| {
-                    let c = Constant::try_from(v)?;
-                    Ok((c.v, c.tpe))
-                }) {
-                    let tuple_items = t.mapped_ref(|(l, _)| l.clone());
-                    let tuple_item_types = SType::STuple(STuple {
-                        items: t.mapped(|(_, tpe)| tpe),
-                    });
-                    Ok(Constant {
-                        v: Literal::Tup(tuple_items),
-                        tpe: tuple_item_types,
-                    })
+                if let Ok(t) = t.try_mapped::<_, _, String>(Literal::try_from) {
+                    Ok(Literal::Tup(t))
                 } else {
                     Err("Can't convert Value:Tup element".into())
                 }
             }
-            Value::AvlTree(a) => Ok(Constant::from(*a)),
-            Value::Header(h) => Ok(Constant::from(*h)),
-            Value::String(s) => Ok(Constant::from(s)),
-            Value::Context => Err("Cannot convert Value::Context into Constant".into()),
-            Value::PreHeader(_) => Err("Cannot convert Value::PreHeader(_) into Constant".into()),
-            Value::Global => Err("Cannot convert Value::Global into Constant".into()),
-            Value::Lambda(_) => Err("Cannot convert Value::Lambda(_) into Constant".into()),
+            Value::AvlTree(a) => Ok(Literal::from(*a)),
+            Value::String(s) => Ok(Literal::from(s)),
+            Value::Header(h) => Ok(Literal::from(*h)),
+            Value::Context => Err("Cannot convert Value::Context into Literal".into()),
+            Value::PreHeader(_) => Err("Cannot convert Value::PreHeader(_) into Literal".into()),
+            Value::Global => Err("Cannot convert Value::Global into Literal".into()),
+            Value::Lambda(_) => Err("Cannot convert Value::Lambda(_) into Literal".into()),
         }
+    }
+}
+
+impl TryFrom<Literal> for Constant {
+    type Error = &'static str;
+
+    fn try_from(v: Literal) -> Result<Self, Self::Error> {
+        Ok(Self { tpe: v.tpe()?, v })
+    }
+}
+
+impl<'ctx> TryFrom<Value<'ctx>> for Constant {
+    type Error = String;
+    #[allow(clippy::unwrap_used)]
+    fn try_from(value: Value<'ctx>) -> Result<Self, Self::Error> {
+        Literal::try_from(value)?.try_into().map_err(Into::into)
     }
 }
 
@@ -527,15 +549,6 @@ impl From<Ref<'_, EcPoint>> for Constant {
     }
 }
 
-impl From<&'static ErgoBox> for Constant {
-    fn from(b: &'static ErgoBox) -> Self {
-        Constant {
-            tpe: SType::SBox,
-            v: Literal::CBox(Ref::Borrowed(b)),
-        }
-    }
-}
-
 impl From<ErgoBox> for Constant {
     fn from(b: ErgoBox) -> Self {
         Constant {
@@ -605,6 +618,52 @@ impl<T: LiftIntoSType + Into<Constant>> From<Option<T>> for Constant {
             tpe: SType::SOption(Arc::new(T::stype())),
             v: Literal::Opt(opt.map(|e| e.into().v).map(Box::new)),
         }
+    }
+}
+
+impl From<ProveDlog> for Literal {
+    fn from(v: ProveDlog) -> Self {
+        Literal::from(SigmaProp::from(SigmaBoolean::from(
+            SigmaProofOfKnowledgeTree::from(v),
+        )))
+    }
+}
+
+impl From<ProveDhTuple> for Literal {
+    fn from(dht: ProveDhTuple) -> Self {
+        Literal::from(SigmaProp::from(SigmaBoolean::from(
+            SigmaProofOfKnowledgeTree::from(dht),
+        )))
+    }
+}
+
+impl From<SigmaBoolean> for Literal {
+    fn from(sb: SigmaBoolean) -> Self {
+        Literal::from(SigmaProp::from(sb))
+    }
+}
+
+impl From<AvlTreeData> for Literal {
+    fn from(a: AvlTreeData) -> Self {
+        Literal::AvlTree(Box::new(a))
+    }
+}
+
+impl From<Header> for Literal {
+    fn from(h: Header) -> Self {
+        Literal::Header(h.into())
+    }
+}
+
+impl From<AvlTreeFlags> for Literal {
+    fn from(a: AvlTreeFlags) -> Self {
+        Literal::Byte(a.serialize() as i8)
+    }
+}
+
+impl From<Arc<str>> for Literal {
+    fn from(s: Arc<str>) -> Self {
+        Literal::String(s)
     }
 }
 
