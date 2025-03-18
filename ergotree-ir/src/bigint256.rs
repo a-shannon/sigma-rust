@@ -9,12 +9,14 @@ use bnum::cast::As;
 use bnum::types::I256;
 use bnum::BUintD8;
 use derive_more::From;
-use derive_more::{Add, AddAssign, BitAnd, BitOr, BitXor, Display, FromStr, Not, Sub};
+use derive_more::{
+    Add, AddAssign, BitAnd, BitOr, BitXor, Display, FromStr, Not, Shl, Shr, Sub, Sum,
+};
 use num_bigint::BigInt;
 use num_derive::{Num, One, Signed, Zero};
 use num_traits::{
-    Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedNeg, CheckedRem, CheckedSub, Signed,
-    ToPrimitive,
+    Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedNeg, CheckedRem, CheckedShl, CheckedShr,
+    CheckedSub, Signed, ToPrimitive,
 };
 
 use crate::serialization::{SigmaParsingError, SigmaSerializable};
@@ -42,6 +44,9 @@ use crate::serialization::{SigmaParsingError, SigmaSerializable};
     BitOr,
     BitXor,
     Signed,
+    Shl,
+    Shr,
+    Sum,
 )]
 pub struct BigInt256(pub(crate) bnum::types::I256);
 
@@ -216,6 +221,18 @@ impl CheckedNeg for BigInt256 {
         } else {
             Some(-*self)
         }
+    }
+}
+
+impl CheckedShl for BigInt256 {
+    fn checked_shl(&self, rhs: u32) -> Option<Self> {
+        self.0.checked_shl(rhs).map(Self)
+    }
+}
+
+impl CheckedShr for BigInt256 {
+    fn checked_shr(&self, rhs: u32) -> Option<Self> {
+        self.0.checked_shr(rhs).map(Self)
     }
 }
 
