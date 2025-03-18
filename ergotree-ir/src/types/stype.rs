@@ -16,6 +16,7 @@ use crate::sigma_protocol::sigma_boolean::SigmaBoolean;
 use crate::sigma_protocol::sigma_boolean::SigmaProofOfKnowledgeTree;
 use crate::sigma_protocol::sigma_boolean::SigmaProp;
 use crate::sigma_protocol::sigma_boolean::{ProveDhTuple, ProveDlog};
+use crate::unsignedbigint256::UnsignedBigInt;
 use ergo_chain_types::EcPoint;
 
 use super::sfunc::SFunc;
@@ -271,6 +272,12 @@ impl LiftIntoSType for EcPoint {
 impl LiftIntoSType for BigInt256 {
     fn stype() -> SType {
         SType::SBigInt
+    }
+}
+
+impl LiftIntoSType for UnsignedBigInt {
+    fn stype() -> SType {
+        SType::SUnsignedBigInt
     }
 }
 

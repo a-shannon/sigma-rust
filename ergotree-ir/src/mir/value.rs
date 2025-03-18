@@ -470,6 +470,7 @@ impl StoreWrapped for Arc<str> {}
 impl StoreWrapped for Ref<'_, ErgoBox> {}
 impl StoreWrapped for EcPoint {}
 impl StoreWrapped for SigmaProp {}
+impl StoreWrapped for UnsignedBigInt {}
 impl<T: StoreWrapped> StoreWrapped for Option<T> {}
 impl<T> StoreWrapped for Vec<T> {}
 impl StoreWrapped for Value<'_> {}
