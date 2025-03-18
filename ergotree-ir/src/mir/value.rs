@@ -138,12 +138,62 @@ where
             } => v.clone().to_vec(),
         }
     }
+
     /// Return size of Coll
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> usize {
         match self {
             CollKind::NativeColl(NativeColl::CollByte(coll_byte)) => coll_byte.len(),
             CollKind::WrappedColl { elem_tpe: _, items } => items.len(),
+        }
+    }
+
+    /// Reverse Coll
+    pub fn reverse(&self) -> Self {
+        match self {
+            CollKind::NativeColl(NativeColl::CollByte(arr)) => {
+                Self::NativeColl(NativeColl::CollByte(arr.iter().copied().rev().collect()))
+            }
+            CollKind::WrappedColl { elem_tpe, items } => Self::WrappedColl {
+                elem_tpe: elem_tpe.clone(),
+                items: items.iter().cloned().rev().collect(),
+            },
+        }
+    }
+
+    /// Returns `true` if `self` begins with `prefix`
+    pub fn starts_with(&self, prefix: &CollKind<T>) -> bool {
+        match (self, prefix) {
+            (
+                CollKind::NativeColl(NativeColl::CollByte(s)),
+                CollKind::NativeColl(NativeColl::CollByte(prefix)),
+            ) => s.starts_with(prefix),
+            (
+                CollKind::WrappedColl { elem_tpe: _, items },
+                CollKind::WrappedColl {
+                    elem_tpe: _,
+                    items: prefix,
+                },
+            ) => items.starts_with(prefix),
+            _ => false,
+        }
+    }
+
+    /// Returns `true` if `self` ends with suffix
+    pub fn ends_with(&self, suffix: &CollKind<T>) -> bool {
+        match (self, suffix) {
+            (
+                CollKind::NativeColl(NativeColl::CollByte(s)),
+                CollKind::NativeColl(NativeColl::CollByte(suffix)),
+            ) => s.ends_with(suffix),
+            (
+                CollKind::WrappedColl { elem_tpe: _, items },
+                CollKind::WrappedColl {
+                    elem_tpe: _,
+                    items: suffix,
+                },
+            ) => items.ends_with(suffix),
+            _ => false,
         }
     }
 

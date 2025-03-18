@@ -32,6 +32,14 @@ pub const PATCH_METHOD_ID: MethodId = MethodId(19);
 pub const UPDATED_METHOD_ID: MethodId = MethodId(20);
 /// Coll.updateMany
 pub const UPDATE_MANY_METHOD_ID: MethodId = MethodId(21);
+/// Coll.reverse
+pub const REVERSE_METHOD_ID: MethodId = MethodId(30);
+/// Coll.startsWith
+pub const STARTS_WITH_METHOD_ID: MethodId = MethodId(31);
+/// Coll.endsWith
+pub const ENDS_WITH_METHOD_ID: MethodId = MethodId(32);
+/// Coll.get
+pub const GET_METHOD_ID: MethodId = MethodId(33);
 
 lazy_static! {
     /// Coll method descriptors
@@ -44,6 +52,10 @@ lazy_static! {
             &UPDATED_METHOD_DESC,
             &UPDATE_MANY_METHOD_DESC,
             &PATCH_METHOD_DESC,
+            &REVERSE_METHOD_DESC,
+            &STARTS_WITH_METHOD_DESC,
+            &ENDS_WITH_METHOD_DESC,
+            &GET_METHOD_DESC
         ]
     ;
 }
@@ -185,6 +197,75 @@ lazy_static! {
     pub static ref UPDATE_MANY_METHOD: SMethod = SMethod::new(STypeCompanion::Coll, UPDATE_MANY_METHOD_DESC.clone());
 }
 
+lazy_static! {
+    static ref REVERSE_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: REVERSE_METHOD_ID,
+        name: "reverse",
+        tpe: SFunc::new(
+            vec![SType::SColl(SType::STypeVar(STypeVar::t()).into())],
+            SType::SColl(SType::STypeVar(STypeVar::t()).into())
+        ),
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    /// Coll.reverse
+    pub static ref REVERSE_METHOD: SMethod = SMethod::new(STypeCompanion::Coll, REVERSE_METHOD_DESC.clone());
+}
+
+lazy_static! {
+    static ref STARTS_WITH_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: STARTS_WITH_METHOD_ID,
+        name: "startsWith",
+        tpe: SFunc::new(
+            vec![
+                SType::SColl(SType::STypeVar(STypeVar::t()).into()),
+                SType::SColl(SType::STypeVar(STypeVar::t()).into())
+            ],
+            SType::SBoolean
+        ),
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    /// Coll.startsWith
+    pub static ref STARTS_WITH_METHOD: SMethod = SMethod::new(STypeCompanion::Coll, STARTS_WITH_METHOD_DESC.clone());
+}
+
+lazy_static! {
+    static ref ENDS_WITH_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: ENDS_WITH_METHOD_ID,
+        name: "endsWith",
+        tpe: SFunc::new(
+            vec![
+                SType::SColl(SType::STypeVar(STypeVar::t()).into()),
+                SType::SColl(SType::STypeVar(STypeVar::t()).into())
+            ],
+            SType::SBoolean
+        ),
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    /// Coll.endsWith
+    pub static ref ENDS_WITH_METHOD: SMethod = SMethod::new(STypeCompanion::Coll, ENDS_WITH_METHOD_DESC.clone());
+}
+
+lazy_static! {
+    static ref GET_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: GET_METHOD_ID,
+        name: "get",
+        tpe: SFunc::new(
+            vec![
+                SType::SColl(SType::STypeVar(STypeVar::t()).into()),
+                SType::SInt
+            ],
+            SType::SOption(SType::STypeVar(STypeVar::t()).into())
+        ),
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    /// Coll.get
+    pub static ref GET_METHOD: SMethod = SMethod::new(STypeCompanion::Coll, GET_METHOD_DESC.clone());
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -203,5 +284,14 @@ mod tests {
             SMethod::from_ids(TYPE_CODE, UPDATE_MANY_METHOD_ID).map(|e| e.name())
                 == Ok("updateMany")
         );
+        assert!(SMethod::from_ids(TYPE_CODE, REVERSE_METHOD_ID).map(|e| e.name()) == Ok("reverse"));
+        assert!(
+            SMethod::from_ids(TYPE_CODE, STARTS_WITH_METHOD_ID).map(|e| e.name())
+                == Ok("startsWith")
+        );
+        assert!(
+            SMethod::from_ids(TYPE_CODE, ENDS_WITH_METHOD_ID).map(|e| e.name()) == Ok("endsWith")
+        );
+        assert!(SMethod::from_ids(TYPE_CODE, GET_METHOD_ID).map(|e| e.name()) == Ok("get"));
     }
 }
