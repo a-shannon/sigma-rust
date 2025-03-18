@@ -57,13 +57,13 @@ pub(crate) static GET_REG_EVAL_FN: EvalFn = |mc, _env, ctx, obj, args| {
     };
     match reg_val_opt {
         Some(constant) if constant.tpe == **expected_type => {
-            Ok(Value::Opt(Box::new(Some(constant.v.into()))))
+            Ok(Value::Opt(Some(Box::new(constant.v.into()))))
         }
         Some(constant) => Err(EvalError::UnexpectedValue(format!(
             "Expected register {reg_id} to be of type {}, got {}",
             expected_type, constant.tpe
         ))),
-        None => Ok(Value::Opt(Box::new(None))),
+        None => Ok(Value::Opt(None)),
     }
 };
 

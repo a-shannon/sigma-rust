@@ -203,7 +203,7 @@ pub(crate) static SGLOBAL_SOME_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
         .first()
         .cloned()
         .ok_or_else(|| EvalError::NotFound("some: missing value arg".to_string()))?;
-    Ok(Value::Opt(Box::new(Some(value))))
+    Ok(Value::Opt(Some(Box::new(value))))
 };
 
 pub(crate) static SGLOBAL_NONE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
@@ -213,7 +213,7 @@ pub(crate) static SGLOBAL_NONE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
             obj
         )));
     }
-    Ok(Value::Opt(Box::new(None)))
+    Ok(Value::Opt(None))
 };
 
 #[allow(clippy::unwrap_used)]

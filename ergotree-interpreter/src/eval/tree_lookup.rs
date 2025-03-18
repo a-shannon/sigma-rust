@@ -51,8 +51,8 @@ impl Evaluable for TreeLookup {
             normalized_key_val.as_vec_u8(),
         ))) {
             Ok(opt) => match opt {
-                Some(v) => Ok(Value::Opt(Box::new(Some(v.to_vec().into())))),
-                _ => Ok(Value::Opt(Box::new(None))),
+                Some(v) => Ok(Value::Opt(Some(Box::new(v.to_vec().into())))),
+                _ => Ok(Value::Opt(None)),
             },
             Err(_) => Err(EvalError::AvlTree(format!(
                 "Tree proof is incorrect {:?}",
@@ -131,7 +131,8 @@ mod tests {
         let res_not_found: Value = eval_out_wo_ctx(&expr_not_found);
 
         if let Value::Opt(opt) = res_found {
-            if let Some(Value::Coll(CollKind::NativeColl(NativeColl::CollByte(b)))) = *opt {
+            if let Some(Value::Coll(CollKind::NativeColl(NativeColl::CollByte(b)))) = opt.as_deref()
+            {
                 assert!(lookup_found.unwrap().eq(&b.as_vec_u8()));
             } else {
                 unreachable!();

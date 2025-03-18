@@ -85,7 +85,7 @@ pub enum Literal {
     /// Collection
     Coll(CollKind<Literal>),
     /// Option type
-    Opt(Box<Option<Literal>>),
+    Opt(Option<Box<Literal>>),
     /// Tuple (arbitrary type values)
     Tup(TupleItems<Literal>),
 }
@@ -151,7 +151,7 @@ impl core::fmt::Display for Literal {
                 write!(f, ")")
             }
             Literal::Opt(boxed_opt) => {
-                if let Some(v) = &**boxed_opt {
+                if let Some(v) = boxed_opt {
                     write!(f, "Some(")?;
                     v.fmt(f)?;
                     write!(f, ")")
@@ -297,7 +297,7 @@ impl<T: LiftIntoSType + StoreWrapped + Into<Literal>> From<Vec<T>> for Literal {
 
 impl<T: LiftIntoSType + Into<Literal>> From<Option<T>> for Literal {
     fn from(opt: Option<T>) -> Self {
-        Literal::Opt(Box::new(opt.map(|e| e.into())))
+        Literal::Opt(opt.map(|e| e.into()).map(Box::new))
     }
 }
 
@@ -342,11 +342,11 @@ impl<'ctx> TryFrom<Value<'ctx>> for Constant {
                 };
                 Ok(Constant { v, tpe })
             }
-            Value::Opt(lit) => match *lit {
+            Value::Opt(lit) => match lit {
                 Some(v) => {
-                    let c = Constant::try_from(v)?;
+                    let c = Constant::try_from((*v).clone())?;
                     Ok(Constant {
-                        v: Literal::Opt(Box::new(Some(c.v))),
+                        v: Literal::Opt(Some(Box::new(c.v))),
                         tpe: c.tpe,
                     })
                 }
@@ -537,7 +537,7 @@ impl<T: LiftIntoSType + Into<Constant>> From<Option<T>> for Constant {
     fn from(opt: Option<T>) -> Self {
         Constant {
             tpe: SType::SOption(Arc::new(T::stype())),
-            v: Literal::Opt(Box::new(opt.map(|e| e.into().v))),
+            v: Literal::Opt(opt.map(|e| e.into().v).map(Box::new)),
         }
     }
 }
@@ -887,7 +887,7 @@ impl TryExtractFrom<Literal> for AvlTreeData {
 impl<T: TryExtractFrom<Literal>> TryExtractFrom<Literal> for Option<T> {
     fn try_extract_from(v: Literal) -> Result<Self, TryExtractFromError> {
         match v {
-            Literal::Opt(opt) => opt.map(T::try_extract_from).transpose(),
+            Literal::Opt(opt) => opt.map(|boxed| *boxed).map(T::try_extract_from).transpose(),
             _ => Err(TryExtractFromError(format!(
                 "expected Option, found {:?}",
                 v

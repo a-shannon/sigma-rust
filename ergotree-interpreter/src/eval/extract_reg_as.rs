@@ -35,13 +35,13 @@ impl Evaluable for ExtractRegisterAs {
         })?;
         match reg_val_opt {
             Some(constant) if constant.tpe == *self.elem_tpe => {
-                Ok(Value::Opt(Box::new(Some(constant.v.into()))))
+                Ok(Value::Opt(Some(Box::new(constant.v.into()))))
             }
             Some(constant) => Err(EvalError::UnexpectedValue(format!(
                 "Expected register {id} to be of type {}, got {}",
                 self.elem_tpe, constant.tpe
             ))),
-            None => Ok(Value::Opt(Box::new(None))),
+            None => Ok(Value::Opt(None)),
         }
     }
 }
