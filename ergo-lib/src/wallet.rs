@@ -50,7 +50,7 @@ use self::signing::{make_context, sign_message, sign_transaction, sign_tx_input}
 
 /// Wallet
 pub struct Wallet {
-    prover: Box<dyn Prover>,
+    prover: Box<dyn Prover + Send + Sync>,
 }
 
 /// Wallet errors

@@ -1,0 +1,22 @@
+[package]
+name = "ergo-lib-python"
+version = "0.28.0"
+license = "CC0-1.0"
+authors = ["Kamal Ahmad <kamalahmad22@pm.me>"]
+edition.workspace = true
+repository.workspace = true
+description = "Python bindings for ergo-lib"
+
+[lib]
+name = "ergo_lib_python"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3 = { version = "0.23.4", features = ["indexmap"] }
+base16 = { workspace = true }
+derive_more = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+ergo-lib = { workspace = true, features = ["mnemonic_gen"] }
+sigma-ser = { workspace = true }
+serde-pyobject = "0.5.0"

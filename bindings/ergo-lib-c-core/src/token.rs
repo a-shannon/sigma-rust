@@ -119,7 +119,7 @@ pub unsafe fn token_get_amount(
 /// JSON representation according to EIP-12 <https://github.com/ergoplatform/eips/pull/23>
 pub unsafe fn token_to_json_eip12(token_ptr: ConstTokenPtr) -> Result<String, Error> {
     let token = const_ptr_as_ref(token_ptr, "token_ptr")?;
-    let t_dapp: TokenJsonEip12 = token.0.clone().into();
+    let t_dapp: TokenJsonEip12 = token.0.into();
     let s = serde_json::to_string(&t_dapp)?;
     Ok(s)
 }

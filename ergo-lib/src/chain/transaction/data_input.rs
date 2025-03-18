@@ -10,7 +10,7 @@ use ergotree_ir::serialization::SigmaSerializeResult;
 use serde::{Deserialize, Serialize};
 
 /// Inputs, that are used to enrich script context, but won't be spent by the transaction
-#[derive(PartialEq, Eq, Debug, Clone)]
+#[derive(PartialEq, Eq, Debug, Copy, Clone)]
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 #[cfg_attr(feature = "json", derive(Serialize, Deserialize))]
 pub struct DataInput {

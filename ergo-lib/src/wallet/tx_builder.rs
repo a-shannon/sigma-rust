@@ -184,7 +184,7 @@ impl<S: ErgoBoxAssets + ErgoBoxId + Clone> TxBuilder<S> {
                     self.current_height,
                 );
                 for token in b.tokens().into_iter().flatten() {
-                    candidate.add_token(token.clone());
+                    candidate.add_token(token);
                 }
                 candidate.build()
             })
@@ -442,7 +442,7 @@ mod tests {
         let input_box = ErgoBox::new(
             10000000i64.try_into().unwrap(),
             force_any_val::<ErgoTree>(),
-            vec![token_pair.clone()].try_into().ok(),
+            vec![token_pair].try_into().ok(),
             NonMandatoryRegisters::empty(),
             1,
             force_any_val::<TxId>(),
@@ -457,7 +457,7 @@ mod tests {
             amount: 10.try_into().unwrap(),
             ..token_pair
         };
-        let target_tokens = vec![target_token.clone()];
+        let target_tokens = vec![target_token];
         let box_selection = SimpleBoxSelector::new()
             .select(inputs, target_balance, target_tokens.as_slice())
             .unwrap();
@@ -490,7 +490,7 @@ mod tests {
         let input_box = ErgoBox::new(
             10000000i64.try_into().unwrap(),
             force_any_val::<ErgoTree>(),
-            vec![token_pair.clone()].try_into().ok(),
+            vec![token_pair].try_into().ok(),
             NonMandatoryRegisters::empty(),
             1,
             force_any_val::<TxId>(),
@@ -505,7 +505,7 @@ mod tests {
             amount: 10.try_into().unwrap(),
             ..token_pair
         };
-        let target_tokens = vec![token_to_burn.clone()];
+        let target_tokens = vec![token_to_burn];
         let box_selection = SimpleBoxSelector::new()
             .select(inputs, target_balance, target_tokens.as_slice())
             .unwrap();
@@ -524,7 +524,7 @@ mod tests {
             amount: 5.try_into().unwrap(),
             ..token_pair
         };
-        tx_builder.set_token_burn_permit(vec![token_burn_permit.clone()]);
+        tx_builder.set_token_burn_permit(vec![token_burn_permit]);
         let res = tx_builder.build();
         assert_eq!(
             res,
@@ -544,7 +544,7 @@ mod tests {
         let input_box = ErgoBox::new(
             10000000i64.try_into().unwrap(),
             force_any_val::<ErgoTree>(),
-            vec![token_pair.clone()].try_into().ok(),
+            vec![token_pair].try_into().ok(),
             NonMandatoryRegisters::empty(),
             1,
             force_any_val::<TxId>(),
@@ -559,7 +559,7 @@ mod tests {
             amount: 10.try_into().unwrap(),
             ..token_pair
         };
-        let target_tokens = vec![token_to_burn.clone()];
+        let target_tokens = vec![token_to_burn];
         let box_selection = SimpleBoxSelector::new()
             .select(inputs, target_balance, target_tokens.as_slice())
             .unwrap();
@@ -587,7 +587,7 @@ mod tests {
         let input_box = ErgoBox::new(
             10000000i64.try_into().unwrap(),
             force_any_val::<ErgoTree>(),
-            vec![token_pair.clone()].try_into().ok(),
+            vec![token_pair].try_into().ok(),
             NonMandatoryRegisters::empty(),
             1,
             force_any_val::<TxId>(),
@@ -616,7 +616,7 @@ mod tests {
             tx_fee,
             force_any_val::<Address>(),
         );
-        tx_builder.set_token_burn_permit(vec![token_to_burn.clone()]);
+        tx_builder.set_token_burn_permit(vec![token_to_burn]);
         let res = tx_builder.build();
         assert_eq!(
             res,
@@ -649,7 +649,7 @@ mod tests {
         let token_num_dec = 2;
         let mut box_builder =
             ErgoBoxCandidateBuilder::new(out_box_value, force_any_val::<ErgoTree>(), 0);
-        box_builder.mint_token(token_pair.clone(), token_name, token_desc, token_num_dec);
+        box_builder.mint_token(token_pair, token_name, token_desc, token_num_dec);
         let out_box = box_builder.build().unwrap();
 
         let inputs: Vec<ErgoBox> = vec![input_box];
@@ -694,7 +694,7 @@ mod tests {
         let mut box_builder =
             ErgoBoxCandidateBuilder::new(out_box_value, force_any_val::<ErgoTree>(), 0);
         // try to spend a token that is not in inputs
-        box_builder.add_token(token_pair.clone());
+        box_builder.add_token(token_pair);
         let out_box = box_builder.build().unwrap();
         let inputs: Vec<ErgoBox> = vec![input_box];
         let tx_fee = BoxValue::SAFE_USER_MIN;
@@ -728,7 +728,7 @@ mod tests {
             ErgoBoxCandidateBuilder::new(out_box_value, force_any_val::<ErgoTree>(), 0);
         input_box.tokens.iter().for_each(|tokens| {
             tokens.iter().for_each(|t| {
-                box_builder.add_token(t.clone());
+                box_builder.add_token(*t);
             })
         });
         let out_box = box_builder.build().unwrap();
@@ -772,7 +772,7 @@ mod tests {
             ErgoBoxCandidateBuilder::new(out_box_value, force_any_val::<ErgoTree>(), 0);
         input_box.tokens.iter().for_each(|tokens| {
             tokens.iter().for_each(|t| {
-                box_builder.add_token(t.clone());
+                box_builder.add_token(*t);
             })
         });
         let out_box = box_builder.build().unwrap();

@@ -38,7 +38,8 @@ pub unsafe fn mnemonic_generator(
         _ => return Err(Error::Misc("Invalid language string".into())),
     };
     let mnemonic_generator_inner =
-        ergo_lib::wallet::mnemonic_generator::MnemonicGenerator::new(lang, strength);
+        ergo_lib::wallet::mnemonic_generator::MnemonicGenerator::new(lang, strength)
+            .map_err(|e| Error::Misc(e.into()))?;
     *mnemonic_generator_out = Box::into_raw(Box::new(MnemonicGenerator(mnemonic_generator_inner)));
     Ok(())
 }
@@ -48,11 +49,7 @@ pub unsafe fn mnemonic_generator_generate(
     mnemonic_generator_ptr: MnemonicGeneratorPtr,
 ) -> Result<String, Error> {
     let mnemonic_generator = mut_ptr_as_mut(mnemonic_generator_ptr, "mnemonic_generator_ptr")?;
-    let mnemonic = match mnemonic_generator.0.generate() {
-        Ok(mnemonic) => mnemonic,
-        Err(error) => return Err(Error::Misc(Box::new(error))),
-    };
-    Ok(mnemonic)
+    Ok(mnemonic_generator.0.generate())
 }
 
 /// Generate mnemonic sentence using provided entropy
@@ -63,7 +60,7 @@ pub unsafe fn mnemonic_generator_generate_from_entropy(
 ) -> Result<String, Error> {
     let entrophy = std::slice::from_raw_parts(entropy_bytes_ptr, len);
     let mnemonic_generator = mut_ptr_as_mut(mnemonic_generator_ptr, "mnemonic_generator_ptr")?;
-    let mnemonic = match mnemonic_generator.0.from_entrophy(entrophy.to_vec()) {
+    let mnemonic = match mnemonic_generator.0.from_entropy(entrophy.to_vec()) {
         Ok(mnemonic) => mnemonic,
         Err(error) => return Err(Error::Misc(Box::new(error))),
     };

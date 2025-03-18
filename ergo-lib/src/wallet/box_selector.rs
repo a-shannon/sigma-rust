@@ -312,7 +312,7 @@ mod tests {
         let token = force_any_val::<Token>();
         let b = ErgoBoxAssetsData {
             value: BoxValue::SAFE_USER_MIN,
-            tokens: BoxTokens::from_vec(vec![token.clone(), token.clone()]).ok(),
+            tokens: BoxTokens::from_vec(vec![token, token]).ok(),
         };
         assert_eq!(
             u64::from(

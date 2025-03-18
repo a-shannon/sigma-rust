@@ -3,9 +3,11 @@
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
+use core::array::TryFromSliceError;
 use core::convert::TryFrom;
 use core::convert::TryInto;
 use core::fmt::Formatter;
+use core::str::FromStr;
 use sigma_ser::vlq_encode::ReadSigmaVlqExt;
 use sigma_ser::vlq_encode::WriteSigmaVlqExt;
 use sigma_ser::ScorexParsingError;
@@ -103,13 +105,26 @@ impl<const N: usize> From<Digest<N>> for String {
     }
 }
 
+/// Decode Digest<N> from a base16-encoded string
+impl<const N: usize> FromStr for Digest<N> {
+    type Err = DigestNError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut arr: [u8; N] = [0; N];
+        if s.as_bytes().len() / 2 == N {
+            base16::decode_slice(s.as_bytes(), &mut arr)?;
+            Ok(Digest(arr))
+        } else {
+            Err(DigestNError::InvalidSize)
+        }
+    }
+}
+
+// TODO: mark for deprecation
 impl<const N: usize> TryFrom<String> for Digest<N> {
     type Error = DigestNError;
 
     fn try_from(value: String) -> Result<Self, Self::Error> {
-        let bytes = base16::decode(&value)?;
-        let arr: [u8; N] = bytes.as_slice().try_into()?;
-        Ok(Digest(arr))
+        Digest::from_str(&value)
     }
 }
 
@@ -160,17 +175,22 @@ pub enum DigestNError {
     #[error("error decoding from Base16")]
     Base16DecodingError,
     /// Invalid byte array size
-    #[error("Invalid byte array size ({0})")]
-    InvalidSize(#[from] core::array::TryFromSliceError),
+    #[error("Invalid byte array size")]
+    InvalidSize,
     /// error decoding from Base64
     #[cfg(feature = "std")]
     #[error("error decoding from Base64: {0}")]
     Base64DecodingError(#[from] base64::DecodeError),
-
     /// error decoding from Base64
     #[cfg(not(feature = "std"))]
     #[error("error decoding from Base64")]
     Base64DecodingError,
+}
+
+impl From<TryFromSliceError> for DigestNError {
+    fn from(_: TryFromSliceError) -> Self {
+        DigestNError::InvalidSize
+    }
 }
 
 /// both base16 and base64 don't implement core::error::Error for their error types yet, so we can't use them in thiserror in no_std contexts
@@ -211,6 +231,7 @@ pub(crate) mod arbitrary {
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
 
@@ -218,5 +239,18 @@ mod tests {
     fn test_from_base64() {
         let s = "KkctSmFOZFJnVWtYcDJzNXY4eS9CP0UoSCtNYlBlU2g=";
         assert!(Digest32::from_base64(s).is_ok());
+    }
+    #[cfg(feature = "arbitrary")]
+    mod proptests {
+        use crate::Digest;
+        use core::str::FromStr;
+        use proptest::prelude::*;
+
+        proptest! {
+            #[test]
+            fn base16_roundtrip(digest in any::<Digest<32>>()) {
+                assert_eq!(Digest::<32>::from_str(&String::from(digest)).unwrap(), digest);
+            }
+        }
     }
 }

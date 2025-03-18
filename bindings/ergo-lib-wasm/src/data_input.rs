@@ -59,7 +59,7 @@ impl DataInputs {
 
 impl From<&DataInputs> for Vec<chain::transaction::DataInput> {
     fn from(v: &DataInputs) -> Self {
-        v.0.clone().iter().map(|i| i.0.clone()).collect()
+        v.0.clone().iter().map(|i| i.0).collect()
     }
 }
 impl From<Vec<chain::transaction::DataInput>> for DataInputs {
