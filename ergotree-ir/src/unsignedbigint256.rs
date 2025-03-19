@@ -2,7 +2,11 @@
 use alloc::vec::Vec;
 use core::ops::{Div, Mul, Rem};
 
-use bnum::{cast::CastFrom, types::U256, BInt, BTryFrom, BUint};
+use bnum::{
+    cast::{As, CastFrom},
+    types::U256,
+    BInt, BTryFrom, BUint, BUintD8,
+};
 use derive_more::{Add, AddAssign, BitAnd, BitOr, BitXor, Display, From, FromStr, Not, Sub};
 use elliptic_curve::ops::Reduce;
 use k256::Scalar;
@@ -133,6 +137,15 @@ impl UnsignedBigInt {
         } else {
             self.0.to_radix_be(256)
         }
+    }
+
+    /// Return bytes of integer in big-endian order
+    pub fn to_be_bytes(&self) -> [u8; 32] {
+        *self
+            .0
+            .as_::<BUintD8<{ U256::BYTES as usize }>>()
+            .to_be()
+            .digits()
     }
 
     /// Convert signed 256-bit integer to unsigned using euclidean remainder. The output will be >= 0 && < modulus. Returns None if modulus == 0
