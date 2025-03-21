@@ -3,6 +3,7 @@
 
 use std::convert::TryFrom;
 
+use ergo_chain_types::autolykos_pow_scheme::{decode_compact_bits, order_bigint};
 use ergo_lib::ergotree_ir::chain::context_extension::ContextExtension;
 use ergo_lib::{
     chain::{
@@ -10,7 +11,6 @@ use ergo_lib::{
         transaction::{prover_result::ProverResult, Input, Transaction, TxIoVec},
     },
     ergo_chain_types::{BlockId, Digest32},
-    ergotree_ir::sigma_protocol::dlog_group::order_bigint,
 };
 use ergo_lib::{
     ergo_chain_types::ADDigest,
@@ -197,7 +197,7 @@ fn prove_block(
         .to_vec();
     // Order of the secp256k1 elliptic curve
     let order = order_bigint();
-    let target_b = order.clone() / ergo_nipopow::decode_compact_bits(header.n_bits);
+    let target_b = order.clone() / decode_compact_bits(header.n_bits);
 
     let x = DlogProverInput::random();
     let x_bigint = BigInt::from_bytes_be(Sign::Plus, &x.to_bytes());

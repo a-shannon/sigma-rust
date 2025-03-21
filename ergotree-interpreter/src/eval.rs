@@ -319,6 +319,7 @@ fn smethod_eval_fn(method: &SMethod) -> Result<EvalFn, EvalError> {
             sheader::POW_DISTANCE_METHOD_ID => self::sheader::POW_DISTANCE_EVAL_FN,
             sheader::POW_NONCE_METHOD_ID => self::sheader::POW_NONCE_EVAL_FN,
             sheader::VOTES_METHOD_ID => self::sheader::VOTES_EVAL_FN,
+            sheader::CHECK_POW_METHOD_ID => self::sheader::CHECK_POW_EVAL_FN,
             method_id => {
                 return Err(EvalError::NotFound(format!(
                     "Eval fn: method {:?} with method id {:?} not found in SHeader",

@@ -1,10 +1,14 @@
 #![allow(missing_docs)]
 
+use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
 use lazy_static::lazy_static;
 
+use crate::ergo_tree::ErgoTreeVersion;
 use crate::serialization::types::TypeCode;
+use crate::types::sfunc::SFunc;
+use crate::types::stype_companion::STypeCompanion;
 
 use super::smethod::{MethodId, SMethod, SMethodDesc};
 use super::stype::SType::{self, SByte, SColl};
@@ -44,6 +48,8 @@ pub const POW_NONCE_METHOD_ID: MethodId = MethodId(13);
 pub const POW_DISTANCE_METHOD_ID: MethodId = MethodId(14);
 /// `Header.votes`
 pub const VOTES_METHOD_ID: MethodId = MethodId(15);
+/// `Header.checkPow`
+pub const CHECK_POW_METHOD_ID: MethodId = MethodId(16);
 
 lazy_static! {
     /// Header method descriptors
@@ -64,6 +70,7 @@ lazy_static! {
             &POW_NONCE_PROPERTY_METHOD_DESC,
             &POW_DISTANCE_PROPERTY_METHOD_DESC,
             &VOTES_PROPERTY_METHOD_DESC,
+            &CHECK_POW_METHOD_DESC
         ]
     ;
 }
@@ -154,6 +161,19 @@ lazy_static! {
     );
     static ref VOTES_PROPERTY_METHOD_DESC: SMethodDesc =
         property("votes", SColl(SByte.into()), VOTES_METHOD_ID);
+    static ref CHECK_POW_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: CHECK_POW_METHOD_ID,
+        name: "checkPow",
+        tpe: SFunc {
+            t_dom: vec![SType::SHeader],
+            t_range: Box::new(SType::SBoolean),
+            tpe_params: vec![]
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    /// Header.checkPow
+    pub static ref CHECK_POW_METHOD: SMethod = SMethod::new(STypeCompanion::Header, CHECK_POW_METHOD_DESC.clone());
 }
 
 fn property(name: &'static str, res_tpe: SType, id: MethodId) -> SMethodDesc {

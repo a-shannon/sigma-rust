@@ -2,6 +2,7 @@ use alloc::boxed::Box;
 use alloc::string::String;
 use core::fmt::Debug;
 use core::fmt::Display;
+use ergo_chain_types::autolykos_pow_scheme::AutolykosPowSchemeError;
 use ergotree_ir::ergo_tree::ErgoTreeVersion;
 use ergotree_ir::mir::expr::SubstDeserializeError;
 
@@ -87,6 +88,9 @@ pub enum EvalError {
     /// Deserialize substitution error, see [`ergotree_ir::mir::expr::Expr::substitute_deserialize`]
     #[error("DeserializeRegister/DeserializeContext error: {0}")]
     SubstDeserializeError(#[from] SubstDeserializeError),
+    /// Autolykos PoW error
+    #[error("Autolykos PoW error: {0}")]
+    AutolykosPowSchemeError(#[from] AutolykosPowSchemeError),
 }
 
 /// Wrapped error with source span

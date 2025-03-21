@@ -27,8 +27,6 @@ use bnum::BTryFrom;
 use elliptic_curve::rand_core::RngCore;
 use k256::elliptic_curve::PrimeField;
 use k256::Scalar;
-use num_bigint::BigInt;
-use num_traits::Num;
 use sigma_ser::ScorexSerializable;
 
 // /// Creates a random member of this Dlog group
@@ -88,18 +86,11 @@ impl SigmaSerializable for ergo_chain_types::EcPoint {
     }
 }
 
-const ORDER: &str = "+FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141";
 /// Order of the secp256k1 elliptic curve
 // Since secp256k1 order doesn't fit in a signed 256 bit integer, this returns an unsigned 256-bit integer instead
 pub fn order() -> U256 {
     #[allow(clippy::unwrap_used)]
-    U256::from_str_radix(ORDER, 16).unwrap()
-}
-
-/// Order of the secp256k1 elliptic curve as BigInt
-pub fn order_bigint() -> BigInt {
-    #[allow(clippy::unwrap_used)]
-    BigInt::from_str_radix(ORDER, 16).unwrap()
+    U256::from_str_radix(Scalar::MODULUS, 16).unwrap()
 }
 
 #[allow(clippy::unwrap_used)]

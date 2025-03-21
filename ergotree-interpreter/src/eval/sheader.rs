@@ -5,7 +5,10 @@ use core::convert::TryInto;
 
 use alloc::vec::Vec;
 use ergo_chain_types::Header;
-use ergotree_ir::{bigint256::BigInt256, mir::constant::TryExtractInto};
+use ergotree_ir::{
+    bigint256::BigInt256,
+    mir::{constant::TryExtractInto, value::Value},
+};
 
 use super::{EvalError, EvalFn};
 
@@ -90,6 +93,14 @@ pub(crate) static VOTES_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
     Ok(Into::<Vec<u8>>::into(header.votes).into())
 };
 
+pub(crate) static CHECK_POW_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| match obj {
+    Value::Header(header) => Ok(header.check_pow()?.into()),
+    _ => Err(EvalError::UnexpectedValue(format!(
+        "SHeader.checkpow expected obj to be Value::Global, got {:?}",
+        obj
+    ))),
+};
+
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
@@ -101,8 +112,15 @@ mod tests {
     use ergotree_ir::{
         bigint256::BigInt256,
         chain::context::Context,
-        mir::{coll_by_index::ByIndex, expr::Expr, property_call::PropertyCall},
-        types::{scontext, sheader, smethod::SMethod},
+        mir::{
+            coll_by_index::ByIndex, expr::Expr, method_call::MethodCall,
+            property_call::PropertyCall,
+        },
+        types::{
+            scontext::{self, HEADERS_PROPERTY},
+            sheader,
+            smethod::SMethod,
+        },
     };
     use sigma_test_util::force_any_val;
     use sigma_util::AsVecU8;
@@ -342,5 +360,48 @@ mod tests {
         };
         let expr = create_get_header_property_expr(unknown_property);
         assert!(try_eval_out_wo_ctx::<i8>(&expr).is_err());
+    }
+    #[test]
+    fn test_eval_check_pow() {
+        let mut ctx = force_any_val::<Context>();
+        ctx.headers[0] = serde_json::from_str(
+            r#"{
+            "extensionId": "d51a477cc12b187d9bc7f464b22d00e3aa7c92463874e863bf3acf2f427bb48b",
+            "difficulty": "1595361307131904",
+            "votes": "000000",
+            "timestamp": 1736177881102,
+            "size": 220,
+            "unparsedBytes": "",
+            "stateRoot": "4dfafb43842680fd5870d8204a218f873479e1f5da1b34b059ca8da526abcc8719",
+            "height": 1433531,
+            "nBits": 117811961,
+            "version": 3,
+            "id": "3473e7b5aaf623e4260d5798253d26f3cdc912c12594b7e3a979e3db8ed883f6",
+            "adProofsRoot": "73160faa9f0e47bf7da598d4e9d3de58e8a24b8564458ad8a4d926514f435dc1",
+            "transactionsRoot": "c88d5f50ece85c2b918b5bd41d2bc06159e6db1b3aad95091d994c836a172950",
+            "extensionHash": "d5a43bf63c1d8c7f10b15b6d2446abe565b93a4fd3f5ca785b00e6bda831644f",
+            "powSolutions": {
+              "pk": "0274e729bb6615cbda94d9d176a2f1525068f12b330e38bbbf387232797dfd891f",
+              "w": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+              "n": "a6905b8c65f5864a",
+              "d": 0
+            },
+            "adProofsId": "80a5ff0c6cd98440163bd27f2d7c775ea516af09024a98d9d83f16029bfbd034",
+            "transactionsId": "c7315c49df258522d3e92ce2653d9f4d8a35309a7a7dd470ebf8db53dd3fb792",
+            "parentId": "93172f3152a6a25dc89dc45ede1130c5eb86636a50bfb93a999556d16016ceb7"
+          }"#,
+        )
+        .unwrap();
+        // Add a mainnet block header with valid PoW to context. TODO: this can be simplified once Header serialization is added to sigma-rust (v6.0), right now we need to access CONTEXT.headers(0)
+        let headers = PropertyCall::new(Expr::Context, HEADERS_PROPERTY.clone()).unwrap();
+        let header = ByIndex::new(headers.into(), 0i32.into(), None).unwrap();
+        let check_pow: Expr =
+            MethodCall::new(header.into(), sheader::CHECK_POW_METHOD.clone(), vec![])
+                .unwrap()
+                .into();
+        assert!(eval_out::<bool>(&check_pow, &ctx));
+        // Mutate header to invalidate proof-of-work
+        ctx.headers[0].timestamp -= 1;
+        assert!(!eval_out::<bool>(&check_pow, &ctx));
     }
 }
