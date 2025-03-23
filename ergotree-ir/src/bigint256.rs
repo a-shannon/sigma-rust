@@ -9,7 +9,7 @@ use bnum::cast::As;
 use bnum::types::I256;
 use bnum::BUintD8;
 use derive_more::From;
-use derive_more::{Add, AddAssign, BitAnd, BitOr, BitXor, Display, Div, FromStr, Mul, Not, Sub};
+use derive_more::{Add, AddAssign, BitAnd, BitOr, BitXor, Display, FromStr, Not, Sub};
 use num_bigint::BigInt;
 use num_derive::{Num, One, Signed, Zero};
 use num_traits::{
@@ -38,8 +38,6 @@ use crate::serialization::{SigmaParsingError, SigmaSerializable};
     Add,
     AddAssign,
     Sub,
-    Mul,
-    Div,
     BitAnd,
     BitOr,
     BitXor,

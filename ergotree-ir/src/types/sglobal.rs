@@ -35,8 +35,8 @@ pub const NONE_METHOD_ID: MethodId = MethodId(10);
 
 lazy_static! {
     /// Global method descriptors
-    pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> =
-        vec![&GROUP_GENERATOR_METHOD_DESC, &XOR_METHOD_DESC, &SERIALIZE_METHOD_DESC, &DESERIALIZE_METHOD_DESC, &FROM_BIGENDIAN_BYTES_METHOD_DESC, &SOME_METHOD_DESC, &NONE_METHOD_DESC];
+    pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
+        vec![GROUP_GENERATOR_METHOD_DESC.clone(), XOR_METHOD_DESC.clone(), SERIALIZE_METHOD_DESC.clone(), DESERIALIZE_METHOD_DESC.clone(), FROM_BIGENDIAN_BYTES_METHOD_DESC.clone(), NONE_METHOD_DESC.clone(), SOME_METHOD_DESC.clone()];
 }
 
 lazy_static! {
@@ -166,8 +166,9 @@ mod test {
     use proptest::prelude::*;
 
     use crate::{
+        ergo_tree::ErgoTreeVersion,
         mir::{expr::Expr, method_call::MethodCall},
-        serialization::SigmaSerializable,
+        serialization::roundtrip_new_feature,
         types::{stype::SType, stype_param::STypeVar},
     };
 
@@ -182,7 +183,7 @@ mod test {
                vec![vec![0i8].into()],
                type_args,
            ).unwrap();
-           assert_eq!(MethodCall::sigma_parse_bytes(&mc.sigma_serialize_bytes().unwrap()).unwrap(), mc);
+           roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
        }
     }
 }

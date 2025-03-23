@@ -51,23 +51,23 @@ pub const UPDATE_DIGEST_METHOD_ID: MethodId = MethodId(15);
 
 lazy_static! {
     /// AvlTree method descriptors
-    pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> =
+    pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
         vec![
-            &DIGEST_METHOD_DESC,
-            &ENABLED_OPERATIONS_METHOD_DESC,
-            &KEY_LENGTH_METHOD_DESC,
-            &VALUE_LENGTH_OPT_METHOD_DESC,
-            &IS_INSERT_ALLOWED_METHOD_DESC,
-            &IS_UPDATE_ALLOWED_METHOD_DESC,
-            &IS_REMOVE_ALLOWED_METHOD_DESC,
-            &UPDATE_OPERATIONS_METHOD_DESC,
-            &CONTAINS_METHOD_DESC,
-            &GET_METHOD_DESC,
-            &GET_MANY_METHOD_DESC,
-            &INSERT_METHOD_DESC,
-            &REMOVE_METHOD_DESC,
-            &UPDATE_METHOD_DESC,
-            &UPDATE_DIGEST_METHOD_DESC,
+            DIGEST_METHOD_DESC.clone(),
+            ENABLED_OPERATIONS_METHOD_DESC.clone(),
+            KEY_LENGTH_METHOD_DESC.clone(),
+            VALUE_LENGTH_OPT_METHOD_DESC.clone(),
+            IS_INSERT_ALLOWED_METHOD_DESC.clone(),
+            IS_UPDATE_ALLOWED_METHOD_DESC.clone(),
+            IS_REMOVE_ALLOWED_METHOD_DESC.clone(),
+            UPDATE_OPERATIONS_METHOD_DESC.clone(),
+            CONTAINS_METHOD_DESC.clone(),
+            GET_METHOD_DESC.clone(),
+            GET_MANY_METHOD_DESC.clone(),
+            INSERT_METHOD_DESC.clone(),
+            REMOVE_METHOD_DESC.clone(),
+            UPDATE_METHOD_DESC.clone(),
+            UPDATE_DIGEST_METHOD_DESC.clone(),
         ]
     ;
 }

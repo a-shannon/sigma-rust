@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 
 use crate::{
     ergo_box::{ConstErgoBoxPtr, ErgoBox, ErgoBoxPtr},
+    unsignedbigint256::{UnsignedBigInt, UnsignedBigIntPtr, UnsignedBigIntRaw},
     util::{const_ptr_as_ref, mut_ptr_as_mut},
     Error,
 };
@@ -93,6 +94,16 @@ pub unsafe fn constant_from_i64(value: i64, constant_out: *mut ConstantPtr) -> R
     Ok(())
 }
 
+/// Create from i64
+pub unsafe fn constant_from_u256(
+    value: UnsignedBigInt,
+    constant_out: *mut ConstantPtr,
+) -> Result<(), Error> {
+    let constant_out = mut_ptr_as_mut(constant_out, "constant_out")?;
+    *constant_out = Box::into_raw(Box::new(Constant(UnsignedBigIntRaw::from(value).into())));
+    Ok(())
+}
+
 /// Extract i64 value, returning error if wrong type
 pub unsafe fn constant_to_i64(constant_ptr: ConstConstantPtr) -> Result<i64, Error> {
     let constant = const_ptr_as_ref(constant_ptr, "constant_ptr")?;
@@ -170,5 +181,21 @@ pub unsafe fn constant_to_ergo_box(
         .try_extract_into::<ergo_lib::ergotree_ir::chain::ergo_box::ErgoBox>()
         .map(Into::into)?;
     *ergo_box_out = Box::into_raw(Box::new(ErgoBox(b)));
+    Ok(())
+}
+
+/// Extract ErgoBox value, returning error if wrong type
+pub unsafe fn constant_to_u256(
+    constant_ptr: ConstConstantPtr,
+    u256_out: UnsignedBigIntPtr,
+) -> Result<(), Error> {
+    let constant = const_ptr_as_ref(constant_ptr, "constant_ptr")?;
+    let u256_out = mut_ptr_as_mut(u256_out, "u256_out")?;
+    let b = constant
+        .0
+        .clone()
+        .try_extract_into::<ergo_lib::ergotree_ir::unsignedbigint256::UnsignedBigInt>()?
+        .into();
+    *u256_out = b;
     Ok(())
 }

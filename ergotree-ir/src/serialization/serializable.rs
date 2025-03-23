@@ -1,6 +1,6 @@
 //! Serialization of Ergo types
 use crate::chain::ergo_box::RegisterValueError;
-use crate::ergo_tree::ErgoTreeHeaderError;
+use crate::ergo_tree::{ErgoTreeHeaderError, ErgoTreeVersion};
 use crate::mir::val_def::ValId;
 use crate::mir::{constant::TryExtractFromError, expr::InvalidArgumentError};
 use crate::types::type_unify::TypeUnificationError;
@@ -61,6 +61,9 @@ pub enum SigmaParsingError {
     /// Failed to parse type
     #[error("type parsing error, invalid type code: {0}({0:#04X})")]
     InvalidTypeCode(u8),
+    /// V6 type error
+    #[error("Can't use v6 types (UnsignedBigInt, Header, Option) in ContextExtension/Registers ")]
+    V6TypeError,
     /// Failed to decode VLQ
     #[error("vlq encode error: {0}")]
     VlqEncode(#[from] vlq_encode::VlqEncodingError),
@@ -149,7 +152,9 @@ pub trait SigmaSerializable: Sized {
     fn sigma_serialize_bytes(&self) -> Result<Vec<u8>, SigmaSerializationError> {
         let mut data = Vec::new();
         let mut w = SigmaByteWriter::new(&mut data, None);
-        self.sigma_serialize(&mut w)?;
+        w.with_tree_version(ErgoTreeVersion::MAX_SCRIPT_VERSION, |w| {
+            self.sigma_serialize(w)
+        })?;
         Ok(data)
     }
 
@@ -157,7 +162,10 @@ pub trait SigmaSerializable: Sized {
     fn sigma_parse_bytes(bytes: &[u8]) -> Result<Self, SigmaParsingError> {
         let cursor = Cursor::new(bytes);
         let mut sr = SigmaByteReader::new(cursor, ConstantStore::empty());
-        Self::sigma_parse(&mut sr)
+        // Set version to max for convenience when parsing new types like UnsignedBigInt from bytes/base16
+        sr.with_tree_version(ErgoTreeVersion::MAX_SCRIPT_VERSION, |sr| {
+            Self::sigma_parse(sr)
+        })
     }
 }
 
@@ -231,4 +239,35 @@ pub fn sigma_serialize_roundtrip<T: SigmaSerializable>(v: &T) -> T {
     let cursor = Cursor::new(&mut data[..]);
     let mut sr = SigmaByteReader::new(cursor, ConstantStore::empty());
     T::sigma_parse(&mut sr).expect("parse failed")
+}
+
+/// Perform versioned serialization
+pub fn sigma_serialize_roundtrip_versioned<T: SigmaSerializable>(
+    v: &T,
+    tree_version: ErgoTreeVersion,
+) -> Result<T, Box<dyn core::error::Error>> {
+    let mut data = Vec::new();
+    let mut w = SigmaByteWriter::new(&mut data, None);
+    w.with_tree_version(tree_version, |w| v.sigma_serialize(w))?;
+    let cursor = Cursor::new(&mut data[..]);
+    let mut sr = SigmaByteReader::new(cursor, ConstantStore::empty());
+    sr.with_tree_version(tree_version, T::sigma_parse)
+        .map_err(From::from)
+}
+
+/// Perform serialization roundtrip for a feature that's only supported after `since`
+#[allow(clippy::expect_used)]
+pub fn roundtrip_new_feature<T: SigmaSerializable + core::fmt::Debug + PartialEq>(
+    v: &T,
+    since: ErgoTreeVersion,
+) {
+    for version in 0u8..since.into() {
+        assert!(sigma_serialize_roundtrip_versioned(v, version.into()).is_err());
+    }
+    for version in u8::from(since)..=ErgoTreeVersion::MAX_SCRIPT_VERSION.into() {
+        assert_eq!(
+            *v,
+            sigma_serialize_roundtrip_versioned(v, version.into()).expect("roundtrip failed")
+        );
+    }
 }

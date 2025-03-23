@@ -7,6 +7,7 @@ use ergo_lib::ergotree_ir::{
     },
     serialization::SigmaSerializable,
     types::{stuple::STuple, stype},
+    unsignedbigint256::UnsignedBigInt,
 };
 use pyo3::{
     exceptions::PyValueError,
@@ -32,6 +33,7 @@ pub(crate) enum SType {
     SInt(),
     SLong(),
     SBigInt(),
+    SUnsignedBigInt(),
     SGroupElement(),
     SSigmaProp(),
     SBox(),
@@ -53,6 +55,7 @@ impl SType {
             stype::SType::SInt => SType::SInt(),
             stype::SType::SLong => SType::SLong(),
             stype::SType::SBigInt => SType::SBigInt(),
+            stype::SType::SUnsignedBigInt => SType::SUnsignedBigInt(),
             stype::SType::SGroupElement => SType::SGroupElement(),
             stype::SType::SSigmaProp => SType::SSigmaProp(),
             stype::SType::SBox => SType::SBox(),
@@ -91,6 +94,7 @@ impl SType {
             SType::SInt() => stype::SType::SInt,
             SType::SLong() => stype::SType::SLong,
             SType::SBigInt() => stype::SType::SBigInt,
+            SType::SUnsignedBigInt() => stype::SType::SUnsignedBigInt,
             SType::SGroupElement() => stype::SType::SGroupElement,
             SType::SSigmaProp() => stype::SType::SSigmaProp,
             SType::SBox() => stype::SType::SBox,
@@ -205,6 +209,19 @@ impl Constant {
     }
 
     #[classmethod]
+    fn from_u256(_: &Bound<'_, PyType>, py: Python, v: &Bound<'_, PyInt>) -> PyResult<Self> {
+        let kwargs = PyDict::new(py);
+        kwargs.set_item("length", 32)?;
+        kwargs.set_item("byteorder", "big")?;
+        kwargs.set_item("signed", false)?;
+        let be_bytes: [u8; 32] = v.call_method("to_bytes", (), Some(&kwargs))?.extract()?;
+        Ok(Self(constant::Constant::from(
+            #[allow(clippy::unwrap_used)] // length is guaranted to be 32 bytes
+            UnsignedBigInt::from_be_slice(&be_bytes[..]).unwrap(),
+        )))
+    }
+
+    #[classmethod]
     fn from_i256(_: &Bound<'_, PyType>, py: Python, v: &Bound<'_, PyInt>) -> PyResult<Self> {
         let kwargs = PyDict::new(py);
         kwargs.set_item("length", 32)?;
@@ -272,6 +289,9 @@ fn constant_to_py(py: Python, c: Constant) -> PyResult<Py<PyAny>> {
         stype::SType::SBigInt => {
             ergo_bigint_to_python(py, c.0.v.try_extract_into::<BigInt256>().unwrap())?
         }
+        stype::SType::SUnsignedBigInt => {
+            ergo_unsigned_bigint_to_python(py, c.0.v.try_extract_into::<UnsignedBigInt>().unwrap())?
+        }
         stype::SType::SColl(_) => match c.0.v {
             Literal::Coll(CollKind::NativeColl(NativeColl::CollByte(v))) => {
                 PyBytes::new(py, &v.iter().map(|&i| i as u8).collect::<Vec<_>>()).into_py_any(py)?
@@ -322,13 +342,25 @@ fn constant_to_py(py: Python, c: Constant) -> PyResult<Py<PyAny>> {
 }
 
 fn ergo_bigint_to_python(py: Python, bigint: BigInt256) -> PyResult<Py<PyAny>> {
+    let be_bytes: [u8; 32] = bigint.to_be_bytes();
     let kwargs = PyDict::new(py);
-    kwargs.set_item("length", 32)?;
+    kwargs.set_item("bytes", be_bytes)?;
     kwargs.set_item("byteorder", "big")?;
     kwargs.set_item("signed", true)?;
-    let long = py.get_type::<PyInt>();
+    let py_int = py.get_type::<PyInt>();
+    let bound = py_int.call_method("from_bytes", (), Some(&kwargs))?;
+    Ok(bound.unbind())
+}
+
+fn ergo_unsigned_bigint_to_python(py: Python, bigint: UnsignedBigInt) -> PyResult<Py<PyAny>> {
     let be_bytes: [u8; 32] = bigint.to_be_bytes();
-    let bound = long.call_method("from_bytes", (), Some(&kwargs))?;
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("bytes", be_bytes)?;
+    kwargs.set_item("byteorder", "big")?;
+    kwargs.set_item("signed", false)?;
+    let py_int = py.get_type::<PyInt>();
+    let be_bytes: [u8; 32] = bigint.to_be_bytes();
+    let bound = py_int.call_method("from_bytes", (), Some(&kwargs))?;
     Ok(bound.unbind())
 }
 

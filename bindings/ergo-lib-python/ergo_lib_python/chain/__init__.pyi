@@ -58,7 +58,14 @@ class SType:
         __match_args__ = ()
         """256-bit signed integer type"""
         def __init__(self, *args):
-            "Can be built using ``SType.SLong()``"
+            "Can be built using ``SType.SBigInt()``"
+        ...
+    @typing.final
+    class SUnsignedBigInt('SType'):
+        __match_args__ = ()
+        """256-bit unsigned  integer type"""
+        def __init__(self, *args):
+            "Can be built using ``SType.SUnsignedBigInt()``"
         ...
     @typing.final
     class SGroupElement('SType'):
@@ -72,7 +79,7 @@ class SType:
         __match_args__ = ()
         """SigmaProp type"""
         def __init__(self, *args):
-            "Can be built using ``SType.SGroupElement()``"
+            "Can be built using ``SType.SSigmaProp()``"
         ...
     @typing.final
     class SBox('SType'):
@@ -176,6 +183,14 @@ class Constant:
 
         :param elem_tpe: Explicit type used for building collections of constants when type can not be inferred (list is empty)
 
+        """
+        ...
+    @classmethod
+    def from_u256(cls, v: int) -> Self:
+        """Create a 256-bit unsigned integer ``Constant`` (``SType.SUnsignedBigInt()``)
+
+           | UnsignedBigInts are a v6.0 soft-fork type and can't be used as a register or
+           | :py:class:`ContextExtension` value. They are only allowed as constants in :py:class:`ErgoTree`'s with version >= 3
         """
         ...
     @classmethod

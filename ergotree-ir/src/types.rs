@@ -19,6 +19,8 @@ pub mod sgroup_elem;
 pub mod sheader;
 /// Object method(property) signature type
 pub mod smethod;
+/// Numeric types (Byte, Short, Int, UnsignedBigInt, BigInt, UnsignedBigInt)
+pub mod snumeric;
 /// Option object type companion
 pub mod soption;
 /// PreHeader's methods

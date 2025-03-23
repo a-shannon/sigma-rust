@@ -19,17 +19,17 @@ pub static TYPE_NAME: &str = "Context";
 
 lazy_static! {
     /// Context method descriptors
-    pub(crate) static ref METHOD_DESC: Vec<&'static SMethodDesc> = vec![
-        &DATA_INPUTS_PROPERTY_METHOD_DESC,
-        &HEADERS_PROPERTY_METHOD_DESC,
-        &PRE_HEADER_PROPERTY_METHOD_DESC,
-        &INPUTS_PROPERTY_METHOD_DESC,
-        &OUTPUTS_PROPERTY_METHOD_DESC,
-        &HEIGHT_PROPERTY_METHOD_DESC,
-        &SELF_PROPERTY_METHOD_DESC,
-        &SELF_BOX_INDEX_PROPERTY_METHOD_DESC,
-        &LAST_BLOCK_UTXO_ROOT_HASH_PROPERTY_METHOD_DESC,
-        &MINER_PUBKEY_PROPERTY_METHOD_DESC,
+    pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> = vec![
+        DATA_INPUTS_PROPERTY_METHOD_DESC.clone(),
+        HEADERS_PROPERTY_METHOD_DESC.clone(),
+        PRE_HEADER_PROPERTY_METHOD_DESC.clone(),
+        INPUTS_PROPERTY_METHOD_DESC.clone(),
+        OUTPUTS_PROPERTY_METHOD_DESC.clone(),
+        HEIGHT_PROPERTY_METHOD_DESC.clone(),
+        SELF_PROPERTY_METHOD_DESC.clone(),
+        SELF_BOX_INDEX_PROPERTY_METHOD_DESC.clone(),
+        LAST_BLOCK_UTXO_ROOT_HASH_PROPERTY_METHOD_DESC.clone(),
+        MINER_PUBKEY_PROPERTY_METHOD_DESC.clone(),
     ];
 }
 

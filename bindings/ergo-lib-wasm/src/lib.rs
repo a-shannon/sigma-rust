@@ -52,3 +52,4 @@ pub(crate) mod json;
 
 #[cfg(feature = "rest")]
 pub mod rest;
+pub mod unsignedbigint256;

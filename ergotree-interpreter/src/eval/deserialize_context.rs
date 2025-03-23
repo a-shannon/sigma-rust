@@ -1,7 +1,7 @@
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 mod tests {
-    use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader};
+    use ergotree_ir::ergo_tree::{ErgoTree, ErgoTreeHeader, ErgoTreeVersion};
     use ergotree_ir::mir::constant::Constant;
     use ergotree_ir::mir::deserialize_context::DeserializeContext;
     use ergotree_ir::mir::expr::Expr;
@@ -9,6 +9,8 @@ mod tests {
     use ergotree_ir::mir::value::Value;
     use ergotree_ir::serialization::SigmaSerializable;
     use ergotree_ir::types::stype::SType;
+    use ergotree_ir::unsignedbigint256::UnsignedBigInt;
+    use num_traits::Zero;
     use sigma_test_util::force_any_val;
 
     use crate::eval::reduce_to_crypto;
@@ -121,5 +123,28 @@ mod tests {
         let ctx = force_any_val::<Context>().with_extension(ctx_ext);
         // Evaluating executeFromVar(1) with ctx[1] being executeFromVar(1) should fail during evaluation
         assert!(try_eval_with_deserialize::<bool>(&expr, &ctx).is_err());
+    }
+    #[test]
+    fn deserialize_v6_type() {
+        let expr: Expr = DeserializeContext {
+            tpe: SType::SUnsignedBigInt,
+            id: 1,
+        }
+        .into();
+        let inner_expr: Expr = Constant::from(UnsignedBigInt::zero()).into();
+        let ctx_ext = ContextExtension {
+            values: [(1u8, inner_expr.sigma_serialize_bytes().unwrap().into())]
+                .iter()
+                .cloned()
+                .collect(),
+        };
+        let ctx = force_any_val::<Context>().with_extension(ctx_ext);
+        ctx.tree_version.set(ErgoTreeVersion::V0);
+        assert!(try_eval_with_deserialize::<Value>(&expr, &ctx).is_err());
+        ctx.tree_version.set(ErgoTreeVersion::V3);
+        assert_eq!(
+            try_eval_with_deserialize::<UnsignedBigInt>(&expr, &ctx).unwrap(),
+            UnsignedBigInt::zero()
+        );
     }
 }

@@ -11,10 +11,12 @@ use impl_trait_for_tuples::impl_for_tuples;
 
 use crate::bigint256::BigInt256;
 use crate::chain::ergo_box::ErgoBox;
+use crate::serialization::SigmaParsingError;
 use crate::sigma_protocol::sigma_boolean::SigmaBoolean;
 use crate::sigma_protocol::sigma_boolean::SigmaProofOfKnowledgeTree;
 use crate::sigma_protocol::sigma_boolean::SigmaProp;
 use crate::sigma_protocol::sigma_boolean::{ProveDhTuple, ProveDlog};
+use crate::unsignedbigint256::UnsignedBigInt;
 use ergo_chain_types::EcPoint;
 
 use super::sfunc::SFunc;
@@ -47,6 +49,8 @@ pub enum SType {
     SGroupElement,
     /// Proposition which can be proven and verified by sigma protocol.
     SSigmaProp,
+    /// Unsigned 256-bit integer type
+    SUnsignedBigInt,
     /// ErgoBox value
     SBox,
     /// AVL tree value
@@ -76,7 +80,12 @@ impl SType {
     pub fn is_numeric(&self) -> bool {
         matches!(
             self,
-            SType::SByte | SType::SShort | SType::SInt | SType::SLong | SType::SBigInt
+            SType::SByte
+                | SType::SShort
+                | SType::SInt
+                | SType::SLong
+                | SType::SBigInt
+                | SType::SUnsignedBigInt
         )
     }
 
@@ -90,8 +99,10 @@ impl SType {
                 | SType::SLong
                 | SType::SBigInt
                 | SType::SAny
+                | SType::SUnit
                 | SType::SGroupElement
                 | SType::SSigmaProp
+                | SType::SUnsignedBigInt
                 | SType::SBox
                 | SType::SAvlTree
                 | SType::SContext
@@ -101,6 +112,17 @@ impl SType {
                 | SType::SPreHeader
                 | SType::SGlobal
         )
+    }
+
+    pub(crate) fn check_v6_type(&self) -> Result<(), SigmaParsingError> {
+        match self {
+            SType::SUnsignedBigInt | SType::SOption(_) | SType::SHeader => {
+                Err(SigmaParsingError::V6TypeError)
+            }
+            SType::SColl(elem_tpe) => elem_tpe.check_v6_type(),
+            SType::STuple(tuple) => tuple.items.iter().try_for_each(SType::check_v6_type),
+            _ => Ok(()),
+        }
     }
 
     pub(crate) fn with_subst(&self, subst: &HashMap<STypeVar, SType>) -> Self {
@@ -147,6 +169,7 @@ impl core::fmt::Display for SType {
             SType::SBigInt => write!(f, "BigInt"),
             SType::SGroupElement => write!(f, "GroupElement"),
             SType::SSigmaProp => write!(f, "SigmaProp"),
+            SType::SUnsignedBigInt => write!(f, "SUnsignedBigInt"),
             SType::SBox => write!(f, "Box"),
             SType::SAvlTree => write!(f, "AvlTree"),
             SType::SOption(t) => write!(f, "Option[{}]", t),
@@ -252,6 +275,12 @@ impl LiftIntoSType for BigInt256 {
     }
 }
 
+impl LiftIntoSType for UnsignedBigInt {
+    fn stype() -> SType {
+        SType::SUnsignedBigInt
+    }
+}
+
 impl LiftIntoSType for ProveDhTuple {
     fn stype() -> SType {
         SType::SSigmaProp
@@ -292,9 +321,10 @@ pub(crate) mod tests {
     use alloc::vec;
     use proptest::prelude::*;
 
-    pub(crate) fn primitive_type() -> BoxedStrategy<SType> {
-        prop_oneof![
+    pub(crate) fn primitive_type(include_v6_types: bool) -> BoxedStrategy<SType> {
+        let strategy = prop_oneof![
             Just(SType::SAny),
+            Just(SType::SUnit),
             Just(SType::SBoolean),
             Just(SType::SByte),
             Just(SType::SShort),
@@ -311,15 +341,21 @@ pub(crate) mod tests {
             Just(SType::SPreHeader),
             Just(SType::SGlobal),
         ]
-        .boxed()
+        .boxed();
+        if include_v6_types {
+            strategy
+                .prop_union(prop_oneof![Just(SType::SUnsignedBigInt)].boxed())
+                .boxed()
+        } else {
+            strategy
+        }
     }
-
     impl Arbitrary for SType {
-        type Parameters = ();
+        type Parameters = bool;
         type Strategy = BoxedStrategy<Self>;
 
         fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
-            prop_oneof![primitive_type(), Just(SType::STypeVar(STypeVar::t())),]
+            prop_oneof![primitive_type(_args), Just(SType::STypeVar(STypeVar::t())),]
                 .prop_recursive(
                     4,  // no more than this branches deep
                     64, // total elements target

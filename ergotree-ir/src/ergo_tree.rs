@@ -348,14 +348,20 @@ impl SigmaSerializable for ErgoTree {
                 let bytes = {
                     let mut data = Vec::new();
                     let mut inner_w = SigmaByteWriter::new(&mut data, None);
-                    if parsed_tree.header.is_constant_segregation() {
-                        inner_w.put_usize_as_u32_unwrapped(parsed_tree.constants.len())?;
-                        parsed_tree
-                            .constants
-                            .iter()
-                            .try_for_each(|c| c.sigma_serialize(&mut inner_w))?;
-                    };
-                    parsed_tree.root.sigma_serialize(&mut inner_w)?;
+                    inner_w.with_tree_version(
+                        parsed_tree.header.version(),
+                        |inner_w| -> SigmaSerializeResult {
+                            if parsed_tree.header.is_constant_segregation() {
+                                inner_w.put_usize_as_u32_unwrapped(parsed_tree.constants.len())?;
+                                parsed_tree
+                                    .constants
+                                    .iter()
+                                    .try_for_each(|c| c.sigma_serialize(inner_w))?;
+                            };
+                            parsed_tree.root.sigma_serialize(inner_w)?;
+                            Ok(())
+                        },
+                    )?;
                     data
                 };
 

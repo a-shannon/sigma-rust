@@ -30,6 +30,7 @@ use ergotree_ir::chain::token::TokenId;
 pub use ergotree_ir::chain::tx_id::TxId;
 use ergotree_ir::chain::IndexSet;
 use ergotree_ir::ergo_tree::ErgoTreeError;
+use ergotree_ir::ergo_tree::ErgoTreeVersion;
 use thiserror::Error;
 
 pub use data_input::*;
@@ -253,76 +254,85 @@ where
 impl SigmaSerializable for Transaction {
     #[allow(clippy::unwrap_used)]
     fn sigma_serialize<W: SigmaByteWrite>(&self, w: &mut W) -> SigmaSerializeResult {
-        // reference implementation - https://github.com/ScorexFoundation/sigmastate-interpreter/blob/9b20cb110effd1987ff76699d637174a4b2fb441/sigmastate/src/main/scala/org/ergoplatform/ErgoLikeTransaction.scala#L112-L112
-        w.put_usize_as_u16_unwrapped(self.inputs.len())?;
-        self.inputs.iter().try_for_each(|i| i.sigma_serialize(w))?;
-        if let Some(data_inputs) = &self.data_inputs {
-            w.put_usize_as_u16_unwrapped(data_inputs.len())?;
-            data_inputs.iter().try_for_each(|i| i.sigma_serialize(w))?;
-        } else {
-            w.put_u16(0)?;
-        }
+        // Set tree version to V0 to match reference impl where global tree version is V0. This prevents including new types added in V6 (UnsignedBigInt, etc) in registers of boxes/contextextensions
+        w.with_tree_version(ErgoTreeVersion::V0, |w| {
+            // reference implementation - https://github.com/ScorexFoundation/sigmastate-interpreter/blob/9b20cb110effd1987ff76699d637174a4b2fb441/sigmastate/src/main/scala/org/ergoplatform/ErgoLikeTransaction.scala#L112-L112
+            w.put_usize_as_u16_unwrapped(self.inputs.len())?;
+            self.inputs.iter().try_for_each(|i| i.sigma_serialize(w))?;
+            if let Some(data_inputs) = &self.data_inputs {
+                w.put_usize_as_u16_unwrapped(data_inputs.len())?;
+                data_inputs.iter().try_for_each(|i| i.sigma_serialize(w))?;
+            } else {
+                w.put_u16(0)?;
+            }
 
-        // Serialize distinct ids of tokens in transaction outputs.
-        let distinct_token_ids = distinct_token_ids(self.output_candidates.clone());
+            // Serialize distinct ids of tokens in transaction outputs.
+            let distinct_token_ids = distinct_token_ids(self.output_candidates.clone());
 
-        // Note that `self.output_candidates` is of type `TxIoVec` which has a max length of
-        // `u16::MAX`. Therefore the following unwrap is safe.
-        w.put_u32(u32::try_from(distinct_token_ids.len()).unwrap())?;
-        distinct_token_ids
-            .iter()
-            .try_for_each(|t_id| t_id.sigma_serialize(w))?;
+            // Note that `self.output_candidates` is of type `TxIoVec` which has a max length of
+            // `u16::MAX`. Therefore the following unwrap is safe.
+            w.put_u32(u32::try_from(distinct_token_ids.len()).unwrap())?;
+            distinct_token_ids
+                .iter()
+                .try_for_each(|t_id| t_id.sigma_serialize(w))?;
 
-        // serialize outputs
-        w.put_usize_as_u16_unwrapped(self.output_candidates.len())?;
-        self.output_candidates.iter().try_for_each(|o| {
-            ErgoBoxCandidate::serialize_body_with_indexed_digests(o, Some(&distinct_token_ids), w)
-        })?;
-        Ok(())
+            // serialize outputs
+            w.put_usize_as_u16_unwrapped(self.output_candidates.len())?;
+            self.output_candidates.iter().try_for_each(|o| {
+                ErgoBoxCandidate::serialize_body_with_indexed_digests(
+                    o,
+                    Some(&distinct_token_ids),
+                    w,
+                )
+            })?;
+            Ok(())
+        })
     }
 
     fn sigma_parse<R: SigmaByteRead>(r: &mut R) -> Result<Self, SigmaParsingError> {
-        // reference implementation - https://github.com/ScorexFoundation/sigmastate-interpreter/blob/9b20cb110effd1987ff76699d637174a4b2fb441/sigmastate/src/main/scala/org/ergoplatform/ErgoLikeTransaction.scala#L146-L146
+        r.with_tree_version(ErgoTreeVersion::V0, |r| {
+            // reference implementation - https://github.com/ScorexFoundation/sigmastate-interpreter/blob/9b20cb110effd1987ff76699d637174a4b2fb441/sigmastate/src/main/scala/org/ergoplatform/ErgoLikeTransaction.scala#L146-L146
 
-        // parse transaction inputs
-        let inputs_count = r.get_u16()?;
-        let mut inputs = Vec::with_capacity(inputs_count as usize);
-        for _ in 0..inputs_count {
-            inputs.push(Input::sigma_parse(r)?);
-        }
+            // parse transaction inputs
+            let inputs_count = r.get_u16()?;
+            let mut inputs = Vec::with_capacity(inputs_count as usize);
+            for _ in 0..inputs_count {
+                inputs.push(Input::sigma_parse(r)?);
+            }
 
-        // parse transaction data inputs
-        let data_inputs_count = r.get_u16()?;
-        let mut data_inputs = Vec::with_capacity(data_inputs_count as usize);
-        for _ in 0..data_inputs_count {
-            data_inputs.push(DataInput::sigma_parse(r)?);
-        }
+            // parse transaction data inputs
+            let data_inputs_count = r.get_u16()?;
+            let mut data_inputs = Vec::with_capacity(data_inputs_count as usize);
+            for _ in 0..data_inputs_count {
+                data_inputs.push(DataInput::sigma_parse(r)?);
+            }
 
-        // parse distinct ids of tokens in transaction outputs
-        let tokens_count = r.get_u32()?;
-        if tokens_count as usize > Transaction::MAX_OUTPUTS_COUNT * ErgoBox::MAX_TOKENS_COUNT {
-            return Err(SigmaParsingError::ValueOutOfBounds(
-                "too many tokens in transaction".to_string(),
-            ));
-        }
-        let mut token_ids =
-            IndexSet::with_capacity_and_hasher(tokens_count as usize, Default::default());
-        for _ in 0..tokens_count {
-            token_ids.insert(TokenId::sigma_parse(r)?);
-        }
+            // parse distinct ids of tokens in transaction outputs
+            let tokens_count = r.get_u32()?;
+            if tokens_count as usize > Transaction::MAX_OUTPUTS_COUNT * ErgoBox::MAX_TOKENS_COUNT {
+                return Err(SigmaParsingError::ValueOutOfBounds(
+                    "too many tokens in transaction".to_string(),
+                ));
+            }
+            let mut token_ids =
+                IndexSet::with_capacity_and_hasher(tokens_count as usize, Default::default());
+            for _ in 0..tokens_count {
+                token_ids.insert(TokenId::sigma_parse(r)?);
+            }
 
-        // parse outputs
-        let outputs_count = r.get_u16()?;
-        let mut outputs = Vec::with_capacity(outputs_count as usize);
-        for _ in 0..outputs_count {
-            outputs.push(ErgoBoxCandidate::parse_body_with_indexed_digests(
-                Some(&token_ids),
-                r,
-            )?)
-        }
+            // parse outputs
+            let outputs_count = r.get_u16()?;
+            let mut outputs = Vec::with_capacity(outputs_count as usize);
+            for _ in 0..outputs_count {
+                outputs.push(ErgoBoxCandidate::parse_body_with_indexed_digests(
+                    Some(&token_ids),
+                    r,
+                )?)
+            }
 
-        Transaction::new_from_vec(inputs, data_inputs, outputs)
-            .map_err(|e| SigmaParsingError::Misc(format!("{}", e)))
+            Transaction::new_from_vec(inputs, data_inputs, outputs)
+                .map_err(|e| SigmaParsingError::Misc(format!("{}", e)))
+        })
     }
 }
 
@@ -414,10 +424,25 @@ pub mod arbitrary {
 #[allow(clippy::unwrap_used, clippy::panic)]
 pub mod tests {
 
+    use core::str::FromStr;
+
+    use crate::chain::transaction::prover_result::ProverResult;
+
     use super::*;
 
-    use ergotree_ir::serialization::sigma_serialize_roundtrip;
+    use ergotree_ir::{
+        chain::{
+            context_extension::ContextExtension,
+            ergo_box::{box_value::BoxValue, NonMandatoryRegisterId, NonMandatoryRegisters},
+        },
+        ergo_tree::ErgoTree,
+        mir::constant::Constant,
+        serialization::sigma_serialize_roundtrip,
+        unsignedbigint256::UnsignedBigInt,
+    };
+    use indexmap::IndexMap;
     use proptest::prelude::*;
+    use sigma_test_util::force_any_val;
 
     proptest! {
 
@@ -434,6 +459,56 @@ pub mod tests {
             prop_assert_eq![sigma_serialize_roundtrip(&v), v];
         }
 
+    }
+
+    #[test]
+    fn test_v6_types() {
+        // Test that boxes/contextextension can't contain V6 types
+        let mut ergo_box = ErgoBoxCandidate {
+            value: BoxValue::SAFE_USER_MIN,
+            ergo_tree: force_any_val::<ErgoTree>(),
+            tokens: None,
+            additional_registers: NonMandatoryRegisters::new([(
+                NonMandatoryRegisterId::R4,
+                Constant::from(UnsignedBigInt::from_str("0").unwrap()),
+            )])
+            .unwrap(),
+            creation_height: 0,
+        };
+        assert!(matches!(
+            Transaction::new_from_vec(
+                vec![Input::new(
+                    BoxId::zero(),
+                    ProverResult {
+                        proof: ProofBytes::Empty,
+                        extension: ContextExtension::empty(),
+                    },
+                )],
+                vec![],
+                vec![ergo_box.clone()],
+            ),
+            Err(TransactionError::SigmaSerializationError(_))
+        ));
+        ergo_box.additional_registers = NonMandatoryRegisters::empty();
+        assert!(matches!(
+            Transaction::new_from_vec(
+                vec![Input::new(
+                    BoxId::zero(),
+                    ProverResult {
+                        proof: ProofBytes::Empty,
+                        extension: ContextExtension {
+                            values: IndexMap::from_iter([(
+                                0,
+                                UnsignedBigInt::from_str("0").unwrap().into()
+                            )])
+                        },
+                    },
+                )],
+                vec![],
+                vec![ergo_box.clone()],
+            ),
+            Err(TransactionError::SigmaSerializationError(_))
+        ));
     }
 
     #[test]

@@ -17,6 +17,7 @@ use crate::types::stuple::STuple;
 use crate::types::stuple::TupleItems;
 use crate::types::stype::LiftIntoSType;
 use crate::types::stype::SType;
+use crate::unsignedbigint256::UnsignedBigInt;
 use alloc::boxed::Box;
 
 use alloc::string::String;
@@ -74,6 +75,8 @@ pub enum Literal {
     String(Arc<str>),
     /// Big integer
     BigInt(BigInt256),
+    /// Unsigned 256 BigInteger type
+    UnsignedBigInt(UnsignedBigInt),
     /// Sigma property
     SigmaProp(Box<SigmaProp>),
     /// GroupElement
@@ -160,6 +163,7 @@ impl core::fmt::Debug for Literal {
             Literal::BigInt(v) => v.fmt(f),
             Literal::SigmaProp(v) => v.fmt(f),
             Literal::GroupElement(v) => v.fmt(f),
+            Literal::UnsignedBigInt(v) => v.fmt(f),
             Literal::AvlTree(v) => v.fmt(f),
             Literal::CBox(v) => v.fmt(f),
             Literal::String(v) => v.fmt(f),
@@ -217,6 +221,7 @@ impl core::fmt::Display for Literal {
             Literal::Long(v) => write!(f, "{}L", v),
             Literal::BigInt(v) => v.fmt(f),
             Literal::SigmaProp(v) => v.fmt(f),
+            Literal::UnsignedBigInt(v) => v.fmt(f),
             Literal::GroupElement(v) => v.fmt(f),
             Literal::AvlTree(v) => write!(f, "AvlTree({:?})", v),
             Literal::CBox(v) => write!(f, "ErgoBox({:?})", v),
@@ -270,6 +275,12 @@ impl From<BigInt256> for Literal {
 impl From<SigmaProp> for Literal {
     fn from(v: SigmaProp) -> Literal {
         Literal::SigmaProp(Box::new(v))
+    }
+}
+
+impl From<UnsignedBigInt> for Literal {
+    fn from(v: UnsignedBigInt) -> Literal {
+        Literal::UnsignedBigInt(v)
     }
 }
 
@@ -357,6 +368,7 @@ impl<'ctx> TryFrom<Value<'ctx>> for Constant {
                 v: Literal::Unit,
             }),
             Value::SigmaProp(s) => Ok(Constant::from(*s)),
+            Value::UnsignedBigInt(b) => Ok(Constant::from(b)),
             Value::GroupElement(e) => Ok(Constant::from(e)),
             Value::CBox(i) => Ok(Constant::from(i.to_static())),
             Value::Coll(coll) => {
@@ -478,6 +490,15 @@ impl From<SigmaProp> for Constant {
     fn from(v: SigmaProp) -> Self {
         Constant {
             tpe: SType::SSigmaProp,
+            v: v.into(),
+        }
+    }
+}
+
+impl From<UnsignedBigInt> for Constant {
+    fn from(v: UnsignedBigInt) -> Self {
+        Constant {
+            tpe: SType::SUnsignedBigInt,
             v: v.into(),
         }
     }
@@ -783,6 +804,18 @@ impl TryExtractFrom<Literal> for SigmaProp {
             Literal::SigmaProp(v) => Ok(*v),
             _ => Err(TryExtractFromError(format!(
                 "expected SigmaProp, found {:?}",
+                cv
+            ))),
+        }
+    }
+}
+
+impl TryExtractFrom<Literal> for UnsignedBigInt {
+    fn try_extract_from(cv: Literal) -> Result<UnsignedBigInt, TryExtractFromError> {
+        match cv {
+            Literal::UnsignedBigInt(v) => Ok(v),
+            _ => Err(TryExtractFromError(format!(
+                "expected UnsignedBigInt, found {:?}",
                 cv
             ))),
         }
@@ -1292,6 +1325,11 @@ pub mod tests {
         #[test]
         fn sigma_prop_roundtrip(v in any::<SigmaProp>()) {
             test_constant_roundtrip(v);
+        }
+
+        #[test]
+        fn unsigned_bigint_roundtrip(v in any::<UnsignedBigInt>()) {
+             test_constant_roundtrip(v);
         }
 
         #[test]
