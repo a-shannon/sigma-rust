@@ -88,8 +88,11 @@ impl Evaluable for Map {
 mod tests {
 
     use crate::eval::tests::eval_out;
+    use crate::eval::tests::eval_out_wo_ctx;
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::chain::context::TxIoVec;
+    use ergotree_ir::ergo_tree::ErgoTree;
+    use ergotree_ir::ergo_tree::ErgoTreeVersion;
     use ergotree_ir::mir::bin_op::ArithOp;
     use ergotree_ir::mir::bin_op::BinOp;
     use ergotree_ir::mir::expr::Expr;
@@ -99,6 +102,9 @@ mod tests {
     use ergotree_ir::mir::property_call::PropertyCall;
     use ergotree_ir::mir::unary_op::OneArgOpTryBuild;
     use ergotree_ir::mir::val_use::ValUse;
+    use ergotree_ir::serialization::roundtrip_new_feature;
+    use ergotree_ir::serialization::SigmaSerializable;
+    use ergotree_ir::sigma_protocol::sigma_boolean::SigmaProp;
     use ergotree_ir::types::scontext;
     use ergotree_ir::types::stype::SType;
 
@@ -156,5 +162,17 @@ mod tests {
             );
         }
 
+    }
+    // test higher order lambda script from https://github.com/ergoplatform/sigmastate-interpreter/blob/eb1477178348d19736bf3b3d6a2013cc81ae0f67/sc/shared/src/test/scala/sigmastate/utxo/BasicOpsSpecification.scala#L2737
+    #[test]
+    fn test_higher_order_lambda() {
+        let tree_bytes = base16::decode("1b4403040201010402d1ae8301108301047300d9010110ed730194ad7201d9010304dad901054c7001040400da8c720501018c720502018602d90105049a7205730272037201").unwrap();
+        let tree = ErgoTree::sigma_parse_bytes(&tree_bytes).unwrap();
+        let expr = tree.proposition().unwrap();
+        roundtrip_new_feature(&expr, ErgoTreeVersion::V3);
+        assert_eq!(
+            eval_out_wo_ctx::<SigmaProp>(&expr),
+            SigmaProp::new(true.into())
+        );
     }
 }
