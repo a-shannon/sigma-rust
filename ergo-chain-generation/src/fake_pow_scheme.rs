@@ -14,7 +14,7 @@ mod tests {
     use ergo_lib::ergotree_interpreter::sigma_protocol::private_input::DlogProverInput;
     use ergo_lib::ergotree_ir::serialization::sigma_byte_writer::SigmaByteWriter;
     use ergo_nipopow::PoPowHeader;
-    use num_bigint::BigInt;
+    use num_bigint::BigUint;
     use rand::{thread_rng, Rng};
 
     use crate::{default_miner_secret, ErgoFullBlock, ExtensionCandidate};
@@ -125,7 +125,7 @@ mod tests {
             miner_pk: Box::<ergo_chain_types::EcPoint>::default(),
             pow_onetime_pk: None,
             nonce: vec![],
-            pow_distance: Some(BigInt::from(0_u8)),
+            pow_distance: Some(BigUint::from(0_u8)),
         };
 
         let mut header = Header {
@@ -152,7 +152,7 @@ mod tests {
             miner_pk: sk.public_key().unwrap().public_key.into(),
             pow_onetime_pk: Some(x.public_image().h),
             nonce,
-            pow_distance: Some(d),
+            pow_distance: Some(d.to_biguint().unwrap()),
         };
 
         // Compute header ID

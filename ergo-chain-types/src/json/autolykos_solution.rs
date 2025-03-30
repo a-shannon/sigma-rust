@@ -4,8 +4,8 @@ use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
 use core::str::FromStr;
+use num_bigint::BigUint;
 
-use num_bigint::BigInt;
 use num_traits::FromPrimitive;
 use serde::{Deserialize, Deserializer};
 
@@ -26,7 +26,7 @@ where
 }
 
 /// Serialize `BigInt` as a string
-pub(crate) fn bigint_as_str<S>(value: &Option<BigInt>, serializer: S) -> Result<S::Ok, S::Error>
+pub(crate) fn bigint_as_str<S>(value: &Option<BigUint>, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
@@ -43,7 +43,7 @@ where
 /// use `serde_json` with the `arbitrary_precision` feature for this to work.
 pub(crate) fn bigint_from_serde_json_number<'de, D>(
     deserializer: D,
-) -> Result<Option<BigInt>, D::Error>
+) -> Result<Option<BigUint>, D::Error>
 where
     D: Deserializer<'de>,
 {
@@ -51,7 +51,7 @@ where
 
     match DeserializeBigIntFrom::deserialize(deserializer) {
         Ok(s) => match s {
-            DeserializeBigIntFrom::String(s) => BigInt::from_str(&s)
+            DeserializeBigIntFrom::String(s) => BigUint::from_str(&s)
                 .map(Some)
                 .map_err(|e| Error::custom(e.to_string())),
             DeserializeBigIntFrom::SerdeJsonNumber(n) => {
@@ -60,11 +60,11 @@ where
                         .as_f64()
                         .ok_or_else(|| Error::custom("failed to convert JSON number to f64"))?;
 
-                    BigInt::from_f64(n_f64).ok_or_else(|| {
+                    BigUint::from_f64(n_f64).ok_or_else(|| {
                         Error::custom("failed to create BigInt from f64".to_string())
                     })
                 } else {
-                    BigInt::from_str(&n.to_string()).map_err(|e| Error::custom(e.to_string()))
+                    BigUint::from_str(&n.to_string()).map_err(|e| Error::custom(e.to_string()))
                 };
 
                 bigint.map(Some)

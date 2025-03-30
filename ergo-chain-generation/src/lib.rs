@@ -23,7 +23,7 @@ use ergo_lib::{
     wallet::{ext_secret_key::ExtSecretKey, mnemonic::Mnemonic},
 };
 use ergo_nipopow::NipopowAlgos;
-use num_bigint::{BigInt, Sign};
+use num_bigint::BigUint;
 
 pub mod chain_generation;
 mod fake_pow_scheme;
@@ -55,14 +55,11 @@ impl std::convert::TryInto<ergo_nipopow::PoPowHeader> for ErgoFullBlock {
 
 /// Returns the secret key of the miner secret with its `BigInt` representation. Taken from ergo
 /// test suite.
-pub(crate) fn default_miner_secret() -> (ExtSecretKey, BigInt) {
+pub(crate) fn default_miner_secret() -> (ExtSecretKey, BigUint) {
     let test_mnemonic =
         "ozone drill grab fiber curtain grace pudding thank cruise elder eight picnic";
     let seed = Mnemonic::to_seed(test_mnemonic, "");
     let default_root_secret = ExtSecretKey::derive_master(seed).unwrap();
     let bytes = default_root_secret.secret_key_bytes();
-    (
-        default_root_secret,
-        BigInt::from_bytes_be(Sign::Plus, &bytes),
-    )
+    (default_root_secret, BigUint::from_bytes_be(&bytes))
 }
