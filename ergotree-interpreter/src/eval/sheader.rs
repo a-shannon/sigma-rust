@@ -2,6 +2,7 @@
 
 use alloc::sync::Arc;
 use core::convert::TryInto;
+use num_bigint::ToBigInt;
 
 use alloc::vec::Vec;
 use ergo_chain_types::Header;
@@ -79,10 +80,13 @@ pub(crate) static POW_NONCE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
 
 pub(crate) static POW_DISTANCE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
     let header = obj.try_extract_into::<Header>()?;
+    #[allow(clippy::unwrap_used)] // unsigned->signed conversion never fails
     let pow_distance: BigInt256 = header
         .autolykos_solution
         .pow_distance
         .unwrap_or_default()
+        .to_bigint()
+        .unwrap()
         .try_into()
         .map_err(EvalError::Misc)?;
     Ok(pow_distance.into())
@@ -122,6 +126,7 @@ mod tests {
             smethod::SMethod,
         },
     };
+    use num_bigint::ToBigInt;
     use sigma_test_util::force_any_val;
     use sigma_util::AsVecU8;
 
@@ -305,7 +310,9 @@ mod tests {
             .autolykos_solution
             .pow_distance
             .clone()
-            .unwrap_or_default();
+            .unwrap_or_default()
+            .to_bigint()
+            .unwrap();
         let actual = {
             let bi = eval_out::<BigInt256>(&expr, &ctx);
             bi.into()

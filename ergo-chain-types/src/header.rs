@@ -6,7 +6,7 @@ use crate::{ADDigest, BlockId, Digest32, EcPoint};
 use alloc::boxed::Box;
 use alloc::vec::Vec;
 use core2::io::Write;
-use num_bigint::BigInt;
+use num_bigint::{BigUint, ToBigInt};
 use sigma_ser::vlq_encode::{ReadSigmaVlqExt, WriteSigmaVlqExt};
 use sigma_ser::{
     ScorexParsingError, ScorexSerializable, ScorexSerializationError, ScorexSerializeResult,
@@ -91,7 +91,8 @@ impl Header {
         if self.version != 1 {
             let hit = AutolykosPowScheme::default().pow_hit(self)?;
             let target = order_bigint() / decode_compact_bits(self.n_bits);
-            Ok(hit < target)
+            #[allow(clippy::unwrap_used)] // unsigned -> signed conversion never fails
+            Ok(hit.to_bigint().unwrap() < target)
         } else {
             Err(AutolykosPowSchemeError::Unsupported)
         }
@@ -129,9 +130,7 @@ impl ScorexSerializable for Header {
         if version > 1 {
             let new_field_size = r.get_u8()?;
             if new_field_size > 0 {
-                let mut field_bytes: Vec<u8> = core::iter::repeat(0)
-                    .take(new_field_size as usize)
-                    .collect();
+                let mut field_bytes: Vec<u8> = vec![0; new_field_size as usize];
                 r.read_exact(&mut field_bytes)?;
             }
         }
@@ -140,12 +139,12 @@ impl ScorexSerializable for Header {
         let autolykos_solution = if version == 1 {
             let miner_pk = EcPoint::scorex_parse(r)?.into();
             let pow_onetime_pk = Some(EcPoint::scorex_parse(r)?.into());
-            let mut nonce: Vec<u8> = core::iter::repeat(0).take(8).collect();
+            let mut nonce: Vec<u8> = vec![0; 8];
             r.read_exact(&mut nonce)?;
             let d_bytes_len = r.get_u8()?;
-            let mut d_bytes: Vec<u8> = core::iter::repeat(0).take(d_bytes_len as usize).collect();
+            let mut d_bytes: Vec<u8> = vec![0; d_bytes_len as usize];
             r.read_exact(&mut d_bytes)?;
-            let pow_distance = Some(BigInt::from_signed_bytes_be(&d_bytes));
+            let pow_distance = Some(BigUint::from_bytes_be(&d_bytes));
             AutolykosSolution {
                 miner_pk,
                 pow_onetime_pk,
@@ -157,7 +156,7 @@ impl ScorexSerializable for Header {
             let pow_onetime_pk = None;
             let pow_distance = None;
             let miner_pk = EcPoint::scorex_parse(r)?.into();
-            let mut nonce: Vec<u8> = core::iter::repeat(0).take(8).collect();
+            let mut nonce: Vec<u8> = vec![0; 8];
             r.read_exact(&mut nonce)?;
             AutolykosSolution {
                 miner_pk,
@@ -233,7 +232,7 @@ pub struct AutolykosSolution {
             deserialize_with = "crate::json::autolykos_solution::bigint_from_serde_json_number"
         )
     )]
-    pub pow_distance: Option<BigInt>,
+    pub pow_distance: Option<BigUint>,
 }
 
 impl AutolykosSolution {
@@ -259,7 +258,7 @@ impl AutolykosSolution {
                 .ok_or(ScorexSerializationError::Misc(
                     "pow_distance must be == Some(_) for autolykos v1",
                 ))?
-                .to_signed_bytes_be();
+                .to_bytes_be();
             w.put_u8(d_bytes.len() as u8)?;
             w.write_all(&d_bytes)?;
         } else {
@@ -276,7 +275,7 @@ impl AutolykosSolution {
 mod arbitrary {
 
     use crate::*;
-    use num_bigint::BigInt;
+    use num_bigint::BigUint;
     use proptest::array::{uniform3, uniform32};
     use proptest::prelude::*;
 
@@ -375,7 +374,7 @@ mod arbitrary {
                         miner_pk,
                         nonce,
                         pow_onetime_pk: Some(pow_onetime_pk),
-                        pow_distance: Some(BigInt::from(pow_distance)),
+                        pow_distance: Some(BigUint::from(pow_distance)),
                     },
                 )
                 .boxed()
@@ -389,7 +388,7 @@ mod arbitrary {
 mod tests {
     use std::str::FromStr;
 
-    use num_bigint::BigInt;
+    use num_bigint::BigUint;
 
     use crate::header::Header;
     use proptest::prelude::*;
@@ -435,7 +434,7 @@ mod tests {
         assert!(header.check_pow().unwrap());
         assert_eq!(
             header.autolykos_solution.pow_distance,
-            Some(BigInt::from_str(
+            Some(BigUint::from_str(
                 "1234000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
             )
             .unwrap())
@@ -444,40 +443,43 @@ mod tests {
 
     #[test]
     fn parse_block_header_explorer_v1() {
-        // see https://api.ergoplatform.com/api/v1/blocks/de68a9cd727510d01eae3146f862261661f3bebdfd3c45c19d431b2ae81fb4b6
+        // see https://api.ergoplatform.com/api/v1/blocks/41c73753452a292442799bd884fbcc2a9b0f62d4cff7ad02ccd3dbe65791c908
         let json = r#"{
-            "extensionId": "d16f25b14457186df4c5f6355579cc769261ce1aebc8209949ca6feadbac5a3f",
-            "difficulty": "626412390187008",
-            "votes": [4,0,0],
-            "timestamp": 1618929697400,
-            "size": 221,
-            "stateRoot": "8ad868627ea4f7de6e2a2fe3f98fafe57f914e0f2ef3331c006def36c697f92713",
-            "height": 471746,
-            "nBits": 117586360,
-            "version": 2,
-            "id": "4caa17e62fe66ba7bd69597afdc996ae35b1ff12e0ba90c22ff288a4de10e91b",
-            "adProofsRoot": "d882aaf42e0a95eb95fcce5c3705adf758e591532f733efe790ac3c404730c39",
-            "transactionsRoot": "63eaa9aff76a1de3d71c81e4b2d92e8d97ae572a8e9ab9e66599ed0912dd2f8b",
-            "extensionHash": "3f91f3c680beb26615fdec251aee3f81aaf5a02740806c167c0f3c929471df44",
-            "powSolutions": {
-              "pk": "02b3a06d6eaa8671431ba1db4dd427a77f75a5c2acbd71bfb725d38adc2b55f669",
-              "w": "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
-              "n": "5939ecfee6b0d7f4",
-              "d": 1234000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-            },
-            "adProofsId": "86eaa41f328bee598e33e52c9e515952ad3b7874102f762847f17318a776a7ae",
-            "transactionsId": "ac80245714f25aa2fafe5494ad02a26d46e7955b8f5709f3659f1b9440797b3e",
-            "parentId": "6481752bace5fa5acba5d5ef7124d48826664742d46c974c98a2d60ace229a34"
+          "extensionId": "0a91aa00954c218cd11e10230d781a935dd6e53a8eab3a1abcf69fbaf7cd2b34",
+          "difficulty": "185435213004800",
+          "votes": "000000",
+          "timestamp": 1562027226367,
+          "size": 279,
+          "unparsedBytes": "",
+          "stateRoot": "144c15900826f6e2aac70cb50e541215b337d0d1674da6b491499944e686b41b0e",
+          "height": 3132,
+          "nBits": 117483687,
+          "version": 1,
+          "id": "41c73753452a292442799bd884fbcc2a9b0f62d4cff7ad02ccd3dbe65791c908",
+          "adProofsRoot": "c9d58eacf6108c9a166b0b76020e3323c6c2ccec5ec8f905ea46f5bcc58aac80",
+          "transactionsRoot": "01bf55fd587291172f458232a7f58b4b29469d72b8e304aafd68401f915b0c36",
+          "extensionHash": "ccb136ffd50a16f50a499e1c33d8ae1e8426bdc70b13a4d82275d057be2d04a7",
+          "powSolutions": {
+            "pk": "02ff03f4b981c59ccd5185fddcd949b8f5697341e60d808d2be0e3e09d2ec78bf4",
+            "w": "037427400e5292a177dc242631f78ab322b7845ad2b8491b016b7c36407c6a6d76",
+            "n": "0000667700008481",
+            "d": 410958177852074551025494081160156537946251159549691138805256284
+          },
+          "adProofsId": "d0179a444574258d44cfc5bd33d4c8cc03170d29ceb70bb442bd6659f1131a86",
+          "transactionsId": "83fa4252d56faa259a732967596cbdc52d6793ae3918cd0e24cc10653450068a",
+          "parentId": "150290bbaf91ccd4dcf307cb9a5113eed67e12694ec9be277e8fa55fb5ebf6ac"
         }"#;
         let header: Header = serde_json::from_str(json).unwrap();
-        assert_eq!(header.height, 471746);
-        assert!(header.check_pow().unwrap());
+        assert_eq!(scorex_serialize_roundtrip(&header), header);
+        assert_eq!(header.height, 3132);
         assert_eq!(
             header.autolykos_solution.pow_distance,
-            Some(BigInt::from_str(
-                "1234000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+            Some(
+                BigUint::from_str(
+                    "410958177852074551025494081160156537946251159549691138805256284"
+                )
+                .unwrap()
             )
-            .unwrap())
         );
     }
 }

@@ -26,7 +26,7 @@ use ergo_lib::{
 };
 use ergo_merkle_tree::{MerkleNode, MerkleTree};
 use ergo_nipopow::NipopowAlgos;
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigUint, ToBigInt};
 use rand::{thread_rng, Rng};
 
 use crate::{default_miner_secret, ErgoFullBlock, ExtensionCandidate};
@@ -175,7 +175,7 @@ fn prove_block(
         miner_pk: Box::<ergo_chain_types::EcPoint>::default(),
         pow_onetime_pk: None,
         nonce: vec![],
-        pow_distance: Some(BigInt::from(0_u8)),
+        pow_distance: Some(BigUint::from(0_u8)),
     };
 
     let mut header = Header {
@@ -200,7 +200,7 @@ fn prove_block(
     let target_b = order.clone() / decode_compact_bits(header.n_bits);
 
     let x = DlogProverInput::random();
-    let x_bigint = BigInt::from_bytes_be(Sign::Plus, &x.to_bytes());
+    let x_bigint = BigUint::from_bytes_be(&x.to_bytes());
 
     let height_bytes = header.height.to_be_bytes();
     let popow_algos = ergo_nipopow::NipopowAlgos::default();
@@ -234,14 +234,15 @@ fn prove_block(
                 let index_bytes = ix.to_be_bytes();
                 generate_element(version, &msg, &p1, &p2, &index_bytes, &height_bytes)
             })
-            .fold(BigInt::from(0_u8), |acc, e| acc + e);
+            .fold(BigUint::from(0_u8), |acc, e| acc + e);
         let d = if version == 1 {
-            (x_bigint.clone() * sum - sk_bigint.clone()).modpow(&BigInt::from(1_u8), &order.clone())
+            (x_bigint.clone() * sum - sk_bigint.clone())
+                .modpow(&BigUint::from(1_u8), &order.to_biguint().unwrap())
         } else {
-            BigInt::from_bytes_be(Sign::Plus, &blake2b256_hash(&sum.to_signed_bytes_be()).0)
+            BigUint::from_bytes_be(&blake2b256_hash(&sum.to_bytes_be()).0)
         };
 
-        if d <= target_b {
+        if d.to_bigint().unwrap() <= target_b {
             let autolykos_solution = AutolykosSolution {
                 miner_pk: sk.public_key().unwrap().public_key.into(),
                 pow_onetime_pk: Some(x.public_image().h),
@@ -275,7 +276,7 @@ fn generate_element(
     w: &[u8],
     index_bytes: &[u8],
     height_bytes: &[u8],
-) -> BigInt {
+) -> BigUint {
     let popow_algos = ergo_nipopow::NipopowAlgos::default();
     if version == 1 {
         // Autolykos v. 1: H(j|M|pk|m|w) (line 5 from the Algo 2 of the spec)
@@ -285,15 +286,17 @@ fn generate_element(
         concat.extend(pk);
         concat.extend(msg);
         concat.extend(w);
-        let valid_range = (BigInt::from(2_u8).pow(256) / order_bigint()) * order_bigint();
-        numeric_hash(&concat, valid_range, order_bigint())
+
+        let order_bigint = order_bigint().to_biguint().unwrap();
+        let valid_range = (BigUint::from(2_u8).pow(256) / &order_bigint) * &order_bigint;
+        numeric_hash(&concat, valid_range, order_bigint)
     } else {
         // Autolykos v. 2: H(j|h|M) (line 5 from the Algo 2 of the spec)
         let mut concat = vec![];
         concat.extend(index_bytes);
         concat.extend(height_bytes);
         concat.extend(popow_algos.pow_scheme.calc_big_m());
-        BigInt::from_bytes_be(Sign::Plus, &blake2b256_hash(&concat).0[1..])
+        BigUint::from_bytes_be(&blake2b256_hash(&concat).0[1..])
     }
 }
 
@@ -302,12 +305,12 @@ fn generate_element(
 /// in range from 0 to a maximum number divisible by q without remainder.
 /// If yes, it returns the result mod q, otherwise make one more iteration using hash as an input.
 /// This is done to ensure uniform distribution of the resulting numbers.
-fn numeric_hash(input: &[u8], valid_range: BigInt, order: BigInt) -> BigInt {
+fn numeric_hash(input: &[u8], valid_range: BigUint, order: BigUint) -> BigUint {
     let mut hashed: Vec<u8> = blake2b256_hash(input).into();
     loop {
-        let bi = BigInt::from_bytes_be(Sign::Plus, &hashed);
+        let bi = BigUint::from_bytes_be(&hashed);
         if bi < valid_range {
-            break bi.modpow(&BigInt::from(1_u8), &order);
+            break bi.modpow(&BigUint::from(1_u8), &order);
         } else {
             hashed = blake2b256_hash(&hashed).into();
         }

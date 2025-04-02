@@ -16,7 +16,7 @@ use alloc::vec::Vec;
 use bounded_integer::{BoundedI32, BoundedU64};
 use derive_more::From;
 use k256::{elliptic_curve::PrimeField, Scalar};
-use num_bigint::{BigInt, Sign};
+use num_bigint::{BigInt, BigUint, Sign};
 use num_traits::Num;
 use sigma_ser::ScorexSerializationError;
 use sigma_util::hash::blake2b256_hash;
@@ -101,7 +101,7 @@ pub struct AutolykosPowScheme {
 
 impl AutolykosPowScheme {
     /// Get hit for Autolykos header (to test it then against PoW target)
-    pub fn pow_hit(&self, header: &Header) -> Result<BigInt, AutolykosPowSchemeError> {
+    pub fn pow_hit(&self, header: &Header) -> Result<BigUint, AutolykosPowSchemeError> {
         if header.version == 1 {
             header
                 .autolykos_solution
@@ -135,7 +135,7 @@ impl AutolykosPowScheme {
             // sum as byte array is always about 32 bytes
             #[allow(clippy::unwrap_used)]
             let array = as_unsigned_byte_array(32, f2).unwrap();
-            Ok(BigInt::from_bytes_be(Sign::Plus, &*blake2b256_hash(&array)))
+            Ok(BigUint::from_bytes_be(&*blake2b256_hash(&array)))
         }
     }
 
@@ -342,7 +342,7 @@ mod tests {
         let hit = pow.pow_hit(&header).unwrap();
         assert_eq!(
             hit,
-            BigInt::from_signed_bytes_be(
+            BigUint::from_bytes_be(
                 &base16::decode("0002fcb113fe65e5754959872dfdbffea0489bf830beb4961ddc0e9e66a1412a")
                     .unwrap()
             )
@@ -379,7 +379,7 @@ mod tests {
         );
 
         // Check that header is valid
-        assert!(hit < target_b);
+        assert!(hit.to_bigint().unwrap() < target_b);
     }
 
     #[test]
@@ -394,7 +394,7 @@ mod tests {
         let target_b = order_bigint() / decoded;
         let hit = pow.pow_hit(&header).unwrap();
 
-        assert!(hit >= target_b);
+        assert!(hit.to_bigint().unwrap() >= target_b);
     }
 
     #[test]
