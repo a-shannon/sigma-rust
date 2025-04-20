@@ -83,6 +83,31 @@ pub fn decode_compact_bits(n_bits: u64) -> BigInt {
     }
 }
 
+/// Encode BigInt in 32-bit compact format. See: `decode_compact_bits` for more information
+pub fn encode_compact_bits(bigint: &BigInt) -> u32 {
+    let bytes = bigint.to_signed_bytes_be();
+    let mut size = bytes.len() as u32;
+    let mut result = if size < 3 {
+        bigint.iter_u32_digits().next().unwrap_or_default() << (8 * (3 - size))
+    } else {
+        (bigint >> (8 * (size - 3)))
+            .iter_u32_digits()
+            .next()
+            .unwrap_or_default()
+    };
+    // top-most bit of mantissa is used to indicate sign, if it's set then shift result and increase exponent
+    if result & 0x00800000 != 0 {
+        result >>= 8;
+        size += 1;
+    }
+    result |= size << 24;
+    if bigint.sign() == Sign::Minus {
+        result | 0x00800000
+    } else {
+        result
+    }
+}
+
 /// Order of the secp256k1 elliptic curve as BigInt
 pub fn order_bigint() -> BigInt {
     #[allow(clippy::unwrap_used)]
@@ -438,5 +463,58 @@ mod tests {
 
         let n_bits = 16842752;
         assert_eq!(decode_compact_bits(n_bits), BigInt::from(1_u8));
+    }
+    #[test]
+    fn test_encode_compact_bits() {
+        assert_eq!(
+            encode_compact_bits(
+                &BigInt::from_str_radix("1bc330000000000000000000000000000000000000000000", 16)
+                    .unwrap()
+            ),
+            0x181bc330
+        );
+        assert_eq!(
+            encode_compact_bits(&BigInt::from_str_radix("12345600", 16).unwrap()),
+            0x04123456
+        );
+        assert_eq!(
+            encode_compact_bits(&BigInt::from_str_radix("-12345600", 16).unwrap()),
+            0x04923456
+        );
+    }
+    #[cfg(feature = "arbitrary")]
+    mod proptests {
+        use num_bigint::{BigInt, Sign};
+        use num_traits::Zero;
+        use proptest::prelude::*;
+
+        use crate::autolykos_pow_scheme::{decode_compact_bits, encode_compact_bits};
+        // check if two bigints have their most significant 3 bytes equal, and have the same exponent
+        fn approx_equal(a: &BigInt, b: &BigInt) -> bool {
+            if a == b {
+                return true;
+            } else if a.is_zero() || b.is_zero() {
+                return false;
+            }
+            let (exp_a, mantissa_a) = a.iter_u32_digits().enumerate().last().unwrap();
+            let (exp_b, mantissa_b) = a.iter_u32_digits().enumerate().last().unwrap();
+            mantissa_a == mantissa_b && exp_a == exp_b && a.sign() == b.sign()
+        }
+
+        fn bigint_strategy() -> impl Strategy<Value = BigInt> {
+            (any::<bool>(), proptest::collection::vec(any::<u8>(), 0..64)).prop_map(
+                |(negative, bytes)| {
+                    BigInt::from_bytes_be(if negative { Sign::Minus } else { Sign::Plus }, &bytes)
+                },
+            )
+        }
+
+        proptest! {
+            #[test]
+            fn nbits_roundtrip(a in bigint_strategy()) {
+                let roundtripped = decode_compact_bits(encode_compact_bits(&a) as u64);
+                assert!(approx_equal(&roundtripped, &a))
+            }
+        }
     }
 }
