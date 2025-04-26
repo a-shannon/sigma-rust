@@ -26,6 +26,7 @@ mod tests {
     use super::*;
     use crate::eval::tests::{eval_out, try_eval_out};
     use ergotree_ir::chain::context::Context;
+    use ergotree_ir::chain::context_extension::ContextExtension;
     use ergotree_ir::mir::expr::Expr;
     use ergotree_ir::types::stype::SType;
     use sigma_test_util::force_any_val;
@@ -36,8 +37,12 @@ mod tests {
     /// Prepare context with single extension variable
     fn prepare_context() -> Context<'static> {
         let mut ctx = force_any_val::<Context>();
-        ctx.extension.values.clear();
-        ctx.extension.values.insert(VAR_IDX, VAR_VAL.into());
+        ctx.extension = Box::leak(
+            ContextExtension {
+                values: [(VAR_IDX, VAR_VAL.into())].into_iter().collect(),
+            }
+            .into(),
+        );
         ctx
     }
 

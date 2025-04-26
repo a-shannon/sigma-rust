@@ -135,7 +135,6 @@ mod tests {
             )
             .unwrap()
             .into();
-            let ctx = ctx;
             assert_eq!(
                 eval_out::<i64>(&expr, &ctx),
                 ctx.data_inputs.clone()

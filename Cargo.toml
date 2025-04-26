@@ -43,7 +43,8 @@ k256 = { version = "0.13.1", default-features = false, features = [
     "ecdsa",
 ] }
 elliptic-curve = { version = "0.13", features = ["ff"] }
-derive_more = { version = "0.99", features = [
+derive_more = { version = "2.0.1", default-features = false, features = [
+    "as_ref",
     "add",
     "add_assign",
     "mul",
@@ -53,6 +54,7 @@ derive_more = { version = "0.99", features = [
     "try_into",
     "from_str",
     "display",
+    "debug",
 ] }
 num-derive = "0.4.2"
 thiserror = { version = "2.0.1", default-features = false }
