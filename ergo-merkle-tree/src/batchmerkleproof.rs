@@ -6,6 +6,7 @@ use ergo_chain_types::Digest32;
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "arbitrary", derive(proptest_derive::Arbitrary))]
 pub struct BatchMerkleProofIndex {
+    #[cfg_attr(feature = "arbitrary", proptest(strategy = "1..u32::MAX as usize"))]
     pub index: usize,
     pub hash: Digest32,
 }
@@ -196,12 +197,12 @@ impl ScorexSerializable for BatchMerkleProof {
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod test {
-    use crate::batchmerkleproof::{BatchMerkleProof, BatchMerkleProofIndex};
+    use crate::batchmerkleproof::BatchMerkleProof;
     use proptest::prelude::*;
     use sigma_ser::ScorexSerializable;
     proptest! {
         #[test]
-        fn test_batchmerkleproof_serialization_roundtrip(proof in any::<BatchMerkleProof>().prop_filter("Indices > u32::max not allowed", |proof| proof.indices.len() < u32::MAX as usize && proof.indices.iter().all(|BatchMerkleProofIndex {index, ..}| *index < u32::MAX as usize))) {
+        fn test_batchmerkleproof_serialization_roundtrip(proof in any::<BatchMerkleProof>().prop_filter("Indices > u32::max not allowed", |proof| proof.indices.len() < u32::MAX as usize)) {
             let serialized_bytes = proof.scorex_serialize_bytes().unwrap();
             assert_eq!(BatchMerkleProof::scorex_parse_bytes(&serialized_bytes).unwrap(), proof);
             assert_eq!(serialized_bytes.len(), (8 + proof.proofs.len() * 33 + proof.indices.len() * 36));

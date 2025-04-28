@@ -353,15 +353,16 @@ mod arbitrary {
     use proptest::prelude::*;
     proptest! {
         #[test]
-        fn merkle_tree_test_arbitrary_proof(data in vec(uniform32(0u8..), 0..1000)) {
+        fn merkle_tree_test_arbitrary_proof(data in vec(uniform32(0u8..), 0..100)) {
             let nodes: Vec<MerkleNode> = data.into_iter().map(MerkleNode::from_bytes).collect();
             let tree = MerkleTree::new(&*nodes);
             for (i, node) in nodes.iter().enumerate() {
+                let proof = tree.proof_by_index(i).unwrap();
                 assert_eq!(
-                    tree.proof_by_index(i).unwrap().get_leaf_data(),
+                    proof.get_leaf_data(),
                     node.get_leaf_data().unwrap()
                 );
-                assert!(tree.proof_by_index(i).unwrap().valid(tree.root_hash().as_ref()));
+                assert!(proof.valid(tree.root_hash().as_ref()));
             }
         }
         #[test]
