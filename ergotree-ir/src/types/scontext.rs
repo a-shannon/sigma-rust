@@ -1,7 +1,10 @@
 #![allow(missing_docs)]
 
+use crate::ergo_tree::ErgoTreeVersion;
 use crate::serialization::types::TypeCode;
+use crate::types::sfunc::SFunc;
 use crate::types::stype_companion::STypeCompanion;
+use crate::types::stype_param::STypeVar;
 
 use super::smethod::MethodId;
 use super::smethod::SMethod;
@@ -30,6 +33,8 @@ lazy_static! {
         SELF_BOX_INDEX_PROPERTY_METHOD_DESC.clone(),
         LAST_BLOCK_UTXO_ROOT_HASH_PROPERTY_METHOD_DESC.clone(),
         MINER_PUBKEY_PROPERTY_METHOD_DESC.clone(),
+        GET_VAR_V5_METHOD_DESC.clone(),
+        GET_VAR_FROM_INPUT_METHOD_DESC.clone()
     ];
 }
 
@@ -158,12 +163,54 @@ lazy_static! {
     );
 }
 
+pub const GET_VAR_V5_METHOD_ID: MethodId = MethodId(11);
+lazy_static! {
+    // This method has no implementation because of lack of explicit type args making it impossible to substitute output type
+    // Missing methods are a soft-forkable error and can be tolerated, whereas the reference implementation rejects scripts containing this due to lack of type args
+    pub static ref GET_VAR_V5_METHOD_DESC: SMethodDesc = SMethodDesc {
+        name: "getVar",
+        method_id: GET_VAR_V5_METHOD_ID,
+        tpe: SFunc {
+            t_dom: vec![SType::SContext, SType::SByte],
+            t_range: SType::SOption(SType::STypeVar(STypeVar::t()).into()).into(),
+            tpe_params: vec![]
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V0
+    };
+}
+
+pub const GET_VAR_FROM_INPUT_METHOD_ID: MethodId = MethodId(12);
+lazy_static! {
+    pub static ref GET_VAR_FROM_INPUT_METHOD_DESC: SMethodDesc = SMethodDesc {
+        name: "getVarFromInput",
+        method_id: GET_VAR_FROM_INPUT_METHOD_ID,
+        tpe: SFunc {
+            t_dom: vec![SType::SContext, SType::SShort, SType::SByte],
+            t_range: SType::SOption(SType::STypeVar(STypeVar::t()).into()).into(),
+            tpe_params: vec![]
+        },
+        explicit_type_args: vec![STypeVar::t()],
+        min_version: ErgoTreeVersion::V3
+    };
+    pub static ref GET_VAR_FROM_INPUT_METHOD: SMethod = SMethod::new(
+        STypeCompanion::Context,
+        GET_VAR_FROM_INPUT_METHOD_DESC.clone()
+    );
+}
+
 fn property(name: &'static str, res_tpe: SType, id: MethodId) -> SMethodDesc {
     SMethodDesc::property(SType::SContext, name, res_tpe, id)
 }
 
 #[cfg(test)]
+#[allow(clippy::unwrap_used)]
 mod tests {
+    use crate::{
+        mir::{expr::Expr, method_call::MethodCall},
+        serialization::roundtrip_new_feature,
+    };
+
     use super::*;
 
     #[test]
@@ -172,5 +219,17 @@ mod tests {
             SMethod::from_ids(TYPE_CODE, DATA_INPUTS_PROPERTY_METHOD_ID).map(|e| e.name())
                 == Ok("dataInputs")
         );
+    }
+
+    #[test]
+    fn roundtrip_get_var_from_input() {
+        let mc = MethodCall::with_type_args(
+            Expr::Context,
+            GET_VAR_FROM_INPUT_METHOD.clone(),
+            vec![0i16.into(), 0i8.into()],
+            [(STypeVar::t(), SType::SInt)].into_iter().collect(),
+        )
+        .unwrap();
+        roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
     }
 }

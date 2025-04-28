@@ -61,13 +61,14 @@ pub trait ContextExtensionProvider {
 }
 
 #[cfg(feature = "arbitrary")]
-#[allow(clippy::unwrap_used)]
-mod arbitrary {
+#[doc(hidden)]
+#[allow(clippy::unwrap_used, missing_docs)]
+pub mod arbitrary {
 
     use super::*;
     use proptest::{collection::vec, option::of, prelude::*};
 
-    struct DummyContextExtensionProvider(Vec<ContextExtension>);
+    pub struct DummyContextExtensionProvider(pub Vec<ContextExtension>);
 
     impl ContextExtensionProvider for DummyContextExtensionProvider {
         fn context_extension(&self, input_index: usize) -> Option<&ContextExtension> {
