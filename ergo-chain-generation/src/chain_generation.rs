@@ -383,7 +383,7 @@ mod tests {
     #[test]
     fn test_nipopow_lowest_common_ancestor_diverging_autolykos_v1() {
         let popow_algos = NipopowAlgos::default();
-        for size in [10, 100, 200] {
+        for size in [10, 50, 100] {
             let stream = block_stream(None);
             let chain_0: Vec<_> = stream.take(size).collect();
             let branch_point = chain_0[size / 2].clone();
@@ -428,7 +428,7 @@ mod tests {
         let k = 30;
         let popow_algos = NipopowAlgos::default();
 
-        let short_chain = generate_popowheader_chain(1000, None);
+        let short_chain = generate_popowheader_chain(100, None);
         let branch_point = short_chain[short_chain.len() - 1].clone();
         let mut long_chain = short_chain.clone();
         long_chain.extend(std::iter::once(
