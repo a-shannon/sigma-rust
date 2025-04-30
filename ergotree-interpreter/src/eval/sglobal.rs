@@ -228,7 +228,7 @@ pub(crate) static ENCODE_NBITS_EVAL_FN: EvalFn = |_mc, _env, _ctx, _obj, args| {
         .ok_or_else(|| EvalError::NotFound("encodeNBits: missing first argument".into()))?
         .try_extract_into::<BigInt256>()?
         .into();
-    Ok(Value::Long(encode_compact_bits(&bigint).into()))
+    Ok(Value::Long(encode_compact_bits(&bigint)))
 };
 
 pub(crate) static DECODE_NBITS_EVAL_FN: EvalFn = |_mc, _env, _ctx, _obj, args| {
@@ -237,8 +237,10 @@ pub(crate) static DECODE_NBITS_EVAL_FN: EvalFn = |_mc, _env, _ctx, _obj, args| {
         .cloned()
         .ok_or_else(|| EvalError::NotFound("decodeNBits: missing first argument".into()))?
         .try_extract_into()?;
+    // truncation is safe here, since only bottom 4 bytes are used in decode.
+    // nbits is only i64 because Scala doesn't have an unsigned 32-bit type
     Ok(Value::BigInt(
-        decode_compact_bits(nbits as u64)
+        decode_compact_bits(nbits as u32)
             .try_into()
             .map_err(EvalError::UnexpectedValue)?,
     ))
@@ -413,7 +415,7 @@ mod tests {
         );
         assert_eq!(
             encode_nbits(BigInt256::from_str_radix("-12345600", 16).unwrap()),
-            0x04923456
+            -0x1235
         );
     }
 

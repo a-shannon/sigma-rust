@@ -42,7 +42,7 @@ pub struct Header {
     pub timestamp: u64,
     /// Current difficulty in a compressed view.
     #[cfg_attr(feature = "json", serde(rename = "nBits"))]
-    pub n_bits: u64,
+    pub n_bits: u32,
     /// Block height
     #[cfg_attr(feature = "json", serde(rename = "height"))]
     pub height: u32,
@@ -73,7 +73,7 @@ impl Header {
 
         // n_bits needs to be serialized in big-endian format. Note that it actually fits in a
         // `u32`.
-        let n_bits_be = (self.n_bits as u32).to_be_bytes();
+        let n_bits_be = self.n_bits.to_be_bytes();
         w.write_all(&n_bits_be)?;
 
         w.put_u32(self.height)?;
@@ -119,7 +119,7 @@ impl ScorexSerializable for Header {
         let extension_root = Digest32::scorex_parse(r)?;
         let mut n_bits_buf = [0u8, 0, 0, 0];
         r.read_exact(&mut n_bits_buf)?;
-        let n_bits = u32::from_be_bytes(n_bits_buf) as u64;
+        let n_bits = u32::from_be_bytes(n_bits_buf);
         let height = r.get_u32()?;
         let mut votes_bytes = [0u8, 0, 0];
         r.read_exact(&mut votes_bytes)?;
@@ -327,7 +327,7 @@ mod arbitrary {
                             state_root: ADDigest::zero(),
                             transaction_root,
                             timestamp,
-                            n_bits: n_bits as u64,
+                            n_bits,
                             height,
                             extension_root,
                             autolykos_solution: *autolykos_solution.clone(),

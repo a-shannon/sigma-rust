@@ -81,7 +81,7 @@ impl Header {
         self.0.timestamp
     }
     #[getter]
-    fn n_bits(&self) -> u64 {
+    fn n_bits(&self) -> u32 {
         self.0.n_bits
     }
     #[getter]
