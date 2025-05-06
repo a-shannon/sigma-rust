@@ -1,5 +1,11 @@
-import Foundation
 import ErgoLibC
+import Foundation
+
+enum NodeConfError: Error {
+    case InvalidScheme
+    case MissingHost
+    case MissingPort
+}
 
 class NodeConf {
     internal var pointer: NodeConfPtr
@@ -15,6 +21,16 @@ class NodeConf {
         }
         try checkError(error)
         self.pointer = ptr!
+    }
+
+    convenience init(withUrl url: URL) throws {
+        guard url.scheme == "http" || url.scheme == "https" else {
+            throw NodeConfError.InvalidScheme
+        }
+        guard url.host != nil else { throw NodeConfError.MissingHost }
+        guard url.port != nil else { throw NodeConfError.MissingPort }
+        let addr = url.host()! + ":" + String(url.port!)
+        try self.init(withAddrString: addr)
     }
 
     deinit {

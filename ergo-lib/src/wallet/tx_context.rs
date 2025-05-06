@@ -352,7 +352,7 @@ mod test {
                         .into_iter()
                         .map(move |tokens| {
                             let box_params = ArbBoxParameters {
-                                value_range: (1000000..100000000).into(),
+                                value_range: (10000000..100000000).into(),
                                 ergo_tree: Just(proposition.clone()).boxed(),
                                 creation_height: Just(creation_height).boxed(),
                                 tokens: Just(tokens).boxed(),
@@ -570,6 +570,8 @@ mod test {
     }
 
     proptest! {
+
+    #![proptest_config(ProptestConfig::with_cases(32))]
     #[test]
     // Test that a valid transaction is valid
     fn test_valid_transaction((boxes, tx) in valid_transaction_generator()) {

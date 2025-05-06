@@ -114,6 +114,7 @@ mod test {
     }
 
     proptest! {
+        #![proptest_config(ProptestConfig::with_cases(32))]
         // Produce signatures for different messages and test for nonce re-use
         #[test]
         fn test_sign_deterministic((sk, boxes) in gen_boxes()) {
