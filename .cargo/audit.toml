@@ -1,7 +1,6 @@
 [advisories]
 ignore = [
-"RUSTSEC-2020-0159", # no workaround https://rustsec.org/advisories/RUSTSEC-2020-0159.html
-"RUSTSEC-2020-0071"  # caused by RUSTSEC-2020-0159
+"RUSTSEC-2024-0436"  # un-maintained, not a good idea to replace with a dependency authored by someone else
 ]
 
 [output]
