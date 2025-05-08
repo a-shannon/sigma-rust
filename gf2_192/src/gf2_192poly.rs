@@ -24,6 +24,7 @@
 //!
 //!  For more information, please refer to <http://unlicense.org>
 
+use alloc::vec;
 use alloc::vec::Vec;
 use thiserror::Error;
 
@@ -130,7 +131,7 @@ impl Gf2_192Poly {
     /// NOT including the degree-zero coefficient. Each coefficient takes 24 bytes for a total of
     /// `self.degree * 24` bytes
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut res: Vec<_> = core::iter::repeat(0).take(self.degree * 24).collect();
+        let mut res: Vec<_> = vec![0; self.degree * 24];
         for i in 1..=self.degree {
             #[allow(clippy::unwrap_used)]
             self.coefficients[i]

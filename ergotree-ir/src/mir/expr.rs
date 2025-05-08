@@ -497,7 +497,7 @@ impl Expr {
 impl Traversable for Expr {
     type Item = Expr;
 
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Expr> + '_> {
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Expr> + 'a> {
         match self {
             Expr::Const(_) => Box::new(core::iter::empty()),
             Expr::SubstConstants(op) => op.children(),
@@ -567,7 +567,7 @@ impl Traversable for Expr {
             Expr::CreateAvlTree(op) => op.children(),
         }
     }
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Expr> + '_> {
+    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut Expr> + 'a> {
         match self {
             Expr::Const(_) => Box::new(core::iter::empty()),
             Expr::SubstConstants(op) => op.children_mut(),

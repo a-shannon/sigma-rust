@@ -99,7 +99,7 @@ mod arbitrary {
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::panic)]
-pub mod proptests {
+mod proptests {
 
     use super::*;
     use crate::serialization::sigma_serialize_roundtrip;

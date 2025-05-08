@@ -9,18 +9,18 @@ pub trait Traversable {
     /// Type that implementor has edges to. Since [Self::Item] also implements Traversable this can be used to traverse the entire tree
     type Item: Traversable;
     /// Return an iterator for child nodes
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Self::Item> + 'a>;
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Self::Item> + 'a>;
     /// Return a iterator for mutable access to all child nodes
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Self::Item> + 'a>;
+    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut Self::Item> + 'a>;
 }
 
 impl<T: OneArgOp> Traversable for T {
     type Item = Expr;
 
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Self::Item> + 'a> {
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Self::Item> + 'a> {
         Box::new(core::iter::once(self.input()))
     }
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut Self::Item> + 'a> {
+    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut Self::Item> + 'a> {
         Box::new(core::iter::once(self.input_mut()))
     }
 }

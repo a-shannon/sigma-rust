@@ -85,10 +85,10 @@ impl<T> Spanned<T> {
 
 impl<T: Traversable> Traversable for Spanned<T> {
     type Item = T::Item;
-    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &Self::Item> + 'a> {
+    fn children<'a>(&'a self) -> Box<dyn Iterator<Item = &'a Self::Item> + 'a> {
         self.expr.children()
     }
-    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &mut T::Item> + 'a> {
+    fn children_mut<'a>(&'a mut self) -> Box<dyn Iterator<Item = &'a mut T::Item> + 'a> {
         self.expr.children_mut()
     }
 }
