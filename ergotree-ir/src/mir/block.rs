@@ -84,7 +84,7 @@ mod arbitrary {
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::panic)]
-pub mod tests {
+mod tests {
     use crate::mir::block::BlockValue;
     use crate::mir::expr::Expr;
     use crate::serialization::sigma_serialize_roundtrip;

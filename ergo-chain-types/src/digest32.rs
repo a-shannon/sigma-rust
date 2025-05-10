@@ -110,7 +110,7 @@ impl<const N: usize> FromStr for Digest<N> {
     type Err = DigestNError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut arr: [u8; N] = [0; N];
-        if s.as_bytes().len() / 2 == N {
+        if s.len() / 2 == N {
             base16::decode_slice(s.as_bytes(), &mut arr)?;
             Ok(Digest(arr))
         } else {

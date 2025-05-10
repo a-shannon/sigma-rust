@@ -422,7 +422,7 @@ pub mod arbitrary {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::panic)]
-pub mod tests {
+mod tests {
 
     use core::str::FromStr;
 

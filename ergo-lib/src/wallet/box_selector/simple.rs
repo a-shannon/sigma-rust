@@ -76,11 +76,7 @@ impl<T: ErgoBoxAssets + Clone> BoxSelector<T> for SimpleBoxSelector {
         // reverse, so they'll be sorted by descending order (boxes with target tokens will be first)
         sorted_inputs.reverse();
         for b in sorted_inputs {
-            let value_change_amt: u64 = if target_balance > selected_boxes_value {
-                0
-            } else {
-                selected_boxes_value - target_balance
-            };
+            let value_change_amt: u64 = selected_boxes_value.saturating_sub(target_balance);
             if target_balance > selected_boxes_value
                 || (has_value_change || has_token_change)
                     && (value_change_amt < *BoxValue::SAFE_USER_MIN.as_u64())

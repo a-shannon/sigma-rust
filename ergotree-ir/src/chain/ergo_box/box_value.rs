@@ -240,7 +240,7 @@ pub mod arbitrary {
 #[allow(clippy::panic)]
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
-pub mod tests {
+mod tests {
     use core::convert::TryInto;
 
     use super::*;

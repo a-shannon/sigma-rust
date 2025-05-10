@@ -232,7 +232,7 @@ pub trait ReadSigmaVlqExt: io::Read + io::Seek {
 
     /// Read a vector of bits with the given size
     fn get_bits(&mut self, size: usize) -> Result<Vec<bool>, VlqEncodingError> {
-        let byte_num = (size + 7) / 8;
+        let byte_num = size.div_ceil(8);
         let mut buf = vec![0u8; byte_num];
         self.read_exact(&mut buf)?;
         // May fail if number of bits in buf is larger that maximum value of usize

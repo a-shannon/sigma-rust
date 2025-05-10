@@ -1208,7 +1208,7 @@ pub(crate) mod arbitrary {
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::panic)]
-pub mod tests {
+mod tests {
     use super::*;
     use core::fmt;
     use proptest::prelude::*;

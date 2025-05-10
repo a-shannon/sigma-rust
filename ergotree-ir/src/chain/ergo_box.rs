@@ -297,7 +297,6 @@ impl From<ErgoBox> for ErgoBoxCandidate {
 }
 
 /// ErgoBox and ErgoBoxCandidate serialization
-
 /// Box serialization with token ids optionally saved in transaction
 /// (in this case only token index is saved)
 pub fn serialize_box_with_indexed_digests<W: SigmaByteWrite>(

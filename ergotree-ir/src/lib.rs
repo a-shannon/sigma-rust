@@ -12,6 +12,7 @@
 #![deny(missing_docs)]
 // Clippy exclusions
 #![allow(clippy::unit_arg)]
+#![allow(clippy::needless_lifetimes)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![deny(clippy::unwrap_used)]
 #![deny(clippy::expect_used)]
