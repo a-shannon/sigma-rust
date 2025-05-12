@@ -3,7 +3,7 @@
 use alloc::string::String;
 use alloc::string::ToString;
 use alloc::vec::Vec;
-use core::convert::{TryFrom, TryInto};
+use core::convert::TryFrom;
 use hashbrown::HashMap;
 
 use ergotree_ir::chain::address::AddressEncoderError;
@@ -28,7 +28,7 @@ pub enum ErgoBoxCandidateBuilderError {
         /// box value that caused this error
         error_value: BoxValue,
         /// minimum box value for that box size
-        min_box_value: BoxValue,
+        min_box_value: i64,
         /// box size in bytes
         box_size_bytes: usize,
     },
@@ -259,10 +259,8 @@ impl ErgoBoxCandidateBuilder {
 
         // Won't be overflowing an i64, so unwrap is safe.
         #[allow(clippy::unwrap_used)]
-        let min_box_value: BoxValue = (box_size_bytes as i64 * self.min_value_per_byte as i64)
-            .try_into()
-            .unwrap();
-        if self.value >= min_box_value {
+        let min_box_value: i64 = box_size_bytes as i64 * self.min_value_per_byte as i64;
+        if self.value.as_i64() >= min_box_value {
             Ok(b)
         } else {
             Err(ErgoBoxCandidateBuilderError::BoxValueTooLow {
