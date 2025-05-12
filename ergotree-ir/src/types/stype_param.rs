@@ -15,8 +15,6 @@ use crate::serialization::SigmaParsingError;
 use crate::serialization::SigmaSerializable;
 use crate::serialization::SigmaSerializeResult;
 
-use super::stype::SType;
-
 /// Type variable for generic signatures
 #[derive(PartialEq, Eq, Clone, Hash)]
 pub struct STypeVar {
@@ -97,6 +95,4 @@ impl SigmaSerializable for STypeVar {
 #[derive(PartialEq, Eq, Debug, Clone)]
 pub struct STypeParam {
     pub(crate) ident: STypeVar,
-    upper_bound: Option<SType>,
-    lower_bound: Option<SType>,
 }

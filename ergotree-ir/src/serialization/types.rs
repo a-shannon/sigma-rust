@@ -8,7 +8,7 @@ use crate::serialization::{
 };
 use crate::types::stuple;
 use crate::types::stype::SType;
-use alloc::string::ToString;
+use crate::types::stype_param::STypeParam;
 use alloc::vec::Vec;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
@@ -48,6 +48,7 @@ pub enum TypeCode {
     SHEADER = 104,
     SPRE_HEADER = 105,
     SGLOBAL = 106,
+    SFUNC = 112,
 }
 
 impl TypeCode {
@@ -248,6 +249,30 @@ impl SType {
                 TypeCode::SHEADER => SHeader,
                 TypeCode::SPRE_HEADER => SPreHeader,
                 TypeCode::SGLOBAL => SGlobal,
+                TypeCode::SFUNC if r.tree_version() >= ErgoTreeVersion::V3 => {
+                    let t_dom_len = r.get_u8()?;
+                    let t_dom = (0..t_dom_len)
+                        .map(|_| SType::sigma_parse(r))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let t_range = SType::sigma_parse(r)?;
+                    let tpe_params_len = r.get_u8()?;
+                    let mut tpe_params = vec![];
+                    for _ in 0..tpe_params_len {
+                        let tpe = SType::sigma_parse(r)?;
+                        if let SType::STypeVar(typevar) = tpe {
+                            tpe_params.push(STypeParam { ident: typevar });
+                        } else {
+                            return Err(SigmaParsingError::Misc(
+                                "SFunc.tpe_params: only STypeVar is allowed".into(),
+                            ));
+                        }
+                    }
+                    SType::SFunc(crate::types::sfunc::SFunc {
+                        t_dom,
+                        t_range: t_range.into(),
+                        tpe_params,
+                    })
+                }
                 #[allow(clippy::unreachable)] // All types with typecode >= Tuple are checked
                 _ => unreachable!(),
             })
@@ -271,9 +296,6 @@ impl SigmaSerializable for SType {
         // for reference see http://github.com/ScorexFoundation/sigmastate-interpreter/blob/25251c1313b0131835f92099f02cef8a5d932b5e/sigmastate/src/main/scala/sigmastate/serialization/TypeSerializer.scala#L25-L25
         use SType::*;
         match self {
-            SType::SFunc(_) => Err(SigmaSerializationError::NotSupported(
-                "SFunc serialization is no supported".to_string(),
-            )),
             #[allow(clippy::unwrap_used)]
             // TypeCode::from_primitive_type can't fail since it's only called on primitive types here
             stype if stype.is_prim() => TypeCode::from_primitive_type(stype)
@@ -428,6 +450,26 @@ impl SigmaSerializable for SType {
                 TypeCode::STYPE_VAR.sigma_serialize(w)?;
                 tv.sigma_serialize(w)
             }
+            SType::SFunc(sfunc) if w.tree_version() >= ErgoTreeVersion::V3 => {
+                TypeCode::SFUNC.sigma_serialize(w)?;
+                w.put_u8(sfunc.t_dom.len().try_into().map_err(|_| {
+                    SigmaSerializationError::NotSupported("t_dom.len() must be <= 255".into())
+                })?)?;
+                sfunc
+                    .t_dom
+                    .iter()
+                    .try_for_each(|arg| arg.sigma_serialize(w))?;
+                sfunc.t_range.sigma_serialize(w)?;
+                w.put_u8(sfunc.tpe_params.len().try_into().map_err(|_| {
+                    SigmaSerializationError::NotSupported("tpe_params.len() must be <= 255".into())
+                })?)?;
+                sfunc.tpe_params.iter().try_for_each(|tpe_param| {
+                    SType::STypeVar(tpe_param.ident.clone()).sigma_serialize(w)
+                })
+            }
+            SType::SFunc(_) => Err(SigmaSerializationError::NotSupported(
+                "SFunc serialization is not supported".into(),
+            )),
             #[allow(clippy::unreachable)] // Primitive types are covered by if .is_prim() branch
             _ => unreachable!(),
         }
@@ -442,18 +484,62 @@ impl SigmaSerializable for SType {
 
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
-#[allow(clippy::panic)]
+#[allow(clippy::panic, clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::serialization::sigma_serialize_roundtrip;
+    use crate::serialization::{
+        roundtrip_new_feature, sigma_serialize_roundtrip, sigma_serialize_roundtrip_versioned,
+    };
+    use crate::types::sfunc::SFunc;
+    use crate::types::stype_param::STypeVar;
 
     use proptest::prelude::*;
+    #[test]
+    fn serialize_invalid_sfunc() {
+        // t_dom > 255
+        let mut sfunc = SFunc {
+            t_dom: vec![SType::SByte; 256],
+            t_range: SType::SByte.into(),
+            tpe_params: vec![],
+        };
+        assert!(sigma_serialize_roundtrip_versioned(
+            &SType::SFunc(sfunc.clone()),
+            ErgoTreeVersion::V3
+        )
+        .is_err());
+        // t_dom length is now in bounds
+        sfunc.t_dom.pop();
+        roundtrip_new_feature(&SType::SFunc(sfunc.clone()), ErgoTreeVersion::V3);
+        // invalid tpe_params size
+        sfunc.tpe_params = vec![
+            STypeParam {
+                ident: STypeVar::t()
+            };
+            256
+        ];
+        assert!(
+            sigma_serialize_roundtrip_versioned(&SType::SFunc(sfunc), ErgoTreeVersion::V3).is_err()
+        );
+    }
 
     proptest! {
-
         #[test]
         fn ser_roundtrip(v in any::<SType>()) {
             prop_assert_eq![sigma_serialize_roundtrip(&v), v];
+        }
+        #[test]
+        fn sfunc_roundtrip(dom in proptest::collection::vec(any::<SType>(), 64), range in any::<SType>(), tpe_params in proptest::collection::vec(proptest::string::string_regex(".{5}").unwrap(), 32)) {
+            let tpe_params: Vec<_> = tpe_params
+                .into_iter()
+                .map(Into::into)
+                .map(|b| STypeVar::new_from_bytes(b).unwrap())
+                .map(|ident| STypeParam { ident }).collect();
+            let sfunc = SFunc {
+                t_dom: dom,
+                t_range: range.into(),
+                tpe_params
+            };
+            roundtrip_new_feature(&SType::SFunc(sfunc), ErgoTreeVersion::V3);
         }
     }
 }
