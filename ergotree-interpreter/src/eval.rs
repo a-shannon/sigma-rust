@@ -410,9 +410,12 @@ pub(crate) mod tests {
     use expect_test::expect;
     use sigma_test_util::force_any_val;
 
+    thread_local! {
+        static TEST_CTX: Context<'static> = force_any_val::<Context>();
+    }
+
     pub fn eval_out_wo_ctx<T: TryExtractFrom<Value<'static>> + 'static>(expr: &Expr) -> T {
-        let ctx = force_any_val::<Context>();
-        eval_out(expr, &ctx)
+        TEST_CTX.with(|ctx| eval_out(expr, ctx))
     }
 
     pub fn eval_out<T: TryExtractFrom<Value<'static>> + 'static>(
@@ -472,8 +475,7 @@ pub(crate) mod tests {
     pub fn try_eval_out_wo_ctx<T: TryExtractFrom<Value<'static>> + 'static>(
         expr: &Expr,
     ) -> Result<T, EvalError> {
-        let ctx = force_any_val::<Context>();
-        try_eval_out(expr, &ctx)
+        TEST_CTX.with(|ctx| try_eval_out(expr, ctx))
     }
 
     #[test]
