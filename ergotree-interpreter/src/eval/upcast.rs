@@ -97,7 +97,7 @@ mod tests {
     use ergotree_ir::mir::constant::Constant;
     use sigma_test_util::force_any_val;
 
-    use crate::eval::tests::{eval_out_wo_ctx, try_eval_out_with_version};
+    use crate::eval::test_util::{eval_out_wo_ctx, try_eval_out_with_version};
 
     use super::*;
     use proptest::prelude::*;

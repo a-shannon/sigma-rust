@@ -32,7 +32,7 @@ impl Evaluable for BitInversion {
 mod tests {
 
     use super::*;
-    use crate::eval::tests::try_eval_out_wo_ctx;
+    use crate::eval::test_util::try_eval_out_wo_ctx;
     use ergotree_ir::bigint256::BigInt256;
     use ergotree_ir::mir::constant::Constant;
     use ergotree_ir::mir::constant::TryExtractFrom;

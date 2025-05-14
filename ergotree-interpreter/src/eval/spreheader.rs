@@ -54,7 +54,7 @@ mod tests {
     use sigma_test_util::force_any_val;
     use sigma_util::AsVecU8;
 
-    use crate::eval::tests::{eval_out, try_eval_out_wo_ctx};
+    use crate::eval::test_util::{eval_out, try_eval_out_wo_ctx};
     use ergotree_ir::chain::context::Context;
 
     fn create_get_preheader_property_expr(method: SMethod) -> Expr {

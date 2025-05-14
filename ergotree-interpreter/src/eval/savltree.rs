@@ -456,7 +456,7 @@ mod tests {
     };
     use proptest::prelude::*;
 
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
 
     use super::*;
     use sigma_util::{AsVecI8, AsVecU8};

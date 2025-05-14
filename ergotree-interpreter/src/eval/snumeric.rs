@@ -205,7 +205,7 @@ mod test {
     use num_traits::CheckedRem;
     use proptest::prelude::*;
 
-    use crate::eval::{tests::try_eval_out_wo_ctx, EvalError};
+    use crate::eval::{test_util::try_eval_out_wo_ctx, EvalError};
 
     fn eval_modular_op(
         desc: &SMethodDesc,

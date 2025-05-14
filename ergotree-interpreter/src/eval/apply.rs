@@ -68,7 +68,7 @@ mod tests {
     use ergotree_ir::mir::val_use::ValUse;
     use ergotree_ir::types::stype::SType;
 
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
 
     use super::*;
 

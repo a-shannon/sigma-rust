@@ -87,8 +87,8 @@ impl Evaluable for Map {
 #[cfg(feature = "arbitrary")]
 mod tests {
 
-    use crate::eval::tests::eval_out;
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out;
+    use crate::eval::test_util::eval_out_wo_ctx;
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::chain::context::TxIoVec;
     use ergotree_ir::ergo_tree::ErgoTree;

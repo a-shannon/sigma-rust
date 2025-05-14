@@ -387,27 +387,20 @@ fn smethod_eval_fn(method: &SMethod) -> Result<EvalFn, EvalError> {
     })
 }
 
-#[cfg(test)]
-#[cfg(feature = "arbitrary")]
+#[doc(hidden)]
+#[allow(missing_docs)]
 #[allow(clippy::unwrap_used)]
 #[allow(clippy::todo)]
-pub(crate) mod tests {
+#[cfg(feature = "arbitrary")]
+pub mod test_util {
 
     use super::env::Env;
     use super::*;
-    use ergotree_ir::mir::bin_op::BinOp;
-    use ergotree_ir::mir::bin_op::BinOpKind;
-    use ergotree_ir::mir::bin_op::RelationOp;
-    use ergotree_ir::mir::block::BlockValue;
     use ergotree_ir::mir::constant::TryExtractFrom;
     use ergotree_ir::mir::constant::TryExtractInto;
-    use ergotree_ir::mir::val_def::ValDef;
-    use ergotree_ir::mir::val_use::ValUse;
     use ergotree_ir::serialization::sigma_byte_reader::from_bytes;
     use ergotree_ir::serialization::sigma_byte_reader::SigmaByteRead;
     use ergotree_ir::serialization::SigmaSerializable;
-    use ergotree_ir::types::stype::SType;
-    use expect_test::expect;
     use sigma_test_util::force_any_val;
 
     thread_local! {
@@ -477,6 +470,28 @@ pub(crate) mod tests {
     ) -> Result<T, EvalError> {
         TEST_CTX.with(|ctx| try_eval_out(expr, ctx))
     }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod test {
+    use ergotree_ir::{
+        chain::context::Context,
+        ergo_tree::ErgoTree,
+        mir::{
+            bin_op::{BinOp, BinOpKind, RelationOp},
+            block::BlockValue,
+            expr::Expr,
+            val_def::ValDef,
+            val_use::ValUse,
+        },
+        sigma_protocol::sigma_boolean::SigmaBoolean,
+        types::stype::SType,
+    };
+    use expect_test::expect;
+    use sigma_test_util::force_any_val;
+
+    use crate::eval::reduce_to_crypto;
 
     #[test]
     fn diag_on_reduced_to_false() {

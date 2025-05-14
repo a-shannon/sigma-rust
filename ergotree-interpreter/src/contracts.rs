@@ -3,7 +3,7 @@
 mod tests {
     use core::convert::TryInto;
 
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
     use ergotree_ir::chain::address::AddressEncoder;
     use ergotree_ir::chain::address::NetworkPrefix;
     use ergotree_ir::sigma_protocol::sigma_boolean::SigmaProp;

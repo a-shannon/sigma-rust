@@ -268,7 +268,7 @@ mod tests {
     use num_traits::Num;
     use proptest::proptest;
 
-    use crate::eval::tests::{eval_out, eval_out_wo_ctx, try_eval_out_with_version};
+    use crate::eval::test_util::{eval_out, eval_out_wo_ctx, try_eval_out_with_version};
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::types::sglobal::{
         self, DECODE_NBITS_METHOD, DESERIALIZE_METHOD, ENCODE_NBITS_METHOD, SERIALIZE_METHOD,

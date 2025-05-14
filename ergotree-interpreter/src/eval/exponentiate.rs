@@ -37,7 +37,7 @@ pub(crate) fn exponentiate(
 #[cfg(feature = "arbitrary")]
 mod tests {
     use super::*;
-    use crate::eval::tests::eval_out;
+    use crate::eval::test_util::eval_out;
     use crate::sigma_protocol::private_input::DlogProverInput;
     use ergotree_ir::chain::context::Context;
 

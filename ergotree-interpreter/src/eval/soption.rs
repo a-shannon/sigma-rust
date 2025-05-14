@@ -132,7 +132,7 @@ mod tests {
     use ergotree_ir::types::stype::SType;
     use ergotree_ir::types::stype_param::STypeVar;
 
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
     use ergotree_ir::mir::value::Value;
 
     #[test]

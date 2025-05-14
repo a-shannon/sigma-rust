@@ -62,9 +62,9 @@ mod tests {
     use sigma_test_util::force_any_val;
 
     use super::*;
-    use crate::eval::tests::eval_out;
-    use crate::eval::tests::eval_out_wo_ctx;
-    use crate::eval::tests::try_eval_out_with_version;
+    use crate::eval::test_util::eval_out;
+    use crate::eval::test_util::eval_out_wo_ctx;
+    use crate::eval::test_util::try_eval_out_with_version;
     use ergotree_ir::chain::context::Context;
 
     #[test]

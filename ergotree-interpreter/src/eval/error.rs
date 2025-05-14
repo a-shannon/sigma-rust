@@ -245,7 +245,7 @@ mod tests {
 
     use crate::eval::error::SpannedEvalError;
     use crate::eval::error::SpannedWithSourceEvalError;
-    use crate::eval::tests::try_eval_out;
+    use crate::eval::test_util::try_eval_out;
     use ergotree_ir::chain::context::Context;
 
     fn check(expr: Expr, expected_tree: expect_test::Expect) {

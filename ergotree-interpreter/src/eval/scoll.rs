@@ -427,7 +427,7 @@ mod tests {
     use ergotree_ir::types::stype::SType;
     use ergotree_ir::types::stype_param::STypeVar;
 
-    use crate::eval::tests::{eval_out_wo_ctx, try_eval_out_wo_ctx};
+    use crate::eval::test_util::{eval_out_wo_ctx, try_eval_out_wo_ctx};
 
     #[test]
     fn eval_index_of() {

@@ -349,8 +349,8 @@ impl Evaluable for BinOp {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
-    use crate::eval::tests::eval_out_wo_ctx;
-    use crate::eval::tests::try_eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
+    use crate::eval::test_util::try_eval_out_wo_ctx;
     use alloc::boxed::Box;
     use ergotree_ir::mir::constant::Constant;
     use ergotree_ir::mir::expr::Expr;

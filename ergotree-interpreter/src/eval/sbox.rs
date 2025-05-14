@@ -91,7 +91,7 @@ mod tests {
     use ergotree_ir::types::stype_param::STypeVar;
     use sigma_test_util::force_any_val;
 
-    use crate::eval::tests::{eval_out, try_eval_out_with_version};
+    use crate::eval::test_util::{eval_out, try_eval_out_with_version};
     use crate::eval::EvalError;
     use ergotree_ir::chain::context::Context;
 

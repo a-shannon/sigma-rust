@@ -35,7 +35,7 @@ mod tests {
     use ergotree_ir::sigma_protocol::sigma_boolean::SigmaBoolean;
     use ergotree_ir::sigma_protocol::sigma_boolean::SigmaConjecture;
 
-    use crate::eval::tests::eval_out;
+    use crate::eval::test_util::eval_out;
     use ergotree_ir::chain::context::Context;
 
     use super::*;
