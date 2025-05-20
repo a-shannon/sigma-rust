@@ -31,7 +31,7 @@ mod tests {
                 .cloned()
                 .collect(),
         };
-        let ctx = force_any_val::<Context>().with_extension(ctx_ext);
+        let ctx = force_any_val::<Context>().with_extension(&ctx_ext);
         assert!(try_eval_with_deserialize::<bool>(&expr, &ctx).unwrap());
     }
 
@@ -49,7 +49,7 @@ mod tests {
                 .cloned()
                 .collect(),
         };
-        let ctx = force_any_val::<Context>().with_extension(ctx_ext);
+        let ctx = force_any_val::<Context>().with_extension(&ctx_ext);
         assert_eq!(
             reduce_to_crypto(
                 &ErgoTree::new(ErgoTreeHeader::v1(false), &expr).unwrap(),
@@ -68,7 +68,8 @@ mod tests {
             id: 1,
         }
         .into();
-        let ctx = force_any_val::<Context>().with_extension(ContextExtension::empty());
+        let extension = ContextExtension::empty();
+        let ctx = force_any_val::<Context>().with_extension(&extension);
         assert!(try_eval_with_deserialize::<bool>(&expr, &ctx).is_err());
     }
 
@@ -84,7 +85,7 @@ mod tests {
         let ctx_ext = ContextExtension {
             values: [(1u8, ctx_ext_val)].iter().cloned().collect(),
         };
-        let ctx = force_any_val::<Context>().with_extension(ctx_ext);
+        let ctx = force_any_val::<Context>().with_extension(&ctx_ext);
         assert!(try_eval_with_deserialize::<bool>(&expr, &ctx).is_err());
     }
 
@@ -103,7 +104,7 @@ mod tests {
                 .cloned()
                 .collect(),
         };
-        let ctx = force_any_val::<Context>().with_extension(ctx_ext);
+        let ctx = force_any_val::<Context>().with_extension(&ctx_ext);
         assert!(try_eval_with_deserialize::<Value>(&expr, &ctx).is_err());
     }
 
@@ -120,7 +121,7 @@ mod tests {
                 .cloned()
                 .collect(),
         };
-        let ctx = force_any_val::<Context>().with_extension(ctx_ext);
+        let ctx = force_any_val::<Context>().with_extension(&ctx_ext);
         // Evaluating executeFromVar(1) with ctx[1] being executeFromVar(1) should fail during evaluation
         assert!(try_eval_with_deserialize::<bool>(&expr, &ctx).is_err());
     }
@@ -138,7 +139,7 @@ mod tests {
                 .cloned()
                 .collect(),
         };
-        let ctx = force_any_val::<Context>().with_extension(ctx_ext);
+        let ctx = force_any_val::<Context>().with_extension(&ctx_ext);
         ctx.tree_version.set(ErgoTreeVersion::V0);
         assert!(try_eval_with_deserialize::<Value>(&expr, &ctx).is_err());
         ctx.tree_version.set(ErgoTreeVersion::V3);

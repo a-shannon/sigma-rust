@@ -4,6 +4,7 @@ use alloc::sync::Arc;
 
 use ergotree_ir::mir::avl_tree_data::AvlTreeData;
 use ergotree_ir::mir::avl_tree_data::AvlTreeFlags;
+use ergotree_ir::mir::constant::TryExtractInto;
 use ergotree_ir::mir::value::CollKind;
 use ergotree_ir::mir::value::Value;
 use ergotree_ir::reference::Ref;
@@ -98,6 +99,27 @@ pub(crate) static MINER_PUBKEY_EVAL_FN: EvalFn = |_mc, _env, ctx, obj, _args| {
         .into())
 };
 
+pub(crate) static GET_VAR_FROM_INPUT_EVAL_FN: EvalFn = |mc, _env, ctx, _obj, args| {
+    #[allow(clippy::unreachable)] // getVarFromInput output type is always SOption[T]
+    let SType::SOption(output_tpe) = &*mc.tpe().t_range
+    else {
+        unreachable!()
+    };
+    let input_idx = args[0].clone().try_extract_into::<i16>()? as usize;
+    let var_id = args[1].clone().try_extract_into::<i8>()? as u8;
+    Ok(
+        match ctx
+            .extension_provider
+            .context_extension(input_idx)
+            .and_then(|extension| extension.values.get(&(var_id)))
+            .cloned()
+        {
+            Some(c) if c.tpe == **output_tpe => Value::Opt(Some(Box::new(c.v.into()))),
+            _ => Value::Opt(None),
+        },
+    )
+};
+
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
@@ -107,10 +129,15 @@ mod tests {
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::chain::ergo_box::ErgoBox;
     use ergotree_ir::mir::avl_tree_data::{AvlTreeData, AvlTreeFlags};
+    use ergotree_ir::mir::constant::TryExtractFrom;
     use ergotree_ir::mir::expr::Expr;
+    use ergotree_ir::mir::method_call::MethodCall;
     use ergotree_ir::mir::property_call::PropertyCall;
+    use ergotree_ir::mir::value::Value;
     use ergotree_ir::serialization::SigmaSerializable;
-    use ergotree_ir::types::scontext;
+    use ergotree_ir::types::scontext::{self, GET_VAR_FROM_INPUT_METHOD};
+    use ergotree_ir::types::stype::LiftIntoSType;
+    use ergotree_ir::types::stype_param::STypeVar;
     use sigma_test_util::force_any_val;
 
     fn make_ctx_inputs_includes_self_box() -> Context<'static> {
@@ -185,5 +212,32 @@ mod tests {
             value_length_opt: None,
         };
         assert_eq!(eval_out::<AvlTreeData>(&expr, &ctx), avl_tree_data);
+    }
+
+    #[test]
+    fn eval_get_var_from_input() {
+        fn get_var_from_input<T: LiftIntoSType + TryExtractFrom<Value<'static>> + 'static>(
+            ctx: &Context<'static>,
+            input_index: i16,
+            var_id: i8,
+        ) -> Option<T> {
+            let mc = MethodCall::with_type_args(
+                Expr::Context,
+                GET_VAR_FROM_INPUT_METHOD.clone(),
+                vec![input_index.into(), var_id.into()],
+                [(STypeVar::t(), T::stype())].into_iter().collect(),
+            )
+            .unwrap()
+            .into();
+            eval_out(&mc, ctx)
+        }
+        let context = crate::eval::get_var::tests::prepare_context();
+        assert_eq!(get_var_from_input::<i32>(&context, 0, 3), Some(123));
+        assert_eq!(get_var_from_input::<i64>(&context, 0, 3), None); // wrong type
+        assert_eq!(get_var_from_input::<i32>(&context, 0, 4), None); // context extension var doesn't exist
+        assert_eq!(
+            get_var_from_input::<i32>(&context, context.inputs.len() as i16 + 1, 4),
+            None
+        ); // input out of bounds
     }
 }

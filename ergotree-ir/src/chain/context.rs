@@ -10,7 +10,7 @@ use ergo_chain_types::{Header, PreHeader};
 pub type TxIoVec<T> = BoundedVec<T, 1, { i16::MAX as usize }>;
 
 /// Interpreter's context (blockchain state)
-#[derive(Debug, Clone)]
+#[derive(derive_more::Debug, Clone)]
 pub struct Context<'ctx> {
     /// Current height
     pub height: u32,
@@ -27,14 +27,17 @@ pub struct Context<'ctx> {
     /// Fixed number of last block headers in descending order (first header is the newest one)
     pub headers: [Header; 10],
     /// prover-defined key-value pairs, that may be used inside a script
-    pub extension: ContextExtension,
+    pub extension: &'ctx ContextExtension,
     /// ergo tree version
     pub tree_version: Cell<ErgoTreeVersion>,
+    /// ContextExtension provider for inputs of transaction
+    #[debug(skip)]
+    pub extension_provider: &'ctx dyn ContextExtensionProvider,
 }
 
 impl<'ctx> Context<'ctx> {
     /// Return a new Context with given context extension
-    pub fn with_extension(self, ext: ContextExtension) -> Self {
+    pub fn with_extension(self, ext: &'ctx ContextExtension) -> Self {
         Context {
             extension: ext,
             ..self
@@ -50,42 +53,58 @@ impl<'ctx> Context<'ctx> {
     }
 }
 
+// Since `ErgoTransaction` is defined in ergo-lib, we can't use it directly, so instead we use this trait and impl it for all `ErgoTransaction`s
+/// Provides access to [`ContextExtension`] of transaction inputs
+pub trait ContextExtensionProvider {
+    /// Returns a reference to [`ContextExtension`] of input at index
+    fn context_extension(&self, input_index: usize) -> Option<&ContextExtension>;
+}
+
 #[cfg(feature = "arbitrary")]
-#[allow(clippy::unwrap_used)]
-mod arbitrary {
+#[doc(hidden)]
+#[allow(clippy::unwrap_used, missing_docs)]
+pub mod arbitrary {
 
     use super::*;
     use proptest::{collection::vec, option::of, prelude::*};
+
+    pub struct DummyContextExtensionProvider(pub Vec<ContextExtension>);
+
+    impl ContextExtensionProvider for DummyContextExtensionProvider {
+        fn context_extension(&self, input_index: usize) -> Option<&ContextExtension> {
+            self.0.get(input_index)
+        }
+    }
 
     impl Arbitrary for Context<'static> {
         type Parameters = ();
 
         fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
+            let input_strategy = vec(any::<ErgoBox>(), 1..3).prop_flat_map(|input_boxes| {
+                let len = input_boxes.len();
+                (Just(input_boxes), vec(any::<ContextExtension>(), len..=len))
+            });
             (
                 0..i32::MAX as u32,
-                any::<ErgoBox>(),
                 vec(any::<ErgoBox>(), 1..3),
-                vec(any::<ErgoBox>(), 1..3),
+                input_strategy,
                 of(vec(any::<ErgoBox>(), 1..3)),
                 any::<PreHeader>(),
-                any::<ContextExtension>(),
                 any::<[Header; 10]>(),
             )
                 .prop_map(
                     |(
                         height,
-                        self_box,
                         outputs,
-                        inputs,
+                        (input_boxes, extensions),
                         data_inputs,
                         pre_header,
-                        extension,
                         headers,
                     )| {
                         // Leak variables. Since this is only used for testing this is acceptable and avoids introducing a new type (ContextOwned)
                         Self {
                             height,
-                            self_box: Box::leak(Box::new(self_box)),
+                            self_box: Box::leak(input_boxes[0].clone().into()),
                             outputs: Vec::leak(outputs),
                             data_inputs: data_inputs.map(|v| {
                                 v.into_iter()
@@ -94,16 +113,19 @@ mod arbitrary {
                                     .try_into()
                                     .unwrap()
                             }),
-                            inputs: inputs
+                            inputs: input_boxes
                                 .into_iter()
                                 .map(|i| &*Box::leak(Box::new(i)))
                                 .collect::<Vec<_>>()
                                 .try_into()
                                 .unwrap(),
                             pre_header,
-                            extension,
+                            extension: Box::leak(extensions[0].clone().into()),
                             headers,
                             tree_version: Default::default(),
+                            extension_provider: Box::leak(
+                                DummyContextExtensionProvider(extensions).into(),
+                            ),
                         }
                     },
                 )

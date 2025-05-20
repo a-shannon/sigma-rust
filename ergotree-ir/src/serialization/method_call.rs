@@ -53,7 +53,7 @@ impl SigmaSerializable for MethodCall {
             .collect::<Result<HashMap<STypeVar, SType>, _>>()?;
         Ok(MethodCall::with_type_args(
             obj,
-            method.with_concrete_types(&explicit_type_args),
+            method,
             args,
             explicit_type_args,
         )?)

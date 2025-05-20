@@ -179,7 +179,7 @@ mod test {
            let type_args = core::iter::once((STypeVar::t(), v)).collect();
            let mc = MethodCall::with_type_args(
                Expr::Global,
-               DESERIALIZE_METHOD.clone().with_concrete_types(&type_args),
+               DESERIALIZE_METHOD.clone(),
                vec![vec![0i8].into()],
                type_args,
            ).unwrap();

@@ -1,5 +1,6 @@
 //! Exposes common properties for signed and unsigned transactions
 use ergotree_interpreter::sigma_protocol::verifier::{VerificationResult, VerifierError};
+pub use ergotree_ir::chain::context::ContextExtensionProvider;
 use ergotree_ir::chain::context_extension::ContextExtension;
 use ergotree_ir::{
     chain::{
@@ -79,15 +80,13 @@ pub enum TxValidationError {
 }
 
 /// Exposes common properties for signed and unsigned transactions
-pub trait ErgoTransaction {
+pub trait ErgoTransaction: ContextExtensionProvider {
     /// input boxes ids
     fn inputs_ids(&self) -> impl ExactSizeIterator<Item = BoxId>;
     /// data input boxes
     fn data_inputs(&self) -> Option<&[DataInput]>;
     /// output boxes
     fn outputs(&self) -> &[ErgoBox];
-    /// ContextExtension for the given input index
-    fn context_extension(&self, input_index: usize) -> Option<ContextExtension>;
 
     /// Stateless transaction validation (no blockchain context) for a transaction
     /// Returns [`Ok(())`] if validation has succeeded or returns [`TxValidationError`]
@@ -123,12 +122,6 @@ impl ErgoTransaction for UnsignedTransaction {
     fn outputs(&self) -> &[ErgoBox] {
         self.outputs.as_slice()
     }
-
-    fn context_extension(&self, input_index: usize) -> Option<ContextExtension> {
-        self.inputs
-            .get(input_index)
-            .map(|input| input.extension.clone())
-    }
 }
 
 impl ErgoTransaction for Transaction {
@@ -143,10 +136,18 @@ impl ErgoTransaction for Transaction {
     fn outputs(&self) -> &[ErgoBox] {
         self.outputs.as_slice()
     }
+}
 
-    fn context_extension(&self, input_index: usize) -> Option<ContextExtension> {
+impl ContextExtensionProvider for UnsignedTransaction {
+    fn context_extension(&self, input_index: usize) -> Option<&ContextExtension> {
+        self.inputs.get(input_index).map(|input| &input.extension)
+    }
+}
+
+impl ContextExtensionProvider for Transaction {
+    fn context_extension(&self, input_index: usize) -> Option<&ContextExtension> {
         self.inputs
             .get(input_index)
-            .map(|input| input.spending_proof.extension.clone())
+            .map(|input| &input.spending_proof.extension)
     }
 }

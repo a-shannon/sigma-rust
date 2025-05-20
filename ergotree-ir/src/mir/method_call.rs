@@ -80,7 +80,7 @@ impl MethodCall {
         }
         Ok(Self {
             obj: obj.into(),
-            method,
+            method: method.with_concrete_types(&explicit_type_args),
             args,
             explicit_type_args,
         })
