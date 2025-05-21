@@ -48,6 +48,8 @@ pub const REMOVE_METHOD_ID: MethodId = MethodId(14);
 pub const UPDATE_METHOD_ID: MethodId = MethodId(13);
 /// AvlTree.updateDigest property
 pub const UPDATE_DIGEST_METHOD_ID: MethodId = MethodId(15);
+/// AvlTree.insertOrUpdate property
+pub const INSERT_OR_UPDATE_METHOD_ID: MethodId = MethodId(16);
 
 lazy_static! {
     /// AvlTree method descriptors
@@ -68,6 +70,7 @@ lazy_static! {
             REMOVE_METHOD_DESC.clone(),
             UPDATE_METHOD_DESC.clone(),
             UPDATE_DIGEST_METHOD_DESC.clone(),
+            INSERT_OR_UPDATE_METHOD_DESC.clone(),
         ]
     ;
 }
@@ -368,6 +371,35 @@ lazy_static! {
     /// AvlTree.updateDigest
     pub static ref UPDATE_DIGEST_METHOD: SMethod =
         SMethod::new(STypeCompanion::AvlTree, UPDATE_DIGEST_METHOD_DESC.clone(),);
+}
+
+lazy_static! {
+    static ref INSERT_OR_UPDATE_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: INSERT_OR_UPDATE_METHOD_ID,
+        name: "insertOrUpdate",
+        tpe: SFunc {
+            t_dom: vec![ SType::SAvlTree,
+                         SType::SColl(
+                           Arc::new(
+                               SType::STuple(
+                                   STuple::pair(
+                                       SType::SColl(Arc::new(SType::SByte)),
+                                       SType::SColl(Arc::new(SType::SByte))
+                                   )
+                               )
+                           )
+                         ),
+                         SType::SColl(Arc::new(SType::SByte)),
+                       ],
+            t_range: SType::SOption(Arc::new(SType::SAvlTree)).into(),
+            tpe_params: vec![],
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    /// AvlTree.insertOrUpdate
+    pub static ref INSERT_OR_UPDATE_METHOD: SMethod =
+        SMethod::new(STypeCompanion::AvlTree, INSERT_OR_UPDATE_METHOD_DESC.clone(),);
 }
 
 #[cfg(test)]
