@@ -205,7 +205,7 @@ pub(crate) static INSERT_EVAL_FN: EvalFn =
         let mut avl_tree_data = obj.try_extract_into::<AvlTreeData>()?;
 
         if !avl_tree_data.tree_flags.insert_allowed() {
-            return Err(EvalError::AvlTree("Insertions not allowed".into()));
+            return Ok(Value::Opt(None));
         }
 
         let entries = {
@@ -268,7 +268,7 @@ pub(crate) static REMOVE_EVAL_FN: EvalFn =
         let mut avl_tree_data = obj.try_extract_into::<AvlTreeData>()?;
 
         if !avl_tree_data.tree_flags.remove_allowed() {
-            return Err(EvalError::AvlTree("Removals not allowed".into()));
+            return Ok(Value::Opt(None));
         }
 
         let keys = {
@@ -375,7 +375,7 @@ pub(crate) static UPDATE_EVAL_FN: EvalFn =
         let mut avl_tree_data = obj.try_extract_into::<AvlTreeData>()?;
 
         if !avl_tree_data.tree_flags.update_allowed() {
-            return Err(EvalError::AvlTree("Updates not allowed".into()));
+            return Ok(Value::Opt(None));
         }
 
         let entries = {
