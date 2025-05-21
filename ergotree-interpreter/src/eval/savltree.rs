@@ -322,7 +322,7 @@ pub(crate) static REMOVE_EVAL_FN: EvalFn =
                 avl_tree_data.into(),
             )))))
         } else {
-            Err(EvalError::AvlTree("Cannot update digest".into()))
+            Ok(Value::Opt(None))
         }
     };
 
@@ -361,16 +361,13 @@ pub(crate) static CONTAINS_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
     )
     .map_err(map_eval_err)?;
 
-    match bv.perform_one_operation(&Operation::Lookup(key)) {
+    Ok(match bv.perform_one_operation(&Operation::Lookup(key)) {
         Ok(s) => match s {
-            Some(_e) => Ok(Value::Boolean(true)),
-            _ => Ok(Value::Boolean(false)),
+            Some(_e) => Value::Boolean(true),
+            _ => Value::Boolean(false),
         },
-        Err(_) => Err(EvalError::AvlTree(format!(
-            "Incorrect contains call for {:?}",
-            avl_tree_data
-        ))),
-    }
+        Err(_) => Value::Boolean(false),
+    })
 };
 
 pub(crate) static UPDATE_EVAL_FN: EvalFn =
@@ -419,21 +416,16 @@ pub(crate) static UPDATE_EVAL_FN: EvalFn =
                 }))
                 .is_err()
             {
-                return Err(EvalError::AvlTree(format!(
-                    "Incorrect update for {:?}",
-                    avl_tree_data
-                )));
+                break;
             }
         }
-        if let Some(new_digest) = bv.digest() {
+        Ok(if let Some(new_digest) = bv.digest() {
             let digest = ADDigest::scorex_parse_bytes(&new_digest)?;
             avl_tree_data.digest = digest;
-            Ok(Value::Opt(Some(Box::new(Value::AvlTree(
-                avl_tree_data.into(),
-            )))))
+            Value::Opt(Some(Value::AvlTree(avl_tree_data.into()).into()))
         } else {
-            Err(EvalError::AvlTree("Cannot update digest".into()))
-        }
+            Value::Opt(None)
+        })
     };
 
 fn map_eval_err<T: core::fmt::Debug>(e: T) -> EvalError {
@@ -458,8 +450,9 @@ mod tests {
         types::{savltree, stuple::STuple, stype::SType},
     };
     use proptest::prelude::*;
+    use sigma_test_util::force_any_val;
 
-    use crate::eval::test_util::eval_out_wo_ctx;
+    use crate::eval::test_util::{eval_out_wo_ctx, try_eval_out_with_version};
 
     use super::*;
     use sigma_util::{AsVecI8, AsVecU8};
@@ -467,9 +460,7 @@ mod tests {
     #[test]
     fn eval_avl_get() {
         let mut prover = populate_tree(vec![(vec![1u8], 10u64.to_be_bytes().to_vec())]);
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let key1 = Bytes::from(vec![1u8]);
         let key2 = Bytes::from(vec![2u8]);
@@ -539,9 +530,7 @@ mod tests {
             (vec![2u8], 20u64.to_be_bytes().to_vec()),
         ]);
 
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let key1 = Bytes::from(vec![1u8]);
         let key2 = Bytes::from(vec![2u8]);
@@ -909,9 +898,7 @@ mod tests {
             (vec![2u8], 20u64.to_be_bytes().to_vec()),
             (vec![3u8], 30u64.to_be_bytes().to_vec()),
         ]);
-        let digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let op = Operation::Lookup(Bytes::from(vec![2u8]));
         prover.perform_one_operation(&op).unwrap();
@@ -946,16 +933,12 @@ mod tests {
     #[test]
     fn eval_avl_remove() {
         let mut prover = populate_tree(vec![(vec![1u8], 10u64.to_be_bytes().to_vec())]);
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let key1 = Bytes::from(vec![1u8]);
         let op1 = Operation::Remove(key1);
         prover.perform_one_operation(&op1).unwrap();
-        let final_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let final_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
         let proof: Constant = prover
             .generate_proof()
             .into_iter()
@@ -1008,9 +991,7 @@ mod tests {
             (vec![2u8], 20u64.to_be_bytes().to_vec()),
             (vec![3u8], 30u64.to_be_bytes().to_vec()),
         ]);
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let op1 = Operation::Update(KeyValue {
             key: Bytes::from(vec![2u8]),
@@ -1023,9 +1004,7 @@ mod tests {
         prover.perform_one_operation(&op1).unwrap();
         prover.perform_one_operation(&op2).unwrap();
 
-        let final_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let final_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
         let proof: Constant = prover
             .generate_proof()
             .into_iter()
