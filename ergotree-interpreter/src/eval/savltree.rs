@@ -3,6 +3,7 @@ use alloc::string::ToString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::convert::TryFrom;
+use ergotree_ir::ergo_tree::ErgoTreeVersion;
 
 use bytes::Bytes;
 use ergo_avltree_rust::authenticated_tree_ops::AuthenticatedTreeOps;
@@ -201,7 +202,7 @@ pub(crate) static GET_MANY_EVAL_FN: EvalFn =
     };
 
 pub(crate) static INSERT_EVAL_FN: EvalFn =
-    |_mc, _env, _ctx, obj, args| {
+    |_mc, _env, ctx, obj, args| {
         let mut avl_tree_data = obj.try_extract_into::<AvlTreeData>()?;
 
         if !avl_tree_data.tree_flags.insert_allowed() {
@@ -246,21 +247,23 @@ pub(crate) static INSERT_EVAL_FN: EvalFn =
                 }))
                 .is_err()
             {
-                return Err(EvalError::AvlTree(format!(
-                    "Incorrect insert for {:?}",
-                    avl_tree_data
-                )));
+                if ctx.tree_version() >= ErgoTreeVersion::V3 {
+                    break;
+                } else {
+                    return Err(EvalError::AvlTree(format!(
+                        "Incorrect insert for {:?}",
+                        avl_tree_data
+                    )));
+                }
             }
         }
-        if let Some(new_digest) = bv.digest() {
+        Ok(if let Some(new_digest) = bv.digest() {
             let digest = ADDigest::scorex_parse_bytes(&new_digest)?;
             avl_tree_data.digest = digest;
-            Ok(Value::Opt(Some(Box::new(Value::AvlTree(
-                avl_tree_data.into(),
-            )))))
+            Value::Opt(Some(Box::new(Value::AvlTree(avl_tree_data.into()))))
         } else {
-            Err(EvalError::AvlTree("Cannot update digest".into()))
-        }
+            Value::Opt(None)
+        })
     };
 
 pub(crate) static REMOVE_EVAL_FN: EvalFn =
@@ -621,9 +624,7 @@ mod tests {
             ),
             true,
         );
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
         let key1 = Bytes::from(vec![1u8]);
         let key2 = Bytes::from(vec![2u8; 1]);
         let key3 = Bytes::from(vec![3u8; 1]);
@@ -642,9 +643,7 @@ mod tests {
         prover.perform_one_operation(&op1).unwrap();
         prover.perform_one_operation(&op2).unwrap();
         prover.perform_one_operation(&op3).unwrap();
-        let final_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let final_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
         let proof: Constant = prover
             .generate_proof()
             .into_iter()
@@ -670,7 +669,7 @@ mod tests {
                 SType::SColl(Arc::new(SType::SByte)),
             )))),
             v: Literal::Coll(CollKind::WrappedColl {
-                items: Arc::new([pair1, pair2, pair3]),
+                items: Arc::new([pair1.clone(), pair2.clone(), pair3.clone()]),
                 elem_tpe: SType::STuple(STuple::pair(
                     SType::SColl(Arc::new(SType::SByte)),
                     SType::SColl(Arc::new(SType::SByte)),
@@ -678,9 +677,9 @@ mod tests {
             }),
         };
         let expr: Expr = MethodCall::new(
-            obj,
+            obj.clone(),
             savltree::INSERT_METHOD.clone(),
-            vec![entries.into(), proof.into()],
+            vec![entries.clone().into(), proof.clone().into()],
         )
         .unwrap()
         .into();
@@ -695,6 +694,30 @@ mod tests {
         } else {
             unreachable!();
         }
+
+        // perform invalid insertion (duplicate entries). Before v6.0 this would return an error. After 6.0 this will return None
+        let duplicate_entries = Constant {
+            v: Literal::Coll(CollKind::WrappedColl {
+                items: Arc::new([pair1, pair2, pair3.clone(), pair3]),
+                elem_tpe: SType::STuple(STuple::pair(
+                    SType::SColl(Arc::new(SType::SByte)),
+                    SType::SColl(Arc::new(SType::SByte)),
+                )),
+            }),
+            ..entries
+        };
+        let expr: Expr = MethodCall::new(
+            obj,
+            savltree::INSERT_METHOD.clone(),
+            vec![duplicate_entries.into(), proof.into()],
+        )
+        .unwrap()
+        .into();
+        assert!(try_eval_out_with_version::<Value<'_>>(&expr, &force_any_val(), 0, 3).is_err());
+        assert_eq!(
+            try_eval_out_with_version::<Value<'_>>(&expr, &force_any_val(), 3, 3).unwrap(),
+            Value::Opt(None)
+        );
     }
     proptest! {
         #[test]
