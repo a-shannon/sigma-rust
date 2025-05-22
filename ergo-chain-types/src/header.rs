@@ -56,6 +56,17 @@ pub struct Header {
     /// 3 bytes in accordance to Scala implementation, but will use `Vec` until further improvements
     #[cfg_attr(feature = "json", serde(rename = "votes"))]
     pub votes: Votes,
+    /// Unparsed bytes that encode new possible fields
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "unparsedBytes",
+            default,
+            serialize_with = "crate::json::autolykos_solution::as_base16_string",
+            deserialize_with = "crate::json::autolykos_solution::from_base16_string"
+        )
+    )]
+    pub unparsed_bytes: Box<[u8]>,
 }
 
 impl Header {
@@ -82,7 +93,8 @@ impl Header {
         // For block version >= 2, this new byte encodes length of possible new fields.
         // Set to 0 for now, so no new fields.
         if self.version > 1 {
-            w.put_i8(0)?;
+            w.put_u8(self.unparsed_bytes.len().try_into()?)?;
+            w.write_all(&self.unparsed_bytes)?;
         }
         Ok(data)
     }
@@ -127,13 +139,18 @@ impl ScorexSerializable for Header {
 
         // For block version >= 2, a new byte encodes length of possible new fields.  If this byte >
         // 0, we read new fields but do nothing, as semantics of the fields is not known.
-        if version > 1 {
+        let unparsed_bytes: Box<[u8]> = if version > 1 {
             let new_field_size = r.get_u8()?;
             if new_field_size > 0 {
                 let mut field_bytes: Vec<u8> = vec![0; new_field_size as usize];
                 r.read_exact(&mut field_bytes)?;
+                field_bytes.into()
+            } else {
+                Box::new([])
             }
-        }
+        } else {
+            Box::new([])
+        };
 
         // Parse `AutolykosSolution`
         let autolykos_solution = if version == 1 {
@@ -182,6 +199,7 @@ impl ScorexSerializable for Header {
             extension_root,
             autolykos_solution: autolykos_solution.clone(),
             votes,
+            unparsed_bytes,
         };
 
         let mut id_bytes = header.serialize_without_pow()?;
@@ -296,6 +314,7 @@ mod arbitrary {
                 prop::sample::select(vec![1_u8, 2]),
                 any::<Box<AutolykosSolution>>(),
                 uniform3(1u8..),
+                proptest::collection::vec(any::<u8>(), 0..=255),
             )
                 .prop_map(
                     |(
@@ -309,6 +328,7 @@ mod arbitrary {
                         version,
                         autolykos_solution,
                         votes,
+                        unparsed_bytes,
                     )| {
                         let parent_id = BlockId(Digest(parent_id));
                         let ad_proofs_root = Digest(ad_proofs_root);
@@ -332,6 +352,11 @@ mod arbitrary {
                             extension_root,
                             autolykos_solution: *autolykos_solution.clone(),
                             votes,
+                            unparsed_bytes: if version > 1 {
+                                unparsed_bytes.into()
+                            } else {
+                                Box::new([])
+                            },
                         };
                         let mut id_bytes = header.serialize_without_pow().unwrap();
                         let mut data = Vec::new();

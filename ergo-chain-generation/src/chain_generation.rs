@@ -191,6 +191,7 @@ fn prove_block(
         extension_root,
         autolykos_solution: dummy_autolykos_solution,
         votes,
+        unparsed_bytes: Box::new([]),
     };
     let msg = blake2b256_hash(&header.serialize_without_pow().unwrap())
         .0

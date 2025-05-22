@@ -141,6 +141,7 @@ mod tests {
             extension_root,
             autolykos_solution: dummy_autolykos_solution,
             votes,
+            unparsed_bytes: Box::new([]),
         };
 
         let x = DlogProverInput::random();

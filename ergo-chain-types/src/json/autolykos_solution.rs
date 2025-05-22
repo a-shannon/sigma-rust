@@ -16,13 +16,14 @@ where
     serializer.serialize_str(&base16::encode_lower(value))
 }
 
-pub(crate) fn from_base16_string<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+pub(crate) fn from_base16_string<'de, D, T: From<Vec<u8>>>(deserializer: D) -> Result<T, D::Error>
 where
     D: Deserializer<'de>,
 {
     use serde::de::Error;
     String::deserialize(deserializer)
         .and_then(|string| base16::decode(&string).map_err(|err| Error::custom(err.to_string())))
+        .map(From::from)
 }
 
 /// Serialize `BigInt` as a string
