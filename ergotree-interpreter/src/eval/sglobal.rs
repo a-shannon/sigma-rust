@@ -223,7 +223,7 @@ pub(crate) static SGLOBAL_NONE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 mod tests {
-    use ergo_chain_types::EcPoint;
+    use ergo_chain_types::{EcPoint, Header};
     use ergotree_ir::bigint256::BigInt256;
     use ergotree_ir::ergo_tree::ErgoTreeVersion;
     use ergotree_ir::mir::constant::Constant;
@@ -580,6 +580,10 @@ mod tests {
         #[test]
         fn serialize_unsigned_bigint(v in any::<UnsignedBigInt>()) {
             assert_eq!(deserialize(&serialize(v), SType::SUnsignedBigInt), Constant::from(v));
+        }
+        #[test]
+        fn serialize_header(h in any::<Header>()) {
+            assert_eq!(deserialize(&serialize(h.clone()), SType::SHeader), Constant::from(h));
         }
     }
 }

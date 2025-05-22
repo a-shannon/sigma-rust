@@ -31,6 +31,7 @@ use ergo_chain_types::ADDigest;
 use ergo_chain_types::Base16DecodedBytes;
 use ergo_chain_types::Digest32;
 use ergo_chain_types::EcPoint;
+use ergo_chain_types::Header;
 use impl_trait_for_tuples::impl_for_tuples;
 use sigma_util::AsVecI8;
 use sigma_util::AsVecU8;
@@ -83,6 +84,8 @@ pub enum Literal {
     GroupElement(Arc<EcPoint>),
     /// AVL tree
     AvlTree(Box<AvlTreeData>),
+    /// Block Header type
+    Header(Box<Header>),
     /// Ergo box
     CBox(Ref<'static, ErgoBox>),
     /// Collection
@@ -165,6 +168,7 @@ impl core::fmt::Debug for Literal {
             Literal::GroupElement(v) => v.fmt(f),
             Literal::UnsignedBigInt(v) => v.fmt(f),
             Literal::AvlTree(v) => v.fmt(f),
+            Literal::Header(v) => v.fmt(f),
             Literal::CBox(v) => v.fmt(f),
             Literal::String(v) => v.fmt(f),
         }
@@ -224,6 +228,7 @@ impl core::fmt::Display for Literal {
             Literal::UnsignedBigInt(v) => v.fmt(f),
             Literal::GroupElement(v) => v.fmt(f),
             Literal::AvlTree(v) => write!(f, "AvlTree({:?})", v),
+            Literal::Header(v) => write!(f, "Header({:?})", v),
             Literal::CBox(v) => write!(f, "ErgoBox({:?})", v),
             Literal::String(v) => write!(f, "String({v})"),
         }
@@ -422,9 +427,9 @@ impl<'ctx> TryFrom<Value<'ctx>> for Constant {
                 }
             }
             Value::AvlTree(a) => Ok(Constant::from(*a)),
+            Value::Header(h) => Ok(Constant::from(*h)),
             Value::String(s) => Ok(Constant::from(s)),
             Value::Context => Err("Cannot convert Value::Context into Constant".into()),
-            Value::Header(_) => Err("Cannot convert Value::Header(_) into Constant".into()),
             Value::PreHeader(_) => Err("Cannot convert Value::PreHeader(_) into Constant".into()),
             Value::Global => Err("Cannot convert Value::Global into Constant".into()),
             Value::Lambda(_) => Err("Cannot convert Value::Lambda(_) into Constant".into()),
@@ -639,6 +644,15 @@ impl From<AvlTreeData> for Constant {
         Constant {
             tpe: SType::SAvlTree,
             v: Literal::AvlTree(Box::new(a)),
+        }
+    }
+}
+
+impl From<Header> for Constant {
+    fn from(h: Header) -> Self {
+        Constant {
+            tpe: SType::SHeader,
+            v: Literal::Header(h.into()),
         }
     }
 }
@@ -1209,6 +1223,8 @@ pub(crate) mod arbitrary {
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::panic)]
 mod tests {
+    use crate::{ergo_tree::ErgoTreeVersion, serialization::roundtrip_new_feature};
+
     use super::*;
     use core::fmt;
     use proptest::prelude::*;
@@ -1422,6 +1438,11 @@ mod tests {
         #[test]
         fn string_roundtrip(v in any::<String>()) {
             test_constant_roundtrip(v);
+        }
+
+        #[test]
+        fn header_ser_roundtrip(h in any::<Header>()) {
+            roundtrip_new_feature(&Constant::from(h), ErgoTreeVersion::V3);
         }
 
     }

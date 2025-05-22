@@ -1,4 +1,6 @@
 use alloc::boxed::Box;
+use ergo_chain_types::Header;
+use sigma_ser::ScorexSerializable;
 
 use alloc::string::String;
 use alloc::string::ToString;
@@ -93,11 +95,19 @@ impl DataSerializer {
             Literal::Tup(items) => items
                 .iter()
                 .try_for_each(|i| DataSerializer::sigma_serialize(i, w))?,
+            Literal::Header(h) if w.tree_version() >= ErgoTreeVersion::V3 => {
+                h.scorex_serialize(w)?;
+            }
             // unsupported, see
             // https://github.com/ScorexFoundation/sigmastate-interpreter/issues/659
             Literal::Opt(_) => {
                 return Err(SigmaSerializationError::NotSupported(
                     "Option serialization is not supported".to_string(),
+                ));
+            }
+            Literal::Header(_) => {
+                return Err(SigmaSerializationError::NotSupported(
+                    "Header serialization is not supported".to_string(),
                 ));
             }
         })
@@ -174,6 +184,9 @@ impl DataSerializer {
             }
             SBox => Literal::CBox(Arc::new(ErgoBox::sigma_parse(r)?).into()),
             SAvlTree => Literal::AvlTree(Box::new(AvlTreeData::sigma_parse(r)?)),
+            SHeader if r.tree_version() >= ErgoTreeVersion::V3 => {
+                Literal::Header(Box::new(Header::scorex_parse(r)?))
+            }
             STypeVar(_) => return Err(SigmaParsingError::NotSupported("TypeVar data")),
             SAny => return Err(SigmaParsingError::NotSupported("SAny data")),
             SOption(_) => return Err(SigmaParsingError::NotSupported("SOption data")),

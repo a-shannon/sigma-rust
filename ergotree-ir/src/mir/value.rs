@@ -386,6 +386,7 @@ impl From<Literal> for Value<'static> {
                 Value::Coll(converted_coll)
             }
             Literal::AvlTree(a) => Value::AvlTree(a),
+            Literal::Header(h) => Value::Header(h),
             Literal::Opt(lit) => Value::Opt(lit.map(|boxed| *boxed).map(Value::from).map(Box::new)),
             Literal::Tup(t) => Value::Tup(t.mapped(Value::from)),
         }
