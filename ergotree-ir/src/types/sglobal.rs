@@ -28,6 +28,10 @@ pub const SERIALIZE_METHOD_ID: MethodId = MethodId(3);
 pub const DESERIALIZE_METHOD_ID: MethodId = MethodId(4);
 /// "fromBigEndianBytes" predefined function
 pub const FROM_BIGENDIAN_BYTES_METHOD_ID: MethodId = MethodId(5);
+/// encodeNBits method id (v6.0)
+pub const ENCODE_NBITS_METHOD_ID: MethodId = MethodId(6);
+/// decodeNBits method id (v6.0)
+pub const DECODE_NBITS_METHOD_ID: MethodId = MethodId(7);
 /// "some" property
 pub const SOME_METHOD_ID: MethodId = MethodId(9);
 /// "none" property
@@ -36,7 +40,7 @@ pub const NONE_METHOD_ID: MethodId = MethodId(10);
 lazy_static! {
     /// Global method descriptors
     pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
-        vec![GROUP_GENERATOR_METHOD_DESC.clone(), XOR_METHOD_DESC.clone(), SERIALIZE_METHOD_DESC.clone(), DESERIALIZE_METHOD_DESC.clone(), FROM_BIGENDIAN_BYTES_METHOD_DESC.clone(), NONE_METHOD_DESC.clone(), SOME_METHOD_DESC.clone()];
+        vec![GROUP_GENERATOR_METHOD_DESC.clone(), XOR_METHOD_DESC.clone(), SERIALIZE_METHOD_DESC.clone(), DESERIALIZE_METHOD_DESC.clone(), FROM_BIGENDIAN_BYTES_METHOD_DESC.clone(), ENCODE_NBITS_METHOD_DESC.clone(), DECODE_NBITS_METHOD_DESC.clone(), NONE_METHOD_DESC.clone(), SOME_METHOD_DESC.clone()];
 }
 
 lazy_static! {
@@ -91,6 +95,40 @@ lazy_static! {
     };
     /// GLOBAL.fromBigEndianBytes
     pub static ref FROM_BIGENDIAN_BYTES_METHOD: SMethod = SMethod::new(STypeCompanion::Global, FROM_BIGENDIAN_BYTES_METHOD_DESC.clone(),);
+
+    static ref ENCODE_NBITS_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: ENCODE_NBITS_METHOD_ID,
+        name: "encodeNBits",
+        tpe: SFunc {
+            t_dom: vec![
+                SType::SGlobal,
+                SType::SBigInt,
+            ],
+            t_range: SType::SLong.into(),
+            tpe_params: vec![],
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    /// GLOBAL.encodeNBits
+    pub static ref ENCODE_NBITS_METHOD: SMethod = SMethod::new(STypeCompanion::Global, ENCODE_NBITS_METHOD_DESC.clone());
+
+    static ref DECODE_NBITS_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: DECODE_NBITS_METHOD_ID,
+        name: "decodeNBits",
+        tpe: SFunc {
+            t_dom: vec![
+                SType::SGlobal,
+                SType::SLong
+            ],
+            t_range: SType::SBigInt.into(),
+            tpe_params: vec![],
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    /// GLOBAL.decodeNBits
+    pub static ref DECODE_NBITS_METHOD: SMethod = SMethod::new(STypeCompanion::Global, DECODE_NBITS_METHOD_DESC.clone());
 
     static ref DESERIALIZE_METHOD_DESC: SMethodDesc = SMethodDesc {
         method_id: DESERIALIZE_METHOD_ID,
@@ -166,13 +204,14 @@ mod test {
     use proptest::prelude::*;
 
     use crate::{
+        bigint256::BigInt256,
         ergo_tree::ErgoTreeVersion,
         mir::{expr::Expr, method_call::MethodCall},
         serialization::roundtrip_new_feature,
         types::{stype::SType, stype_param::STypeVar},
     };
 
-    use super::DESERIALIZE_METHOD;
+    use super::{DECODE_NBITS_METHOD, DESERIALIZE_METHOD, ENCODE_NBITS_METHOD};
     proptest! {
        #[test]
        fn test_deserialize_method_roundtrip(v in any::<SType>()) {
@@ -185,5 +224,23 @@ mod test {
            ).unwrap();
            roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
        }
+    }
+
+    #[test]
+    fn encode_nbits_method_roundtrip() {
+        let mc = MethodCall::new(
+            Expr::Global,
+            ENCODE_NBITS_METHOD.clone(),
+            vec![BigInt256::from(1i64).into()],
+        )
+        .unwrap();
+        roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
+    }
+
+    #[test]
+    fn decode_nbits_method_roundtrip() {
+        let mc =
+            MethodCall::new(Expr::Global, DECODE_NBITS_METHOD.clone(), vec![1i64.into()]).unwrap();
+        roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
     }
 }

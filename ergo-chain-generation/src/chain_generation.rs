@@ -135,7 +135,7 @@ fn prove_block(
     extension_candidate: ExtensionCandidate,
 ) -> Option<ErgoFullBlock> {
     // Corresponds to initial difficulty of 1, in line with the ergo test suite.
-    let n_bits = 16842752_u64;
+    let n_bits = 16842752_u32;
     let state_root = ADDigest::zero();
     let votes = Votes([0, 0, 0]);
 

@@ -54,32 +54,66 @@ use crate::Header;
 /// Bitcoin only uses this "compact" format for encoding difficulty targets, which are unsigned
 /// 256bit quantities.  Thus, all the complexities of the sign bit and using base 256 are probably
 /// an implementation accident.
-pub fn decode_compact_bits(n_bits: u64) -> BigInt {
+pub fn decode_compact_bits(n_bits: u32) -> BigInt {
     let compact = n_bits as i64;
     let size = ((compact >> 24) as i32) & 0xFF;
     if size == 0 {
         return BigInt::from(0);
     }
-    let mut buf: Vec<i8> = vec![0; size as usize];
+    let mut buf: Vec<u8> = vec![0; size as usize];
     if size >= 1 {
         // Store the first byte of the mantissa
-        buf[0] = (((compact >> 16) as i32) & 0xFF) as i8;
+        buf[0] = (compact >> 16 & 0xFF) as u8;
     }
     if size >= 2 {
-        buf[1] = (((compact >> 8) as i32) & 0xFF) as i8;
+        buf[1] = (compact >> 8 & 0xFF) as u8;
     }
     if size >= 3 {
-        buf[2] = ((compact as i32) & 0xFF) as i8;
+        buf[2] = (compact & 0xFF) as u8;
     }
 
-    let is_negative = (buf[0] as i32) & 0x80 == 0x80;
+    let is_negative = buf[0] & 0x80 == 0x80;
     if is_negative {
         buf[0] &= 0x7f;
-        let buf: Vec<_> = buf.into_iter().map(|x| x as u8).collect();
         -BigInt::from_signed_bytes_be(&buf)
     } else {
-        let buf: Vec<_> = buf.into_iter().map(|x| x as u8).collect();
         BigInt::from_signed_bytes_be(&buf)
+    }
+}
+
+/// Encode BigInt in 32-bit compact format. See: `decode_compact_bits` for more information
+pub fn encode_compact_bits(bigint: &BigInt) -> i64 {
+    // truncate input to a 64-bit signed value, equivalent to Scala's BigInt.longValue method
+    // this is used to replicate reference implementation's quirks when handling negative numbers
+    fn truncate(input: &BigInt) -> i64 {
+        let mut bytes = input.to_signed_bytes_le();
+        for _ in 0..size_of::<i64>().saturating_sub(bytes.len()) {
+            if input.sign() == Sign::Minus {
+                bytes.push(0xff); // sign extension
+            } else {
+                bytes.push(0x0);
+            }
+        }
+        #[allow(clippy::unwrap_used)] // size of bytes is guaranteed to be == 8 (size_of::<i64>())
+        i64::from_le_bytes(bytes[0..size_of::<i64>()].try_into().unwrap())
+    }
+    let bytes = bigint.to_signed_bytes_be();
+    let mut size = bytes.len() as i64;
+    let mut result = if size < 3 {
+        truncate(bigint) << (8 * (3 - size))
+    } else {
+        truncate(&(bigint >> (8 * (size - 3))))
+    };
+    // top-most bit of mantissa is used to indicate sign, if it's set then shift result and increase exponent
+    if result & 0x00800000 != 0 {
+        result >>= 8;
+        size += 1;
+    }
+    result |= size << 24;
+    if bigint.sign() == Sign::Minus {
+        result | 0x00800000
+    } else {
+        result
     }
 }
 
@@ -438,5 +472,60 @@ mod tests {
 
         let n_bits = 16842752;
         assert_eq!(decode_compact_bits(n_bits), BigInt::from(1_u8));
+    }
+    #[test]
+    fn test_encode_compact_bits() {
+        assert_eq!(
+            encode_compact_bits(
+                &BigInt::from_str_radix("1bc330000000000000000000000000000000000000000000", 16)
+                    .unwrap()
+            ),
+            0x181bc330
+        );
+        assert_eq!(
+            encode_compact_bits(&BigInt::from_str_radix("12345600", 16).unwrap()),
+            0x04123456
+        );
+        //  The bitcoin test suite has an output value of 0x04923456 for this.
+        // But to match the reference Scala impl we handle negative numbers differently and produce a negative nBits value
+        assert_eq!(
+            encode_compact_bits(&BigInt::from_str_radix("-12345600", 16).unwrap()),
+            -0x1235
+        );
+    }
+    #[cfg(feature = "arbitrary")]
+    mod proptests {
+        use num_bigint::{BigInt, Sign};
+        use num_traits::Zero;
+        use proptest::prelude::*;
+
+        use crate::autolykos_pow_scheme::{decode_compact_bits, encode_compact_bits};
+        // check if two bigints have their most significant 3 bytes equal, and have the same exponent
+        fn approx_equal(a: &BigInt, b: &BigInt) -> bool {
+            if a == b {
+                return true;
+            } else if a.is_zero() || b.is_zero() {
+                return false;
+            }
+            let (exp_a, mantissa_a) = a.iter_u32_digits().enumerate().last().unwrap();
+            let (exp_b, mantissa_b) = a.iter_u32_digits().enumerate().last().unwrap();
+            mantissa_a == mantissa_b && exp_a == exp_b && a.sign() == b.sign()
+        }
+
+        fn bigint_strategy() -> impl Strategy<Value = BigInt> {
+            (any::<bool>(), proptest::collection::vec(any::<u8>(), 0..64)).prop_map(
+                |(negative, bytes)| {
+                    BigInt::from_bytes_be(if negative { Sign::Minus } else { Sign::Plus }, &bytes)
+                },
+            )
+        }
+
+        proptest! {
+            #[test]
+            fn nbits_roundtrip(a in bigint_strategy()) {
+                let roundtripped = decode_compact_bits(encode_compact_bits(&a) as u32);
+                assert!(approx_equal(&roundtripped, &a))
+            }
+        }
     }
 }

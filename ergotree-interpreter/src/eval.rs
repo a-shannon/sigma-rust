@@ -362,6 +362,8 @@ fn smethod_eval_fn(method: &SMethod) -> Result<EvalFn, EvalError> {
             sglobal::SERIALIZE_METHOD_ID => self::sglobal::SERIALIZE_EVAL_FN,
             sglobal::SOME_METHOD_ID => self::sglobal::SGLOBAL_SOME_EVAL_FN,
             sglobal::NONE_METHOD_ID => self::sglobal::SGLOBAL_NONE_EVAL_FN,
+            sglobal::ENCODE_NBITS_METHOD_ID => self::sglobal::ENCODE_NBITS_EVAL_FN,
+            sglobal::DECODE_NBITS_METHOD_ID => self::sglobal::DECODE_NBITS_EVAL_FN,
             method_id => {
                 return Err(EvalError::NotFound(format!(
                     "Eval fn: method {:?} with method id {:?} not found in SGlobal",

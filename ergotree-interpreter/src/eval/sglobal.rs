@@ -2,6 +2,7 @@ use crate::eval::EvalError;
 use alloc::boxed::Box;
 use alloc::{string::ToString, sync::Arc};
 
+use ergo_chain_types::autolykos_pow_scheme::{decode_compact_bits, encode_compact_bits};
 use ergotree_ir::serialization::sigma_byte_writer::SigmaByteWrite;
 use ergotree_ir::{
     mir::{
@@ -14,6 +15,7 @@ use ergotree_ir::{
         sigma_byte_writer::SigmaByteWriter,
     },
 };
+use num_bigint::BigInt;
 
 use super::EvalFn;
 use crate::eval::Vec;
@@ -219,6 +221,31 @@ pub(crate) static SGLOBAL_NONE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
     Ok(Value::Opt(None))
 };
 
+pub(crate) static ENCODE_NBITS_EVAL_FN: EvalFn = |_mc, _env, _ctx, _obj, args| {
+    let bigint: BigInt = args
+        .first()
+        .cloned()
+        .ok_or_else(|| EvalError::NotFound("encodeNBits: missing first argument".into()))?
+        .try_extract_into::<BigInt256>()?
+        .into();
+    Ok(Value::Long(encode_compact_bits(&bigint)))
+};
+
+pub(crate) static DECODE_NBITS_EVAL_FN: EvalFn = |_mc, _env, _ctx, _obj, args| {
+    let nbits: i64 = args
+        .first()
+        .cloned()
+        .ok_or_else(|| EvalError::NotFound("decodeNBits: missing first argument".into()))?
+        .try_extract_into()?;
+    // truncation is safe here, since only bottom 4 bytes are used in decode.
+    // nbits is only i64 because Scala doesn't have an unsigned 32-bit type
+    Ok(Value::BigInt(
+        decode_compact_bits(nbits as u32)
+            .try_into()
+            .map_err(EvalError::UnexpectedValue)?,
+    ))
+};
+
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
@@ -238,11 +265,14 @@ mod tests {
     use ergotree_ir::types::sgroup_elem::GET_ENCODED_METHOD;
     use ergotree_ir::types::stype_param::STypeVar;
     use ergotree_ir::unsignedbigint256::UnsignedBigInt;
+    use num_traits::Num;
     use proptest::proptest;
 
     use crate::eval::tests::{eval_out, eval_out_wo_ctx, try_eval_out_with_version};
     use ergotree_ir::chain::context::Context;
-    use ergotree_ir::types::sglobal::{self, DESERIALIZE_METHOD, SERIALIZE_METHOD};
+    use ergotree_ir::types::sglobal::{
+        self, DECODE_NBITS_METHOD, DESERIALIZE_METHOD, ENCODE_NBITS_METHOD, SERIALIZE_METHOD,
+    };
     use ergotree_ir::types::stype::SType;
     use sigma_test_util::force_any_val;
 
@@ -289,6 +319,28 @@ mod tests {
         .unwrap()
         .try_into()
         .unwrap()
+    }
+
+    fn encode_nbits(bigint: BigInt256) -> i64 {
+        let mc: Expr = MethodCall::new(
+            Expr::Global,
+            ENCODE_NBITS_METHOD.clone(),
+            vec![bigint.into()],
+        )
+        .unwrap()
+        .into();
+        eval_out_wo_ctx(&mc)
+    }
+
+    fn decode_nbits(nbits: i64) -> BigInt256 {
+        let mc: Expr = MethodCall::new(
+            Expr::Global,
+            DECODE_NBITS_METHOD.clone(),
+            vec![nbits.into()],
+        )
+        .unwrap()
+        .into();
+        eval_out_wo_ctx(&mc)
     }
 
     fn create_some_none_method_call<T>(value: Option<T>, tpe: SType) -> Expr
@@ -345,6 +397,55 @@ mod tests {
             eval_out::<Vec<i8>>(&expr, &ctx).as_slice(),
             expected_xor.as_slice()
         );
+    }
+
+    #[test]
+    fn test_eval_encode_nbits() {
+        assert_eq!(
+            encode_nbits(
+                BigInt256::from_str_radix("1bc330000000000000000000000000000000000000000000", 16)
+                    .unwrap()
+            ),
+            0x181bc330
+        );
+
+        assert_eq!(
+            encode_nbits(BigInt256::from_str_radix("12345600", 16).unwrap()),
+            0x04123456
+        );
+        assert_eq!(
+            encode_nbits(BigInt256::from_str_radix("-12345600", 16).unwrap()),
+            -0x1235
+        );
+    }
+
+    #[test]
+    fn test_eval_decode_nbits() {
+        // Following example taken from https://btcinformation.org/en/developer-reference#target-nbits
+        let n_bits = 0x181bc330;
+        assert_eq!(
+            decode_nbits(n_bits),
+            BigInt256::from_str_radix("1bc330000000000000000000000000000000000000000000", 16)
+                .unwrap()
+        );
+
+        let n_bits = 0x01003456;
+        assert_eq!(decode_nbits(n_bits), 0x00.into());
+
+        let n_bits = 0x01123456;
+        assert_eq!(decode_nbits(n_bits), 0x12.into());
+
+        let n_bits = 0x04923456;
+        assert_eq!(decode_nbits(n_bits), (-0x12345600i64).into());
+
+        let n_bits = 0x04123456;
+        assert_eq!(decode_nbits(n_bits), 0x12345600.into());
+
+        let n_bits = 0x05123456;
+        assert_eq!(decode_nbits(n_bits), 0x1234560000i64.into());
+
+        let n_bits = 16842752;
+        assert_eq!(decode_nbits(n_bits), BigInt256::from(1_i8));
     }
 
     use proptest::prelude::*;
