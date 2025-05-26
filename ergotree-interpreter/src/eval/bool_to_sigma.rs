@@ -25,7 +25,7 @@ impl Evaluable for BoolToSigmaProp {
 #[allow(clippy::panic)]
 mod tests {
     use super::*;
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
     use ergotree_ir::mir::expr::Expr;
     use proptest::prelude::*;
 

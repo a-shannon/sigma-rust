@@ -32,7 +32,7 @@ impl Evaluable for OptionGetOrElse {
 #[cfg(test)]
 mod tests {
     use super::OptionGetOrElse;
-    use crate::eval::tests::{eval_out, try_eval_out_with_version};
+    use crate::eval::test_util::{eval_out, try_eval_out_with_version};
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::ergo_tree::ErgoTreeVersion;
     use ergotree_ir::mir::bin_op::{ArithOp, BinOp, BinOpKind};

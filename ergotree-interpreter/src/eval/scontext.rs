@@ -124,7 +124,7 @@ pub(crate) static GET_VAR_FROM_INPUT_EVAL_FN: EvalFn = |mc, _env, ctx, _obj, arg
 #[cfg(feature = "arbitrary")]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use crate::eval::tests::eval_out;
+    use crate::eval::test_util::eval_out;
     use ergo_chain_types::{Header, PreHeader};
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::chain::ergo_box::ErgoBox;

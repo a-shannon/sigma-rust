@@ -40,7 +40,7 @@ mod tests {
     use alloc::boxed::Box;
 
     use super::*;
-    use crate::eval::tests::try_eval_out_wo_ctx;
+    use crate::eval::test_util::try_eval_out_wo_ctx;
 
     fn eval_node(val: Vec<i8>) -> Result<i64, EvalError> {
         let expr = ByteArrayToLong {

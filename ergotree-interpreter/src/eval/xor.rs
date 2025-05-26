@@ -44,7 +44,7 @@ impl Evaluable for Xor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::tests::{eval_out, eval_out_wo_ctx};
+    use crate::eval::test_util::{eval_out, eval_out_wo_ctx};
     use alloc::boxed::Box;
     use alloc::vec::Vec;
     use ergotree_ir::chain::context::Context;

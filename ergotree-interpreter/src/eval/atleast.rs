@@ -63,7 +63,7 @@ impl Evaluable for Atleast {
 mod tests {
     use alloc::sync::Arc;
 
-    use crate::eval::tests::try_eval_out_wo_ctx;
+    use crate::eval::test_util::try_eval_out_wo_ctx;
     use ergotree_ir::mir::constant::Constant;
     use ergotree_ir::mir::constant::Literal;
     use ergotree_ir::mir::value::CollKind;
@@ -71,7 +71,7 @@ mod tests {
     use ergotree_ir::sigma_protocol::sigma_boolean::SigmaConjecture;
     use ergotree_ir::types::stype::SType;
 
-    use crate::eval::tests::eval_out;
+    use crate::eval::test_util::eval_out;
     use ergotree_ir::chain::context::Context;
 
     use super::*;

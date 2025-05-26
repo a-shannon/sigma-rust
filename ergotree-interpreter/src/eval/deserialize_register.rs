@@ -17,8 +17,8 @@ mod tests {
     use ergotree_ir::types::stype::SType;
     use sigma_test_util::force_any_val;
 
-    use crate::eval::tests::try_eval_out;
-    use crate::eval::tests::try_eval_with_deserialize;
+    use crate::eval::test_util::try_eval_out;
+    use crate::eval::test_util::try_eval_with_deserialize;
     use crate::eval::EvalError;
     use ergotree_ir::chain::context::Context;
 

@@ -25,7 +25,7 @@ impl Evaluable for If {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
     use alloc::boxed::Box;
     use ergotree_ir::mir::bin_op::ArithOp;
     use ergotree_ir::mir::bin_op::BinOp;

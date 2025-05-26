@@ -106,7 +106,7 @@ mod tests {
     };
     use proptest::prelude::*;
 
-    use crate::eval::tests::try_eval_out_wo_ctx;
+    use crate::eval::test_util::try_eval_out_wo_ctx;
 
     use super::*;
     proptest! {

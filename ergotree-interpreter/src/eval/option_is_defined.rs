@@ -28,7 +28,7 @@ impl Evaluable for OptionIsDefined {
 #[cfg(feature = "arbitrary")]
 mod tests {
     use super::OptionIsDefined;
-    use crate::eval::tests::eval_out;
+    use crate::eval::test_util::eval_out;
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::mir::expr::Expr;
     use ergotree_ir::mir::extract_reg_as::ExtractRegisterAs;

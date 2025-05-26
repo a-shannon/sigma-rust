@@ -71,7 +71,7 @@ impl Evaluable for Exists {
 #[cfg(test)]
 mod tests {
 
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
 
     use super::*;
 

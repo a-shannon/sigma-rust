@@ -46,7 +46,7 @@ mod tests {
     use ergotree_ir::types::stype::SType;
 
     use super::*;
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
 
     #[test]
     fn slice() {

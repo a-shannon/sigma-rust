@@ -14,7 +14,7 @@ mod tests {
     use sigma_test_util::force_any_val;
 
     use crate::eval::reduce_to_crypto;
-    use crate::eval::tests::try_eval_with_deserialize;
+    use crate::eval::test_util::try_eval_with_deserialize;
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::chain::context_extension::ContextExtension;
 

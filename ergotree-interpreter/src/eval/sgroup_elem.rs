@@ -78,8 +78,8 @@ mod tests {
     use proptest::prelude::*;
     use proptest::proptest;
 
-    use crate::eval::tests::eval_out_wo_ctx;
-    use crate::eval::tests::try_eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
+    use crate::eval::test_util::try_eval_out_wo_ctx;
     use crate::sigma_protocol::private_input::DlogProverInput;
     use ergo_chain_types::EcPoint;
     use ergotree_ir::serialization::SigmaSerializable;

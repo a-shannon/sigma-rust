@@ -38,7 +38,7 @@ impl Evaluable for ByteArrayToBigInt {
 mod tests {
 
     use super::*;
-    use crate::eval::tests::try_eval_out_wo_ctx;
+    use crate::eval::test_util::try_eval_out_wo_ctx;
     use alloc::boxed::Box;
     use num_bigint::{BigInt, Sign, ToBigInt};
     use num_traits::{Bounded, Num, Pow};

@@ -27,7 +27,7 @@ impl Evaluable for ExtractCreationInfo {
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 mod tests {
-    use crate::eval::tests::eval_out;
+    use crate::eval::test_util::eval_out;
     use crate::eval::Context;
 
     use ergotree_ir::mir::expr::Expr;

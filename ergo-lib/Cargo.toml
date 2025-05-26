@@ -77,7 +77,12 @@ sigma-test-util = { workspace = true }
 pretty_assertions = { workspace = true }
 bs58 = { workspace = true }
 expect-test = { workspace = true }
+criterion = { workspace = true }
 
+[[bench]]
+name = "tx_context"
+harness = false
+required-features = ["arbitrary"]
 
 # docs.rs-specific configuration
 [package.metadata.docs.rs]

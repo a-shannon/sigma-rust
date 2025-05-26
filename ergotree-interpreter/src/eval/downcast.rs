@@ -136,7 +136,7 @@ mod tests {
     use ergotree_ir::mir::{constant::Constant, expr::Expr};
     use sigma_test_util::force_any_val;
 
-    use crate::eval::tests::{eval_out_wo_ctx, try_eval_out_with_version, try_eval_out_wo_ctx};
+    use crate::eval::test_util::{eval_out_wo_ctx, try_eval_out_with_version, try_eval_out_wo_ctx};
 
     use super::*;
     use proptest::prelude::*;

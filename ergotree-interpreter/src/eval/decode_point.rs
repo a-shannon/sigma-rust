@@ -32,7 +32,7 @@ impl Evaluable for DecodePoint {
 #[allow(clippy::unwrap_used)]
 #[allow(clippy::panic)]
 mod tests {
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
 
     use super::*;
 

@@ -28,7 +28,7 @@ impl Evaluable for ExtractAmount {
 #[cfg(feature = "arbitrary")]
 mod tests {
     use super::*;
-    use crate::eval::tests::eval_out;
+    use crate::eval::test_util::eval_out;
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::mir::expr::Expr;
     use ergotree_ir::mir::global_vars::GlobalVars;

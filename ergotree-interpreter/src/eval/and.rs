@@ -23,7 +23,7 @@ impl Evaluable for And {
 #[allow(clippy::panic)]
 #[cfg(test)]
 mod tests {
-    use crate::eval::tests::eval_out;
+    use crate::eval::test_util::eval_out;
     use ergotree_ir::chain::context::Context;
 
     use super::*;

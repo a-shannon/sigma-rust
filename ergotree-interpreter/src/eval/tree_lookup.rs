@@ -71,7 +71,7 @@ fn map_eval_err<T: core::fmt::Debug>(e: T) -> EvalError {
 mod tests {
 
     use super::*;
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
 
     use ergo_avltree_rust::authenticated_tree_ops::AuthenticatedTreeOps;
     use ergo_avltree_rust::batch_avl_prover::BatchAVLProver;

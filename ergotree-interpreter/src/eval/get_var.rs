@@ -25,9 +25,9 @@ impl Evaluable for GetVar {
 #[cfg(feature = "arbitrary")]
 pub mod tests {
     use super::*;
-    use crate::eval::tests::{eval_out, try_eval_out};
-
+    use crate::eval::test_util::{eval_out, try_eval_out};
     use ergotree_ir::chain::context::arbitrary::DummyContextExtensionProvider;
+    use ergotree_ir::chain::context::Context;
     use ergotree_ir::chain::context_extension::ContextExtension;
     use ergotree_ir::mir::expr::Expr;
     use ergotree_ir::types::stype::SType;

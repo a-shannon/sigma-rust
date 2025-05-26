@@ -29,7 +29,7 @@ mod tests {
     use alloc::{boxed::Box, vec::Vec};
 
     use super::*;
-    use crate::eval::tests::eval_out_wo_ctx;
+    use crate::eval::test_util::eval_out_wo_ctx;
 
     fn eval_node(val: i64) -> Vec<i8> {
         let expr = LongToByteArray {

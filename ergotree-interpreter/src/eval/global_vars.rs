@@ -37,7 +37,7 @@ impl Evaluable for GlobalVars {
 #[cfg(feature = "arbitrary")]
 mod tests {
 
-    use crate::eval::tests::eval_out;
+    use crate::eval::test_util::eval_out;
     use ergo_chain_types::EcPoint;
     use ergoscript_compiler::compiler::compile_expr;
     use ergoscript_compiler::script_env::ScriptEnv;
