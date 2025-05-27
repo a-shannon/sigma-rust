@@ -3,6 +3,7 @@ use alloc::string::ToString;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::convert::TryFrom;
+use ergotree_ir::ergo_tree::ErgoTreeVersion;
 
 use bytes::Bytes;
 use ergo_avltree_rust::authenticated_tree_ops::AuthenticatedTreeOps;
@@ -201,11 +202,11 @@ pub(crate) static GET_MANY_EVAL_FN: EvalFn =
     };
 
 pub(crate) static INSERT_EVAL_FN: EvalFn =
-    |_mc, _env, _ctx, obj, args| {
+    |_mc, _env, ctx, obj, args| {
         let mut avl_tree_data = obj.try_extract_into::<AvlTreeData>()?;
 
         if !avl_tree_data.tree_flags.insert_allowed() {
-            return Err(EvalError::AvlTree("Insertions not allowed".into()));
+            return Ok(Value::Opt(None));
         }
 
         let entries = {
@@ -246,21 +247,23 @@ pub(crate) static INSERT_EVAL_FN: EvalFn =
                 }))
                 .is_err()
             {
-                return Err(EvalError::AvlTree(format!(
-                    "Incorrect insert for {:?}",
-                    avl_tree_data
-                )));
+                if ctx.tree_version() >= ErgoTreeVersion::V3 {
+                    break;
+                } else {
+                    return Err(EvalError::AvlTree(format!(
+                        "Incorrect insert for {:?}",
+                        avl_tree_data
+                    )));
+                }
             }
         }
-        if let Some(new_digest) = bv.digest() {
+        Ok(if let Some(new_digest) = bv.digest() {
             let digest = ADDigest::scorex_parse_bytes(&new_digest)?;
             avl_tree_data.digest = digest;
-            Ok(Value::Opt(Some(Box::new(Value::AvlTree(
-                avl_tree_data.into(),
-            )))))
+            Value::Opt(Some(Box::new(Value::AvlTree(avl_tree_data.into()))))
         } else {
-            Err(EvalError::AvlTree("Cannot update digest".into()))
-        }
+            Value::Opt(None)
+        })
     };
 
 pub(crate) static REMOVE_EVAL_FN: EvalFn =
@@ -268,7 +271,7 @@ pub(crate) static REMOVE_EVAL_FN: EvalFn =
         let mut avl_tree_data = obj.try_extract_into::<AvlTreeData>()?;
 
         if !avl_tree_data.tree_flags.remove_allowed() {
-            return Err(EvalError::AvlTree("Removals not allowed".into()));
+            return Ok(Value::Opt(None));
         }
 
         let keys = {
@@ -319,7 +322,7 @@ pub(crate) static REMOVE_EVAL_FN: EvalFn =
                 avl_tree_data.into(),
             )))))
         } else {
-            Err(EvalError::AvlTree("Cannot update digest".into()))
+            Ok(Value::Opt(None))
         }
     };
 
@@ -358,16 +361,13 @@ pub(crate) static CONTAINS_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
     )
     .map_err(map_eval_err)?;
 
-    match bv.perform_one_operation(&Operation::Lookup(key)) {
+    Ok(match bv.perform_one_operation(&Operation::Lookup(key)) {
         Ok(s) => match s {
-            Some(_e) => Ok(Value::Boolean(true)),
-            _ => Ok(Value::Boolean(false)),
+            Some(_e) => Value::Boolean(true),
+            _ => Value::Boolean(false),
         },
-        Err(_) => Err(EvalError::AvlTree(format!(
-            "Incorrect contains call for {:?}",
-            avl_tree_data
-        ))),
-    }
+        Err(_) => Value::Boolean(false),
+    })
 };
 
 pub(crate) static UPDATE_EVAL_FN: EvalFn =
@@ -375,7 +375,7 @@ pub(crate) static UPDATE_EVAL_FN: EvalFn =
         let mut avl_tree_data = obj.try_extract_into::<AvlTreeData>()?;
 
         if !avl_tree_data.tree_flags.update_allowed() {
-            return Err(EvalError::AvlTree("Updates not allowed".into()));
+            return Ok(Value::Opt(None));
         }
 
         let entries = {
@@ -416,22 +416,76 @@ pub(crate) static UPDATE_EVAL_FN: EvalFn =
                 }))
                 .is_err()
             {
-                return Err(EvalError::AvlTree(format!(
-                    "Incorrect update for {:?}",
-                    avl_tree_data
-                )));
+                break;
             }
         }
-        if let Some(new_digest) = bv.digest() {
+        Ok(if let Some(new_digest) = bv.digest() {
             let digest = ADDigest::scorex_parse_bytes(&new_digest)?;
             avl_tree_data.digest = digest;
-            Ok(Value::Opt(Some(Box::new(Value::AvlTree(
-                avl_tree_data.into(),
-            )))))
+            Value::Opt(Some(Value::AvlTree(avl_tree_data.into()).into()))
         } else {
-            Err(EvalError::AvlTree("Cannot update digest".into()))
-        }
+            Value::Opt(None)
+        })
     };
+
+pub(crate) static INSERT_OR_UPDATE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, args| {
+    let mut avl_tree_data = obj.try_extract_into::<AvlTreeData>()?;
+
+    if !avl_tree_data.tree_flags.insert_allowed() || !avl_tree_data.tree_flags.update_allowed() {
+        return Ok(Value::Opt(None));
+    }
+
+    let entries = {
+        let v = args
+            .first()
+            .cloned()
+            .ok_or_else(|| EvalError::AvlTree("eval is missing first arg (entries)".to_string()))?;
+        v.try_extract_into::<Vec<(Vec<u8>, Vec<u8>)>>()?
+    };
+
+    let proof = {
+        let v = args
+            .get(1)
+            .cloned()
+            .ok_or_else(|| EvalError::AvlTree("eval is missing second arg (proof)".to_string()))?;
+        Bytes::from(v.try_extract_into::<Vec<u8>>()?)
+    };
+
+    let starting_digest = Bytes::from(avl_tree_data.digest.0.to_vec());
+    let mut bv = BatchAVLVerifier::new(
+        &starting_digest,
+        &proof,
+        AVLTree::new(
+            |digest| Node::LabelOnly(NodeHeader::new(Some(*digest), None)),
+            avl_tree_data.key_length as usize,
+            avl_tree_data
+                .value_length_opt
+                .as_ref()
+                .map(|v| **v as usize),
+        ),
+        None,
+        None,
+    )
+    .map_err(map_eval_err)?;
+    for (key, value) in entries {
+        if bv
+            .perform_one_operation(&Operation::InsertOrUpdate(KeyValue {
+                key: key.into(),
+                value: value.into(),
+            }))
+            .is_err()
+        {
+            break;
+        }
+    }
+    Ok(if let Some(new_digest) = bv.digest() {
+        let digest = ADDigest::scorex_parse_bytes(&new_digest)?;
+        avl_tree_data.digest = digest;
+        Value::Opt(Some(Box::new(Value::AvlTree(avl_tree_data.into()))))
+    } else {
+        Value::Opt(None)
+    })
+};
 
 fn map_eval_err<T: core::fmt::Debug>(e: T) -> EvalError {
     EvalError::AvlTree(format!("{:?}", e))
@@ -455,8 +509,9 @@ mod tests {
         types::{savltree, stuple::STuple, stype::SType},
     };
     use proptest::prelude::*;
+    use sigma_test_util::force_any_val;
 
-    use crate::eval::test_util::eval_out_wo_ctx;
+    use crate::eval::test_util::{eval_out_wo_ctx, try_eval_out_with_version};
 
     use super::*;
     use sigma_util::{AsVecI8, AsVecU8};
@@ -464,9 +519,7 @@ mod tests {
     #[test]
     fn eval_avl_get() {
         let mut prover = populate_tree(vec![(vec![1u8], 10u64.to_be_bytes().to_vec())]);
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let key1 = Bytes::from(vec![1u8]);
         let key2 = Bytes::from(vec![2u8]);
@@ -536,9 +589,7 @@ mod tests {
             (vec![2u8], 20u64.to_be_bytes().to_vec()),
         ]);
 
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let key1 = Bytes::from(vec![1u8]);
         let key2 = Bytes::from(vec![2u8]);
@@ -621,9 +672,7 @@ mod tests {
             ),
             true,
         );
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
         let key1 = Bytes::from(vec![1u8]);
         let key2 = Bytes::from(vec![2u8; 1]);
         let key3 = Bytes::from(vec![3u8; 1]);
@@ -642,9 +691,7 @@ mod tests {
         prover.perform_one_operation(&op1).unwrap();
         prover.perform_one_operation(&op2).unwrap();
         prover.perform_one_operation(&op3).unwrap();
-        let final_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let final_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
         let proof: Constant = prover
             .generate_proof()
             .into_iter()
@@ -670,7 +717,7 @@ mod tests {
                 SType::SColl(Arc::new(SType::SByte)),
             )))),
             v: Literal::Coll(CollKind::WrappedColl {
-                items: Arc::new([pair1, pair2, pair3]),
+                items: Arc::new([pair1.clone(), pair2.clone(), pair3.clone()]),
                 elem_tpe: SType::STuple(STuple::pair(
                     SType::SColl(Arc::new(SType::SByte)),
                     SType::SColl(Arc::new(SType::SByte)),
@@ -678,9 +725,102 @@ mod tests {
             }),
         };
         let expr: Expr = MethodCall::new(
+            obj.clone(),
+            savltree::INSERT_METHOD.clone(),
+            vec![entries.clone().into(), proof.clone().into()],
+        )
+        .unwrap()
+        .into();
+
+        let res = eval_out_wo_ctx::<Value>(&expr);
+        if let Value::Opt(opt) = res {
+            if let Some(Value::AvlTree(avl)) = opt.as_deref() {
+                assert_eq!(avl.digest, final_digest);
+            } else {
+                unreachable!();
+            }
+        } else {
+            unreachable!();
+        }
+
+        // perform invalid insertion (duplicate entries). Before v6.0 this would return an error. After 6.0 this will return None
+        let duplicate_entries = Constant {
+            v: Literal::Coll(CollKind::WrappedColl {
+                items: Arc::new([pair1, pair2, pair3.clone(), pair3]),
+                elem_tpe: SType::STuple(STuple::pair(
+                    SType::SColl(Arc::new(SType::SByte)),
+                    SType::SColl(Arc::new(SType::SByte)),
+                )),
+            }),
+            ..entries
+        };
+        let expr: Expr = MethodCall::new(
             obj,
             savltree::INSERT_METHOD.clone(),
-            vec![entries.into(), proof.into()],
+            vec![duplicate_entries.into(), proof.into()],
+        )
+        .unwrap()
+        .into();
+        assert!(try_eval_out_with_version::<Value<'_>>(&expr, &force_any_val(), 0, 3).is_err());
+        assert_eq!(
+            try_eval_out_with_version::<Value<'_>>(&expr, &force_any_val(), 3, 3).unwrap(),
+            Value::Opt(None)
+        );
+    }
+
+    #[test]
+    fn eval_avl_insert_or_update() {
+        let mut prover = BatchAVLProver::new(
+            AVLTree::new(
+                |digest| Node::LabelOnly(NodeHeader::new(Some(*digest), None)),
+                1,
+                None,
+            ),
+            true,
+        );
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
+        let key1 = Bytes::from(vec![1u8]);
+        let op = Operation::InsertOrUpdate(KeyValue {
+            key: key1,
+            value: Bytes::from(10u64.to_be_bytes().to_vec()),
+        });
+        prover.perform_one_operation(&op).unwrap();
+        prover.perform_one_operation(&op).unwrap();
+        let final_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
+        let proof: Constant = prover
+            .generate_proof()
+            .into_iter()
+            .collect::<Vec<_>>()
+            .into();
+
+        let tree_flags = AvlTreeFlags::new(true, true, false);
+        let obj = Expr::Const(
+            AvlTreeData {
+                digest: initial_digest,
+                tree_flags,
+                key_length: 1,
+                value_length_opt: None,
+            }
+            .into(),
+        );
+        let pair1 = Literal::Tup(mk_pair(1u8, 10u64).into());
+        let entries = Constant {
+            tpe: SType::SColl(Arc::new(SType::STuple(STuple::pair(
+                SType::SColl(Arc::new(SType::SByte)),
+                SType::SColl(Arc::new(SType::SByte)),
+            )))),
+            v: Literal::Coll(CollKind::WrappedColl {
+                items: Arc::new([pair1.clone(), pair1.clone()]),
+                elem_tpe: SType::STuple(STuple::pair(
+                    SType::SColl(Arc::new(SType::SByte)),
+                    SType::SColl(Arc::new(SType::SByte)),
+                )),
+            }),
+        };
+        let expr: Expr = MethodCall::new(
+            obj.clone(),
+            savltree::INSERT_OR_UPDATE_METHOD.clone(),
+            vec![entries.clone().into(), proof.clone().into()],
         )
         .unwrap()
         .into();
@@ -886,9 +1026,7 @@ mod tests {
             (vec![2u8], 20u64.to_be_bytes().to_vec()),
             (vec![3u8], 30u64.to_be_bytes().to_vec()),
         ]);
-        let digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let op = Operation::Lookup(Bytes::from(vec![2u8]));
         prover.perform_one_operation(&op).unwrap();
@@ -923,16 +1061,12 @@ mod tests {
     #[test]
     fn eval_avl_remove() {
         let mut prover = populate_tree(vec![(vec![1u8], 10u64.to_be_bytes().to_vec())]);
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let key1 = Bytes::from(vec![1u8]);
         let op1 = Operation::Remove(key1);
         prover.perform_one_operation(&op1).unwrap();
-        let final_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let final_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
         let proof: Constant = prover
             .generate_proof()
             .into_iter()
@@ -985,9 +1119,7 @@ mod tests {
             (vec![2u8], 20u64.to_be_bytes().to_vec()),
             (vec![3u8], 30u64.to_be_bytes().to_vec()),
         ]);
-        let initial_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let initial_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
 
         let op1 = Operation::Update(KeyValue {
             key: Bytes::from(vec![2u8]),
@@ -1000,9 +1132,7 @@ mod tests {
         prover.perform_one_operation(&op1).unwrap();
         prover.perform_one_operation(&op2).unwrap();
 
-        let final_digest =
-            ADDigest::scorex_parse_bytes(&prover.digest().unwrap().into_iter().collect::<Vec<_>>())
-                .unwrap();
+        let final_digest = ADDigest::scorex_parse_bytes(&prover.digest().unwrap()).unwrap();
         let proof: Constant = prover
             .generate_proof()
             .into_iter()

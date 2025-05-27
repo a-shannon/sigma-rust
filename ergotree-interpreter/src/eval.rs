@@ -232,6 +232,7 @@ fn smethod_eval_fn(method: &SMethod) -> Result<EvalFn, EvalError> {
             savltree::CONTAINS_METHOD_ID => self::savltree::CONTAINS_EVAL_FN,
             savltree::REMOVE_METHOD_ID => self::savltree::REMOVE_EVAL_FN,
             savltree::UPDATE_METHOD_ID => self::savltree::UPDATE_EVAL_FN,
+            savltree::INSERT_OR_UPDATE_METHOD_ID => self::savltree::INSERT_OR_UPDATE_EVAL_FN,
             method_id => {
                 return Err(EvalError::NotFound(format!(
                     "Eval fn: unknown method id in SAvlTree: {:?}",
