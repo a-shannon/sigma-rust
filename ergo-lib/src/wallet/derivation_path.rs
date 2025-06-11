@@ -191,7 +191,7 @@ impl DerivationPath {
     /// Returns an empty path error if the path is empty (master node for example)
     pub fn next(&self) -> Result<DerivationPath, DerivationPathError> {
         #[allow(clippy::unwrap_used)]
-        if self.0.len() > 0 {
+        if !self.0.is_empty() {
             let mut new_path = self.0.to_vec();
             let last_idx = new_path.len() - 1;
             // The bounds have been checked, there is at least one element

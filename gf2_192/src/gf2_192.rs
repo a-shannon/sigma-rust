@@ -702,7 +702,7 @@ mod tests {
 
         #[allow(clippy::needless_range_loop)]
         fn mul_bits(a: &[i64], b: &[i64]) -> GF2Slow {
-            let mut c: Vec<_> = core::iter::repeat(0).take(a.len() + b.len()).collect();
+            let mut c: Vec<_> = vec![0; a.len() + b.len()];
 
             for i in 0..a.len() {
                 for i1 in 0..64 {
@@ -741,7 +741,7 @@ mod tests {
     impl Modulus {
         fn new(sparse_modulus: &[i32]) -> Modulus {
             let degree = sparse_modulus[0];
-            let mut offset: Vec<_> = core::iter::repeat(0).take(sparse_modulus.len()).collect();
+            let mut offset: Vec<_> = vec![0; sparse_modulus.len()];
             for i in 1..sparse_modulus.len() {
                 offset[i] = degree - sparse_modulus[i];
             }
@@ -754,7 +754,7 @@ mod tests {
     static PENTANOMIAL: [i32; 5] = [192, 7, 2, 1, 0];
 
     fn generate_test_values() -> Vec<Gf2_192> {
-        let mut test_values: Vec<[i64; 3]> = core::iter::repeat([0, 0, 0]).take(250).collect();
+        let mut test_values: Vec<[i64; 3]> = vec![[0, 0, 0]; 250];
         let mut rng = thread_rng();
 
         // Test single 1s in every bit position but last

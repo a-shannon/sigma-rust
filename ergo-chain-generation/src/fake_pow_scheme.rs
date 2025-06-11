@@ -86,7 +86,7 @@ mod tests {
         // Ergo test suite uses randomly generated value for ad_proofs_root.
         let mut rng = thread_rng();
         let how_many: usize = rng.gen_range(0..5000);
-        let mut ad_proofs_bytes: Vec<u8> = std::iter::repeat(0_u8).take(how_many).collect();
+        let mut ad_proofs_bytes: Vec<u8> = vec![0; how_many];
         for x in &mut ad_proofs_bytes {
             *x = rng.gen();
         }
@@ -147,7 +147,7 @@ mod tests {
         let x = DlogProverInput::random();
 
         let (sk, _) = default_miner_secret();
-        let nonce: Vec<u8> = std::iter::repeat(0_u8).take(8).collect();
+        let nonce: Vec<u8> = vec![0; 8];
         let d = order_bigint() / (height + 1);
         let autolykos_solution = AutolykosSolution {
             miner_pk: sk.public_key().unwrap().public_key.into(),

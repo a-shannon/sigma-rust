@@ -178,8 +178,7 @@ pub unsafe fn constant_to_ergo_box(
     let b = constant
         .0
         .clone()
-        .try_extract_into::<ergo_lib::ergotree_ir::chain::ergo_box::ErgoBox>()
-        .map(Into::into)?;
+        .try_extract_into::<ergo_lib::ergotree_ir::chain::ergo_box::ErgoBox>()?;
     *ergo_box_out = Box::into_raw(Box::new(ErgoBox(b)));
     Ok(())
 }

@@ -227,7 +227,7 @@ mod tests {
         let mut rng = thread_rng();
 
         for len in 1..100 {
-            let mut points: Vec<_> = core::iter::repeat(0).take(len).collect();
+            let mut points: Vec<_> = vec![0; len];
             // Generate a byte that's not an element of `points` nor 0
             let mut j = 0;
             while j < points.len() {

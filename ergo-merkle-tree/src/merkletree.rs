@@ -196,7 +196,10 @@ impl MerkleTree {
         // prepend leaf nodes with empty nodes to build the full tree
         tree_nodes.splice(
             0..0,
-            std::iter::repeat(MerkleNode::empty()).take(tree_nodes.len().next_power_of_two() - 1),
+            std::iter::repeat_n(
+                MerkleNode::empty(),
+                tree_nodes.len().next_power_of_two() - 1,
+            ),
         );
         build_nodes(&mut tree_nodes);
         let nodes_len = tree_nodes.len();
