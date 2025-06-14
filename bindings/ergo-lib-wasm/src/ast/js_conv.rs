@@ -45,7 +45,7 @@ pub enum ConvError {
     #[error("not supported: {0:?}")]
     NotSupported(JsValue),
     #[error("unexpected constant: {0:?}")]
-    UnexpectedConst(Constant),
+    UnexpectedConst(Box<Constant>),
     #[error("unexpected js value: {0:?}, expected {1}")]
     UnexpectedJs(JsValue, &'static str),
     #[error("IO error: {0}")]
@@ -172,7 +172,7 @@ pub(crate) fn constant_to_js(c: Constant) -> Result<JsValue, ConvError> {
                 }
                 arr.into()
             }
-            _ => return Err(ConvError::UnexpectedConst(c)),
+            _ => return Err(ConvError::UnexpectedConst(c.into())),
         },
         SType::STuple(ref item_tpes) => {
             let vec: Vec<JsValue> = match c.v {
@@ -181,7 +181,7 @@ pub(crate) fn constant_to_js(c: Constant) -> Result<JsValue, ConvError> {
                     .zip(item_tpes.clone().items.into_iter())
                     .map(|(v, tpe)| constant_to_js(Constant { tpe, v }))
                     .collect::<Result<Vec<JsValue>, _>>()?,
-                _ => return Err(ConvError::UnexpectedConst(c.clone())),
+                _ => return Err(ConvError::UnexpectedConst(c.clone().into())),
             };
             let arr = Array::new();
             for item in vec {
@@ -189,7 +189,7 @@ pub(crate) fn constant_to_js(c: Constant) -> Result<JsValue, ConvError> {
             }
             arr.into()
         }
-        _ => return Err(ConvError::UnexpectedConst(c.clone())),
+        _ => return Err(ConvError::UnexpectedConst(c.clone().into())),
     })
 }
 

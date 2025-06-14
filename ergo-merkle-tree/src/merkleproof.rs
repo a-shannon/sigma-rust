@@ -29,7 +29,6 @@ impl std::convert::TryFrom<u8> for NodeSide {
 }
 
 /// A LevelNode used for MerkleProof verification, consists of a 32 byte hash and side it is on in tree
-
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(
     feature = "json",

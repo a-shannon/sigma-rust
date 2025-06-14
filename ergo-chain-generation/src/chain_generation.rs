@@ -142,7 +142,7 @@ fn prove_block(
     // Ergo test suite uses randomly generated value for ad_proofs_root.
     let mut rng = thread_rng();
     let how_many: usize = rng.gen_range(0..5000);
-    let mut ad_proofs_bytes: Vec<u8> = std::iter::repeat(0_u8).take(how_many).collect();
+    let mut ad_proofs_bytes: Vec<u8> = vec![0; how_many];
     for x in &mut ad_proofs_bytes {
         *x = rng.gen();
     }

@@ -34,11 +34,11 @@ use crate::Header;
 ///
 /// There are 2 cases to consider:
 ///  - If `exponent >= 3` then `N` is represented by
-///      `(-1^sign) * mantissa * 256^(exponent-3)`
+///    `(-1^sign) * mantissa * 256^(exponent-3)`
 ///    E.g. suppose the compact form is given in hex-format by `0x04123456`. Mantissa is `0x123456`
 ///    and `exponent == 4`. So `N == 0x123456 * 265^1`. Now note that we need exactly 4 bytes to
 ///    represent `N`; 3 bytes for the mantissa and 1 byte for the rest. In base-256:
-///      `N == B(0x12)B(0x34)B(0x56)0`
+///    `N == B(0x12)B(0x34)B(0x56)0`
 ///    where `B(y)` denotes the base-256 representation of a hex-number `y` (note how each base-256
 ///    digit is represented by a single-byte).
 ///  - If `exponent < 3` then `N` is represented by the `exponent`-most-significant-bytes of the
@@ -507,8 +507,8 @@ mod tests {
             } else if a.is_zero() || b.is_zero() {
                 return false;
             }
-            let (exp_a, mantissa_a) = a.iter_u32_digits().enumerate().last().unwrap();
-            let (exp_b, mantissa_b) = a.iter_u32_digits().enumerate().last().unwrap();
+            let (exp_a, mantissa_a) = a.iter_u32_digits().enumerate().next_back().unwrap();
+            let (exp_b, mantissa_b) = a.iter_u32_digits().enumerate().next_back().unwrap();
             mantissa_a == mantissa_b && exp_a == exp_b && a.sign() == b.sign()
         }
 

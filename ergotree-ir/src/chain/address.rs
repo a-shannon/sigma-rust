@@ -163,7 +163,7 @@ impl Address {
                                                 .map(Address::P2SH)
                                                 .map_err(|_| {
                                                     AddressError::UnexpectedErgoTree(
-                                                        tree.clone(),
+                                                        tree.clone().into(),
                                                         String::from("Failed to create P2SH address, invalid script hash."),
                                                     )
                                                 });
@@ -318,7 +318,7 @@ impl From<NetworkAddress> for String {
 pub enum AddressError {
     /// Unexpected ErgoTree encountered
     #[error("Unexpected ErgoTree: {0:?}, \n reason: {1}")]
-    UnexpectedErgoTree(ErgoTree, String),
+    UnexpectedErgoTree(Box<ErgoTree>, String),
     /// ErgoTree parsing error
     #[error("ErgoTree error: {0}")]
     ErgoTreeError(#[from] ErgoTreeError),

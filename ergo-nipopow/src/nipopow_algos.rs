@@ -247,7 +247,7 @@ impl NipopowAlgos {
                 .try_into()
                 .map_err(|_| "Expected 32 byte BlockId")?;
             let block_id = BlockId(Digest32::from(block_id_bytes));
-            res.extend(std::iter::repeat(block_id).take(qty as usize));
+            res.extend(std::iter::repeat_n(block_id, qty as usize));
         }
         Ok(res)
     }
@@ -275,11 +275,11 @@ impl NipopowAlgos {
                                 .iter()
                                 .cloned(),
                         )
-                        .chain(std::iter::repeat(prev_header.id).take(prev_level))
+                        .chain(std::iter::repeat_n(prev_header.id, prev_level))
                         .collect())
                 } else {
                     Ok(std::iter::once(genesis)
-                        .chain(std::iter::repeat(prev_header.id).take(prev_level))
+                        .chain(std::iter::repeat_n(prev_header.id, prev_level))
                         .collect())
                 }
             } else {
