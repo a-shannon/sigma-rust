@@ -32,6 +32,8 @@ pub const FROM_BIGENDIAN_BYTES_METHOD_ID: MethodId = MethodId(5);
 pub const ENCODE_NBITS_METHOD_ID: MethodId = MethodId(6);
 /// decodeNBits method id (v6.0)
 pub const DECODE_NBITS_METHOD_ID: MethodId = MethodId(7);
+/// Global.powHit function
+pub const POW_HIT_METHOD_ID: MethodId = MethodId(8);
 /// "some" property
 pub const SOME_METHOD_ID: MethodId = MethodId(9);
 /// "none" property
@@ -40,7 +42,7 @@ pub const NONE_METHOD_ID: MethodId = MethodId(10);
 lazy_static! {
     /// Global method descriptors
     pub(crate) static ref METHOD_DESC: Vec<SMethodDesc> =
-        vec![GROUP_GENERATOR_METHOD_DESC.clone(), XOR_METHOD_DESC.clone(), SERIALIZE_METHOD_DESC.clone(), DESERIALIZE_METHOD_DESC.clone(), FROM_BIGENDIAN_BYTES_METHOD_DESC.clone(), ENCODE_NBITS_METHOD_DESC.clone(), DECODE_NBITS_METHOD_DESC.clone(), NONE_METHOD_DESC.clone(), SOME_METHOD_DESC.clone()];
+        vec![GROUP_GENERATOR_METHOD_DESC.clone(), XOR_METHOD_DESC.clone(), SERIALIZE_METHOD_DESC.clone(), DESERIALIZE_METHOD_DESC.clone(), FROM_BIGENDIAN_BYTES_METHOD_DESC.clone(), ENCODE_NBITS_METHOD_DESC.clone(), DECODE_NBITS_METHOD_DESC.clone(), NONE_METHOD_DESC.clone(), SOME_METHOD_DESC.clone(), POW_HIT_METHOD_DESC.clone()];
 }
 
 lazy_static! {
@@ -163,6 +165,27 @@ lazy_static! {
     };
     /// GLOBAL.serialize
     pub static ref SERIALIZE_METHOD: SMethod = SMethod::new(STypeCompanion::Global, SERIALIZE_METHOD_DESC.clone(),);
+
+    static ref POW_HIT_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: POW_HIT_METHOD_ID,
+        name: "powHit",
+        tpe: SFunc {
+            t_dom: vec![
+                SType::SGlobal,
+                SType::SInt,
+                SType::SColl(SType::SByte.into()),
+                SType::SColl(SType::SByte.into()),
+                SType::SColl(SType::SByte.into()),
+                SType::SInt,
+            ],
+            t_range: SType::SBoolean.into(),
+            tpe_params: vec![],
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    /// Global.powHit
+    pub static ref POW_HIT_METHOD: SMethod = SMethod::new(STypeCompanion::Global, POW_HIT_METHOD_DESC.clone());
 }
 
 lazy_static! {
@@ -206,9 +229,9 @@ mod test {
     use crate::{
         bigint256::BigInt256,
         ergo_tree::ErgoTreeVersion,
-        mir::{expr::Expr, method_call::MethodCall},
+        mir::{constant::Constant, expr::Expr, method_call::MethodCall},
         serialization::roundtrip_new_feature,
-        types::{stype::SType, stype_param::STypeVar},
+        types::{sglobal::POW_HIT_METHOD, stype::SType, stype_param::STypeVar},
     };
 
     use super::{DECODE_NBITS_METHOD, DESERIALIZE_METHOD, ENCODE_NBITS_METHOD};
@@ -222,6 +245,11 @@ mod test {
                vec![vec![0i8].into()],
                type_args,
            ).unwrap();
+           roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
+       }
+       #[test]
+       fn pow_hit_roundtrip(k in any::<i32>(), msg in any::<Vec<u8>>(), nonce in any::<Vec<u8>>(), h in any::<Vec<u8>>(), big_n: u32) {
+           let mc = MethodCall::new(Expr::Global, POW_HIT_METHOD.clone(), vec![Constant::from(k).into(), Constant::from(msg).into(), Constant::from(nonce).into(), Constant::from(h).into(), Constant::from(big_n as i32).into()]).unwrap();
            roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
        }
     }

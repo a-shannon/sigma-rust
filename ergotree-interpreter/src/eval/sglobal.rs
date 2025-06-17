@@ -4,6 +4,7 @@ use alloc::{string::ToString, sync::Arc};
 
 use ergo_chain_types::autolykos_pow_scheme::{decode_compact_bits, encode_compact_bits};
 use ergotree_ir::serialization::sigma_byte_writer::SigmaByteWrite;
+use ergotree_ir::unsignedbigint256::UnsignedBigInt;
 use ergotree_ir::{
     mir::{
         constant::{Constant, TryExtractInto},
@@ -19,7 +20,7 @@ use num_bigint::BigInt;
 
 use super::EvalFn;
 use crate::eval::Vec;
-use ergo_chain_types::ec_point::generator;
+use ergo_chain_types::{autolykos_pow_scheme::AutolykosPowScheme, ec_point::generator};
 use ergotree_ir::bigint256::BigInt256;
 use ergotree_ir::types::stype::SType;
 
@@ -245,6 +246,41 @@ pub(crate) static DECODE_NBITS_EVAL_FN: EvalFn = |_mc, _env, _ctx, _obj, args| {
             .map_err(EvalError::UnexpectedValue)?,
     ))
 };
+pub(crate) static POW_HIT_EVAL_FN: EvalFn = |_mc, _env, _ctx, _obj, mut args| {
+    // Pop arguments to avoid cloning
+    let big_n: u32 = args
+        .pop()
+        .ok_or_else(|| EvalError::NotFound("powHit: missing N".into()))?
+        .try_extract_into::<i32>()?
+        .try_into()
+        .map_err(|_| EvalError::Misc("N out of bounds".into()))?;
+    let h = args
+        .pop()
+        .ok_or_else(|| EvalError::NotFound("powHit: missing h".into()))?
+        .try_extract_into::<Vec<u8>>()?;
+    let nonce = args
+        .pop()
+        .ok_or_else(|| EvalError::NotFound("powHit: missing nonce".into()))?
+        .try_extract_into::<Vec<u8>>()?;
+    let msg = args
+        .pop()
+        .ok_or_else(|| EvalError::NotFound("powHit: missing msg".into()))?
+        .try_extract_into::<Vec<u8>>()?;
+    let k = args
+        .pop()
+        .ok_or_else(|| EvalError::NotFound("powHit: missing msg".into()))?
+        .try_extract_into::<i32>()?;
+    Ok(UnsignedBigInt::try_from(
+        AutolykosPowScheme::new(
+            k.try_into()
+                .map_err(|_| EvalError::Misc("k out of bounds".into()))?,
+            big_n,
+        )?
+        .pow_hit_message_v2(&msg, &nonce, &h, big_n)?,
+    )
+    .map_err(EvalError::Misc)?
+    .into())
+};
 
 #[allow(clippy::unwrap_used)]
 #[cfg(test)]
@@ -271,8 +307,10 @@ mod tests {
     use crate::eval::test_util::{eval_out, eval_out_wo_ctx, try_eval_out_with_version};
     use ergotree_ir::chain::context::Context;
     use ergotree_ir::types::sglobal::{
-        self, DECODE_NBITS_METHOD, DESERIALIZE_METHOD, ENCODE_NBITS_METHOD, SERIALIZE_METHOD,
+        self, DECODE_NBITS_METHOD, DESERIALIZE_METHOD, ENCODE_NBITS_METHOD, POW_HIT_METHOD,
+        SERIALIZE_METHOD,
     };
+
     use ergotree_ir::types::stype::SType;
     use sigma_test_util::force_any_val;
 
@@ -365,6 +403,23 @@ mod tests {
             .unwrap()
             .into(),
         }
+    }
+
+    fn pow_hit(k: u32, msg: &[u8], nonce: &[u8], h: &[u8], big_n: u32) -> UnsignedBigInt {
+        let expr: Expr = MethodCall::new(
+            Expr::Global,
+            POW_HIT_METHOD.clone(),
+            vec![
+                Constant::from(k as i32).into(),
+                Constant::from(msg.to_owned()).into(),
+                Constant::from(nonce.to_owned()).into(),
+                Constant::from(h.to_owned()).into(),
+                Constant::from(big_n as i32).into(),
+            ],
+        )
+        .unwrap()
+        .into();
+        eval_out_wo_ctx(&expr)
     }
 
     #[test]
@@ -656,6 +711,21 @@ mod tests {
         assert_eq!(
             deserialize(&encoded, SType::SGroupElement),
             Constant::from(ec_point)
+        );
+    }
+
+    #[test]
+    fn pow_hit_eval() {
+        let msg = base16::decode("0a101b8c6a4f2e").unwrap();
+        let nonce = base16::decode("000000000000002c").unwrap();
+        let hbs = base16::decode("00000000").unwrap();
+        assert_eq!(
+            pow_hit(32, &msg, &nonce, &hbs, 1024 * 1024),
+            UnsignedBigInt::from_str_radix(
+                "326674862673836209462483453386286740270338859283019276168539876024851191344",
+                10
+            )
+            .unwrap()
         );
     }
 

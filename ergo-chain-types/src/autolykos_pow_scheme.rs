@@ -13,7 +13,7 @@
 use alloc::boxed::Box;
 use alloc::vec;
 use alloc::vec::Vec;
-use bounded_integer::{BoundedI32, BoundedU64};
+use bounded_integer::{BoundedU32, BoundedU64};
 use derive_more::From;
 use k256::{elliptic_curve::PrimeField, Scalar};
 use num_bigint::{BigInt, BigUint, Sign};
@@ -127,13 +127,52 @@ pub fn order_bigint() -> BigInt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AutolykosPowScheme {
     /// Represents the number of elements in one solution. **Important assumption**: `k <= 32`.
-    k: BoundedU64<1, 32>,
+    k: BoundedU64<2, 32>,
     /// Let `N` denote the initial table size. Then `n` is the value satisfying `N = 2 ^ n`.
     /// **Important assumption**: `n < 31`.
-    n: BoundedI32<1, 30>,
+    big_n_base: BoundedU32<16, { i32::MAX as u32 }>,
 }
 
 impl AutolykosPowScheme {
+    /// Create a new `AutolykosPowScheme`. Returns None if k is not >= 2 && <= 32 or big_n is not >= 16
+    pub fn new(k: u64, big_n: u32) -> Result<Self, AutolykosPowSchemeError> {
+        let k = BoundedU64::new(k).ok_or(AutolykosPowSchemeError::OutOfBounds)?;
+        let big_n = BoundedU32::new(big_n).ok_or(AutolykosPowSchemeError::OutOfBounds)?;
+        Ok(Self {
+            k,
+            big_n_base: big_n,
+        })
+    }
+
+    /// Calculate proof-of-work hit for an arbitrary message
+    pub fn pow_hit_message_v2(
+        &self,
+        msg: &[u8],
+        nonce: &[u8],
+        h: &[u8],
+        big_n: u32,
+    ) -> Result<BigUint, AutolykosPowSchemeError> {
+        let seed_hash = self.calc_seed_v2(big_n, msg, nonce, h)?;
+        let indexes = self.gen_indexes(&seed_hash, big_n);
+
+        let f2 = indexes
+            .into_iter()
+            .map(|idx| {
+                // This is specific to autolykos v2.
+                let mut concat = vec![];
+                concat.extend_from_slice(&idx.to_be_bytes());
+                concat.extend_from_slice(h);
+                concat.extend(&self.calc_big_m());
+                BigInt::from_bytes_be(Sign::Plus, &blake2b256_hash(&concat)[1..])
+            })
+            .sum::<BigInt>();
+
+        // sum as byte array is always about 32 bytes
+        #[allow(clippy::unwrap_used)]
+        let array = as_unsigned_byte_array(32, f2).unwrap();
+        Ok(BigUint::from_bytes_be(&*blake2b256_hash(&array)))
+    }
+
     /// Get hit for Autolykos header (to test it then against PoW target)
     pub fn pow_hit(&self, header: &Header) -> Result<BigUint, AutolykosPowSchemeError> {
         if header.version == 1 {
@@ -144,7 +183,6 @@ impl AutolykosPowScheme {
                 .cloned()
                 .ok_or(AutolykosPowSchemeError::MissingPowDistanceParameter)
         } else {
-            // hit for version 2
             let msg = blake2b256_hash(&header.serialize_without_pow()?).to_vec();
             let nonce = header.autolykos_solution.nonce.clone();
             let height_bytes = header.height.to_be_bytes();
@@ -154,22 +192,7 @@ impl AutolykosPowScheme {
 
             // `N` from autolykos paper
             let big_n = self.calc_big_n(header.version, header.height);
-            let seed_hash = self.calc_seed_v2(big_n, &msg, &nonce, &height_bytes)?;
-            let indexes = self.gen_indexes(&seed_hash, big_n);
-
-            let f2 = indexes.into_iter().fold(BigInt::from(0u32), |acc, idx| {
-                // This is specific to autolykos v2.
-                let mut concat = vec![];
-                concat.extend_from_slice(&idx.to_be_bytes());
-                concat.extend(&height_bytes);
-                concat.extend(&self.calc_big_m());
-                acc + BigInt::from_bytes_be(Sign::Plus, &blake2b256_hash(&concat)[1..])
-            });
-
-            // sum as byte array is always about 32 bytes
-            #[allow(clippy::unwrap_used)]
-            let array = as_unsigned_byte_array(32, f2).unwrap();
-            Ok(BigUint::from_bytes_be(&*blake2b256_hash(&array)))
+            self.pow_hit_message_v2(&msg, &nonce, &height_bytes, big_n)
         }
     }
 
@@ -182,7 +205,7 @@ impl AutolykosPowScheme {
     /// in ErgoPow paper.
     pub fn calc_seed_v2(
         &self,
-        big_n: usize,
+        big_n: u32,
         msg: &[u8],
         nonce: &[u8],
         header_height_bytes: &[u8],
@@ -212,7 +235,7 @@ impl AutolykosPowScheme {
     }
 
     /// Returns a list of size `k` with numbers in [0,`N`)
-    pub fn gen_indexes(&self, seed_hash: &[u8; 32], big_n: usize) -> Vec<u32> {
+    pub fn gen_indexes(&self, seed_hash: &[u8; 32], big_n: u32) -> Vec<u32> {
         let mut res = vec![];
         let mut extended_hash: Vec<u8> = seed_hash.to_vec();
         extended_hash.extend(&seed_hash[..3]);
@@ -229,9 +252,9 @@ impl AutolykosPowScheme {
     }
 
     /// Calculates table size (N value) for a given height (moment of time)
-    pub fn calc_big_n(&self, header_version: u8, header_height: u32) -> usize {
+    pub fn calc_big_n(&self, header_version: u8, header_height: u32) -> u32 {
         // Number of elements in a table to find k-sum problem solution on top of
-        let n_base = 2i32.pow(self.n.get() as u32) as usize;
+        let n_base = self.big_n_base.get();
         if header_version == 1 {
             n_base
         } else {
@@ -259,7 +282,7 @@ impl Default for AutolykosPowScheme {
         #[allow(clippy::unwrap_used)]
         AutolykosPowScheme {
             k: BoundedU64::new(32).unwrap(),
-            n: BoundedI32::new(26).unwrap(),
+            big_n_base: BoundedU32::new(2u32.pow(26)).unwrap(),
         }
     }
 }
@@ -299,6 +322,9 @@ pub enum AutolykosPowSchemeError {
     /// Checking proof-of-work for AutolykosV1 is not supported
     #[error("Header.check_pow is not supported for Autolykos1")]
     Unsupported,
+    /// k or N are out of bounds, see [`AutolykosPowScheme::new`]
+    #[error("Arguments to AutolykosPowScheme::new were out of bounds")]
+    OutOfBounds,
 }
 
 /// The following tests are taken from <https://github.com/ergoplatform/ergo/blob/f7b91c0be00531c6d042c10a8855149ca6924373/src/test/scala/org/ergoplatform/mining/AutolykosPowSchemeSpec.scala#L43-L130>
@@ -313,7 +339,7 @@ mod tests {
     #[test]
     fn test_calc_big_n() {
         let pow = AutolykosPowScheme::default();
-        let n_base = 2i32.pow(pow.n.get() as u32) as usize;
+        let n_base = pow.big_n_base.get();
 
         // autolykos v1
         assert_eq!(pow.calc_big_n(1, 700000), n_base);
