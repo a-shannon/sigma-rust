@@ -55,6 +55,7 @@ derive_more = { version = "2.0.1", default-features = false, features = [
     "from_str",
     "display",
     "debug",
+    "sum",
 ] }
 num-derive = "0.4.2"
 thiserror = { version = "2.0.1", default-features = false }

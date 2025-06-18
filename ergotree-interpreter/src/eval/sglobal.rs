@@ -148,6 +148,20 @@ pub(crate) static SGLOBAL_FROM_BIGENDIAN_BYTES_EVAL_FN: EvalFn = |mc, _env, _ctx
                 })?,
             ))
         }
+        SType::SUnsignedBigInt => {
+            if bytes.len() > 32 {
+                return Err(EvalError::UnexpectedValue(
+                    "UnsignedBigInt value doesn't fit into 32 bytes in fromBigEndianBytes"
+                        .to_string(),
+                ));
+            }
+            let bytes_vec: Vec<u8> = bytes.iter().map(|&x| x as u8).collect();
+            Ok(Value::UnsignedBigInt(
+                UnsignedBigInt::from_be_slice(&bytes_vec).ok_or_else(|| {
+                    EvalError::UnexpectedValue("Failed to convert to UnsignedBigInt".to_string())
+                })?,
+            ))
+        }
         _ => Err(EvalError::UnexpectedValue(format!(
             "Unsupported type provided in fromBigEndianBytes: {:?}",
             type_val
@@ -531,7 +545,7 @@ mod tests {
             }
 
             {
-                let bytes = vec![(v_short >> 8) as i8, v_short as i8];
+                let bytes = v_short.to_be_bytes().map(|b| b as i8).to_vec();
 
                 let type_args = std::iter::once((STypeVar::t(), SType::SShort)).collect();
                 let expr: Expr = MethodCall::with_type_args(
@@ -546,13 +560,7 @@ mod tests {
             }
 
             {
-                let bytes = vec![
-                    (v_int >> 24) as i8,
-                    (v_int >> 16) as i8,
-                    (v_int >> 8) as i8,
-                    v_int as i8
-                ];
-
+                let bytes = v_int.to_be_bytes().map(|b| b as i8).to_vec();
                 let type_args = std::iter::once((STypeVar::t(), SType::SInt)).collect();
                 let expr: Expr = MethodCall::with_type_args(
                     Expr::Global,
@@ -566,17 +574,7 @@ mod tests {
             }
 
             {
-                let bytes = vec![
-                    (v_long >> 56) as i8,
-                    (v_long >> 48) as i8,
-                    (v_long >> 40) as i8,
-                    (v_long >> 32) as i8,
-                    (v_long >> 24) as i8,
-                    (v_long >> 16) as i8,
-                    (v_long >> 8) as i8,
-                    v_long as i8
-                ];
-
+                let bytes = v_long.to_be_bytes().map(|b| b as i8).to_vec();
                 let type_args = std::iter::once((STypeVar::t(), SType::SLong)).collect();
                 let expr: Expr = MethodCall::with_type_args(
                     Expr::Global,
@@ -587,31 +585,12 @@ mod tests {
                 .unwrap()
                 .into();
                 assert_eq!(eval_out_wo_ctx::<i64>(&expr), v_long);
-
-                let original_long = ((bytes[0] as i64) << 56) |
-                                  (((bytes[1] as i64) & 0xFF) << 48) |
-                                  (((bytes[2] as i64) & 0xFF) << 40) |
-                                  (((bytes[3] as i64) & 0xFF) << 32) |
-                                  (((bytes[4] as i64) & 0xFF) << 24) |
-                                  (((bytes[5] as i64) & 0xFF) << 16) |
-                                  (((bytes[6] as i64) & 0xFF) << 8) |
-                                  ((bytes[7] as i64) & 0xFF);
-                assert_eq!(original_long, v_long);
             }
         }
 
         #[test]
-        fn test_bigint_roundtrip(v_long in any::<i64>()) {
-            let bytes = vec![
-                (v_long >> 56) as i8,
-                (v_long >> 48) as i8,
-                (v_long >> 40) as i8,
-                (v_long >> 32) as i8,
-                (v_long >> 24) as i8,
-                (v_long >> 16) as i8,
-                (v_long >> 8) as i8,
-                v_long as i8
-            ];
+        fn test_bigint_roundtrip(bigint in any::<BigInt256>()) {
+            let bytes = bigint.to_be_bytes().map(|b| b as i8).to_vec();
 
             let type_args = std::iter::once((STypeVar::t(), SType::SBigInt)).collect();
             let expr: Expr = MethodCall::with_type_args(
@@ -622,7 +601,23 @@ mod tests {
             )
             .unwrap()
             .into();
-            assert_eq!(eval_out_wo_ctx::<BigInt256>(&expr), BigInt256::from(v_long));
+            assert_eq!(eval_out_wo_ctx::<BigInt256>(&expr), bigint);
+        }
+
+        #[test]
+        fn test_unsigned_bigint_roundtrip(bigint in any::<UnsignedBigInt>()) {
+            let bytes = bigint.to_be_bytes().map(|b| b as i8).to_vec();
+
+            let type_args = std::iter::once((STypeVar::t(), SType::SUnsignedBigInt)).collect();
+            let expr: Expr = MethodCall::with_type_args(
+                Expr::Global,
+                sglobal::FROM_BIGENDIAN_BYTES_METHOD.clone().with_concrete_types(&type_args),
+                vec![bytes.into()],
+                type_args,
+            )
+            .unwrap()
+            .into();
+            assert_eq!(eval_out_wo_ctx::<UnsignedBigInt>(&expr), bigint);
         }
 
         #[test]

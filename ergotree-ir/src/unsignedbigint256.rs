@@ -9,12 +9,15 @@ use bnum::{
     types::U256,
     BInt, BTryFrom, BUint, BUintD8,
 };
-use derive_more::{Add, AddAssign, BitAnd, BitOr, BitXor, Display, From, FromStr, Not, Sub};
+use derive_more::{
+    Add, AddAssign, BitAnd, BitOr, BitXor, Display, From, FromStr, Not, Shl, Shr, Sub, Sum,
+};
 use elliptic_curve::ops::Reduce;
 use k256::Scalar;
 use num_derive::{Num, One, ToPrimitive, Zero};
 use num_traits::{
-    Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedSub, Signed, Zero,
+    Bounded, CheckedAdd, CheckedDiv, CheckedMul, CheckedRem, CheckedShl, CheckedShr, CheckedSub,
+    Signed, Zero,
 };
 
 use crate::{
@@ -44,6 +47,9 @@ use crate::{
     BitOr,
     BitXor,
     ToPrimitive,
+    Shl,
+    Shr,
+    Sum,
 )]
 /// Unsigned 256-bit integer type
 pub struct UnsignedBigInt(U256);
@@ -250,6 +256,18 @@ impl CheckedDiv for UnsignedBigInt {
 impl CheckedRem for UnsignedBigInt {
     fn checked_rem(&self, v: &Self) -> Option<Self> {
         self.0.checked_rem(v.0).map(Self)
+    }
+}
+
+impl CheckedShl for UnsignedBigInt {
+    fn checked_shl(&self, rhs: u32) -> Option<Self> {
+        self.0.checked_shl(rhs).map(Self)
+    }
+}
+
+impl CheckedShr for UnsignedBigInt {
+    fn checked_shr(&self, rhs: u32) -> Option<Self> {
+        self.0.checked_shr(rhs).map(Self)
     }
 }
 

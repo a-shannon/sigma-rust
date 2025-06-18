@@ -23,6 +23,18 @@ pub const TO_BIGINT_METHOD_ID: MethodId = MethodId(5);
 pub const TO_BYTES_METHOD_ID: MethodId = MethodId(6);
 /// toBits MethodId
 pub const TO_BITS_METHOD_ID: MethodId = MethodId(7);
+/// bitwiseInverse MethodId
+pub const BITWISE_INVERSE_METHOD_ID: MethodId = MethodId(8);
+/// bitwiseOr MethodId
+pub const BITWISE_OR_METHOD_ID: MethodId = MethodId(9);
+/// bitwiseAnd MethodId
+pub const BITWISE_AND_METHOD_ID: MethodId = MethodId(10);
+/// bitwiseXor MethodId
+pub const BITWISE_XOR_METHOD_ID: MethodId = MethodId(11);
+/// shiftLeft MethodId
+pub const SHIFT_LEFT_METHOD_ID: MethodId = MethodId(12);
+/// shiftRight MethodId
+pub const SHIFT_RIGHT_METHOD_ID: MethodId = MethodId(13);
 
 // The following methods (toByte, toShort, to...) do not seem to have any implementation in upstream (only methodcall is defined). Since they are used in v6 they are defined here so the methodcalls can be deserialized
 lazy_static! {
@@ -103,13 +115,94 @@ lazy_static! {
         explicit_type_args: vec![],
         min_version: ErgoTreeVersion::V3
     };
-    static ref METHOD_DESC: [&'static SMethodDesc; 6] = [
+    static ref BITWISE_INVERSE_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: BITWISE_INVERSE_METHOD_ID,
+        name: "bitwiseInverse",
+        tpe: SFunc {
+            t_dom: vec![SType::STypeVar(STypeVar::t())],
+            t_range: SType::STypeVar(STypeVar::t()).into(),
+            tpe_params: vec![]
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    static ref BITWISE_OR_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: BITWISE_OR_METHOD_ID,
+        name: "bitwiseOr",
+        tpe: SFunc {
+            t_dom: vec![
+                SType::STypeVar(STypeVar::t()),
+                SType::STypeVar(STypeVar::t())
+            ],
+            t_range: SType::STypeVar(STypeVar::t()).into(),
+            tpe_params: vec![]
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    static ref BITWISE_AND_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: BITWISE_AND_METHOD_ID,
+        name: "bitwiseAnd",
+        tpe: SFunc {
+            t_dom: vec![
+                SType::STypeVar(STypeVar::t()),
+                SType::STypeVar(STypeVar::t())
+            ],
+            t_range: SType::STypeVar(STypeVar::t()).into(),
+            tpe_params: vec![]
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    static ref BITWISE_XOR_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: BITWISE_XOR_METHOD_ID,
+        name: "bitwiseXor",
+        tpe: SFunc {
+            t_dom: vec![
+                SType::STypeVar(STypeVar::t()),
+                SType::STypeVar(STypeVar::t())
+            ],
+            t_range: SType::STypeVar(STypeVar::t()).into(),
+            tpe_params: vec![]
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    static ref SHIFT_LEFT_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: SHIFT_LEFT_METHOD_ID,
+        name: "shiftLeft",
+        tpe: SFunc {
+            t_dom: vec![SType::STypeVar(STypeVar::t()), SType::SInt],
+            t_range: SType::STypeVar(STypeVar::t()).into(),
+            tpe_params: vec![]
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    static ref SHIFT_RIGHT_METHOD_DESC: SMethodDesc = SMethodDesc {
+        method_id: SHIFT_RIGHT_METHOD_ID,
+        name: "shiftRight",
+        tpe: SFunc {
+            t_dom: vec![SType::STypeVar(STypeVar::t()), SType::SInt],
+            t_range: SType::STypeVar(STypeVar::t()).into(),
+            tpe_params: vec![]
+        },
+        explicit_type_args: vec![],
+        min_version: ErgoTreeVersion::V3
+    };
+    static ref METHOD_DESC: [&'static SMethodDesc; 12] = [
         &TO_BYTE_METHOD_DESC,
         &TO_SHORT_METHOD_DESC,
         &TO_INT_METHOD_DESC,
         &TO_LONG_METHOD_DESC,
         &TO_BYTES_METHOD_DESC,
-        &TO_BITS_METHOD_DESC
+        &TO_BITS_METHOD_DESC,
+        &BITWISE_INVERSE_METHOD_DESC,
+        &BITWISE_OR_METHOD_DESC,
+        &BITWISE_AND_METHOD_DESC,
+        &BITWISE_XOR_METHOD_DESC,
+        &SHIFT_LEFT_METHOD_DESC,
+        &SHIFT_RIGHT_METHOD_DESC,
     ];
 }
 
@@ -125,7 +218,10 @@ fn specialize_method(method: &SMethodDesc, tpe: SType) -> SMethodDesc {
 /// SByte type and methods
 pub mod sbyte {
     use super::*;
-    use crate::serialization::types::TypeCode;
+    use crate::{
+        serialization::types::TypeCode,
+        types::{smethod::SMethod, stype_companion::STypeCompanion},
+    };
 
     /// Byte TypeCode
     pub const TYPE_CODE: TypeCode = TypeCode::SBYTE;
@@ -137,13 +233,21 @@ pub mod sbyte {
             .into_iter()
             .map(|method| specialize_method(method, SType::SByte))
             .collect();
+        /// Byte methods
+        pub static ref METHODS: Vec<SMethod> = METHOD_DESC
+            .iter()
+            .map(|desc| SMethod::new(STypeCompanion::SByte, desc.clone()))
+            .collect();
     }
 }
 
 /// SShort type and methods
 pub mod sshort {
     use super::*;
-    use crate::serialization::types::TypeCode;
+    use crate::{
+        serialization::types::TypeCode,
+        types::{smethod::SMethod, stype_companion::STypeCompanion},
+    };
 
     /// Short TypeCode
     pub const TYPE_CODE: TypeCode = TypeCode::SSHORT;
@@ -155,13 +259,21 @@ pub mod sshort {
             .into_iter()
             .map(|method| specialize_method(method, SType::SShort))
             .collect();
+        /// Short methods
+        pub static ref METHODS: Vec<SMethod> = METHOD_DESC
+            .iter()
+            .map(|desc| SMethod::new(STypeCompanion::SShort, desc.clone()))
+            .collect();
     }
 }
 
 /// SInt type and methods
 pub mod sint {
     use super::*;
-    use crate::serialization::types::TypeCode;
+    use crate::{
+        serialization::types::TypeCode,
+        types::{smethod::SMethod, stype_companion::STypeCompanion},
+    };
 
     /// Int TypeCode
     pub const TYPE_CODE: TypeCode = TypeCode::SINT;
@@ -173,13 +285,21 @@ pub mod sint {
             .into_iter()
             .map(|method| specialize_method(method, SType::SInt))
             .collect();
+        /// Int methods
+        pub static ref METHODS: Vec<SMethod> = METHOD_DESC
+            .iter()
+            .map(|desc| SMethod::new(STypeCompanion::SInt, desc.clone()))
+            .collect();
     }
 }
 
 /// SLong type and methods
 pub mod slong {
     use super::*;
-    use crate::serialization::types::TypeCode;
+    use crate::{
+        serialization::types::TypeCode,
+        types::{smethod::SMethod, stype_companion::STypeCompanion},
+    };
 
     /// Short TypeCode
     pub const TYPE_CODE: TypeCode = TypeCode::SLONG;
@@ -191,13 +311,21 @@ pub mod slong {
             .into_iter()
             .map(|method| specialize_method(method, SType::SLong))
             .collect();
+        /// Long methods
+        pub static ref METHODS: Vec<SMethod> = METHOD_DESC
+            .iter()
+            .map(|desc| SMethod::new(STypeCompanion::SLong, desc.clone()))
+            .collect();
     }
 }
 
 /// SBigInt type and methods
 pub mod sbigint {
     use super::*;
-    use crate::serialization::types::TypeCode;
+    use crate::{
+        serialization::types::TypeCode,
+        types::{smethod::SMethod, stype_companion::STypeCompanion},
+    };
 
     /// Short TypeCode
     pub const TYPE_CODE: TypeCode = TypeCode::SBIGINT;
@@ -242,13 +370,21 @@ pub mod sbigint {
                 TO_UNSIGNED_MOD_METHOD_DESC.clone()
             ])
             .collect();
+        /// BigInt methods
+        pub static ref METHODS: Vec<SMethod> = METHOD_DESC
+            .iter()
+            .map(|desc| SMethod::new(STypeCompanion::SBigInt, desc.clone()))
+            .collect();
     }
 }
 
 /// SUnsignedBigInt type and methods
 pub mod sunsignedbigint {
     use super::*;
-    use crate::serialization::types::TypeCode;
+    use crate::{
+        serialization::types::TypeCode,
+        types::{smethod::SMethod, stype_companion::STypeCompanion},
+    };
 
     /// Short TypeCode
     pub const TYPE_CODE: TypeCode = TypeCode::SUNSIGNEDBIGINT;
@@ -346,11 +482,17 @@ pub mod sunsignedbigint {
             .map(|method| specialize_method(method, SType::SUnsignedBigInt))
             .chain([MOD_INVERSE_METHOD_DESC.clone(), PLUS_MOD_METHOD_DESC.clone(), SUBTRACT_MOD_METHOD_DESC.clone(), MULTIPLY_MOD_METHOD_DESC.clone(), MOD_METHOD_DESC.clone(), TO_SIGNED_METHOD_DESC.clone()])
             .collect();
+        /// UnsignedBigInt methods
+        pub static ref METHODS: Vec<SMethod> = METHOD_DESC
+            .iter()
+            .map(|desc| SMethod::new(STypeCompanion::SUnsignedBigInt, desc.clone()))
+            .collect();
     }
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
+#[allow(clippy::unreachable)]
 mod test {
     use crate::{
         bigint256::BigInt256,
@@ -365,57 +507,71 @@ mod test {
 
     #[test]
     fn byte_method_roundtrips() {
-        super::sbyte::METHOD_DESC
-            .iter()
-            .map(|m| m.as_method(STypeCompanion::SByte))
-            .for_each(|method| {
-                assert_eq!(method.method_raw.tpe.t_dom, [SType::SByte]);
-                let mc = MethodCall::new(Constant::from(1i8).into(), method, vec![]).unwrap();
-                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
-            });
+        super::sbyte::METHODS.iter().cloned().for_each(|method| {
+            let args = match &*method.method_raw.tpe.t_dom {
+                [SType::SByte] => vec![],
+                [SType::SByte, SType::SByte] => vec![Constant::from(1i8).into()],
+                [SType::SByte, SType::SInt] => vec![Constant::from(1i32).into()],
+                _ => unreachable!(),
+            };
+            let mc = MethodCall::new(Constant::from(1i8).into(), method, args).unwrap();
+            roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
+        });
     }
     #[test]
     fn short_method_roundtrips() {
-        super::sshort::METHOD_DESC
-            .iter()
-            .map(|m| m.as_method(STypeCompanion::SShort))
-            .for_each(|method| {
-                assert_eq!(method.method_raw.tpe.t_dom, [SType::SShort]);
-                let mc = MethodCall::new(Constant::from(1i16).into(), method, vec![]).unwrap();
-                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
-            });
+        super::sshort::METHODS.iter().cloned().for_each(|method| {
+            let args = match &*method.method_raw.tpe.t_dom {
+                [SType::SShort] => vec![],
+                [SType::SShort, SType::SShort] => vec![Constant::from(1i16).into()],
+                [SType::SShort, SType::SInt] => vec![Constant::from(1i32).into()],
+                _ => unreachable!(),
+            };
+            let mc = MethodCall::new(Constant::from(1i16).into(), method, args).unwrap();
+            roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
+        });
     }
     #[test]
     fn int_method_roundtrips() {
-        super::sint::METHOD_DESC
-            .iter()
-            .map(|m| m.as_method(STypeCompanion::SInt))
-            .for_each(|method| {
-                assert_eq!(method.method_raw.tpe.t_dom, [SType::SInt]);
-                let mc = MethodCall::new(Constant::from(1i32).into(), method, vec![]).unwrap();
-                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
-            });
+        super::sint::METHODS.iter().cloned().for_each(|method| {
+            let args = match &*method.method_raw.tpe.t_dom {
+                [SType::SInt] => vec![],
+                [SType::SInt, SType::SInt] => vec![Constant::from(1i32).into()],
+                _ => unreachable!(),
+            };
+            let mc = MethodCall::new(Constant::from(1i32).into(), method, args).unwrap();
+            roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
+        });
     }
     #[test]
     fn long_method_roundtrips() {
-        super::slong::METHOD_DESC
-            .iter()
-            .map(|m| m.as_method(STypeCompanion::SLong))
-            .for_each(|method| {
-                assert_eq!(method.method_raw.tpe.t_dom, [SType::SLong]);
-                let mc = MethodCall::new(Constant::from(1i64).into(), method, vec![]).unwrap();
-                roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
-            });
+        super::slong::METHODS.iter().cloned().for_each(|method| {
+            let args = match &*method.method_raw.tpe.t_dom {
+                [SType::SLong] => vec![],
+                [SType::SLong, SType::SLong] => vec![Constant::from(1i64).into()],
+                [SType::SLong, SType::SInt] => vec![Constant::from(1i32).into()],
+                _ => unreachable!(),
+            };
+            let mc = MethodCall::new(Constant::from(1i64).into(), method, args).unwrap();
+            roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
+        });
     }
     #[test]
     fn bigint_method_roundtrips() {
-        super::sbigint::METHOD_DESC
+        super::sbigint::METHODS
             .iter()
-            .map(|m| m.as_method(STypeCompanion::SBigInt))
             .take(super::METHOD_DESC.len())
+            .cloned()
             .for_each(|method| {
-                assert_eq!(method.method_raw.tpe.t_dom, [SType::SBigInt]);
-                let mc = MethodCall::new(Constant::from(BigInt256::from(1)).into(), method, vec![])
+                let args = match &*method.method_raw.tpe.t_dom {
+                    [SType::SBigInt] => vec![],
+                    [SType::SBigInt, SType::SBigInt] => {
+                        vec![Constant::from(BigInt256::from(1)).into()]
+                    }
+                    [SType::SBigInt, SType::SInt] => vec![Constant::from(1i32).into()],
+                    _ => unreachable!(),
+                };
+                let mc = MethodCall::new(Constant::from(BigInt256::from(1)).into(), method, args)
                     .unwrap();
                 roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
             });
@@ -436,16 +592,23 @@ mod test {
     }
     #[test]
     fn unsigned_bigint_method_roundtrips() {
-        super::sunsignedbigint::METHOD_DESC
+        super::sunsignedbigint::METHODS
             .iter()
-            .map(|m| m.as_method(STypeCompanion::SUnsignedBigInt))
             .take(super::METHOD_DESC.len())
+            .cloned()
             .for_each(|method| {
-                assert_eq!(method.method_raw.tpe.t_dom, [SType::SUnsignedBigInt]);
+                let args = match &*method.method_raw.tpe.t_dom {
+                    [SType::SUnsignedBigInt] => vec![],
+                    [SType::SUnsignedBigInt, SType::SUnsignedBigInt] => {
+                        vec![Constant::from(UnsignedBigInt::from(1u32)).into()]
+                    }
+                    [SType::SUnsignedBigInt, SType::SInt] => vec![Constant::from(1i32).into()],
+                    _ => unreachable!(),
+                };
                 let mc = MethodCall::new(
                     Constant::from(UnsignedBigInt::from(1u32)).into(),
                     method,
-                    vec![],
+                    args,
                 )
                 .unwrap();
                 roundtrip_new_feature(&mc, ErgoTreeVersion::V3);
