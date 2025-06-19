@@ -33,8 +33,10 @@ impl SigmaSerializable for Constant {
 #[allow(clippy::panic, clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use crate::ergo_tree::ErgoTreeVersion;
     use crate::mir::constant::arbitrary::ArbConstantParams;
-    use crate::serialization::sigma_serialize_roundtrip;
+    use crate::mir::constant::Literal;
+    use crate::serialization::{roundtrip_new_feature, sigma_serialize_roundtrip};
 
     use alloc::sync::Arc;
     use proptest::prelude::*;
@@ -49,6 +51,19 @@ mod tests {
         #[test]
         fn ser_roundtrip_sbox(v in any_with::<Constant>(ArbConstantParams::Exact(SType::SBox))) {
             prop_assert_eq![sigma_serialize_roundtrip(&v), v];
+        }
+        #[test]
+        fn ser_roundtrip_option(v in any::<Constant>()) {
+            let opt_v = Constant {
+                tpe: SType::SOption(Arc::new(v.tpe.clone())),
+                v: Literal::Opt(Some(v.v.into()))
+            };
+            let none_v = Constant {
+                tpe: SType::SOption(Arc::new(v.tpe)),
+                v: Literal::Opt(None),
+            };
+            roundtrip_new_feature(&opt_v, ErgoTreeVersion::V3);
+            roundtrip_new_feature(&none_v, ErgoTreeVersion::V3);
         }
     }
 

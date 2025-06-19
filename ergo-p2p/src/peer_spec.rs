@@ -70,14 +70,15 @@ impl ScorexSerializable for PeerSpec {
         self.protocol_version.scorex_serialize(w)?;
         w.put_short_string(&self.node_name)?;
 
-        w.put_option(self.declared_addr, &|w: &mut W,
-                                           addr: PeerAddr|
-         -> io::Result<()> {
-            w.put_u8(addr.ip_size() as u8)?;
-            addr.scorex_serialize(w)?;
+        w.put_option(
+            self.declared_addr,
+            |w: &mut W, addr: PeerAddr| -> io::Result<()> {
+                w.put_u8(addr.ip_size() as u8)?;
+                addr.scorex_serialize(w)?;
 
-            Ok(())
-        })?;
+                Ok(())
+            },
+        )?;
 
         if let Some(feats) = &self.features {
             w.put_u8(feats.len() as u8)?;
@@ -100,15 +101,16 @@ impl ScorexSerializable for PeerSpec {
 
         let version = ProtocolVersion::scorex_parse(r)?;
         let node_name = r.get_short_string()?;
-        let declared_addr: Option<PeerAddr> = r.get_option(&|r: &mut R| {
-            // read the size bytes
-            // not used at the moment because PeerAddr is currently ipv4/4 bytes
-            r.get_u8()?;
-            let addr =
-                PeerAddr::scorex_parse(r).map_err(|_| VlqEncodingError::VlqDecodingFailed)?;
+        let declared_addr: Option<PeerAddr> =
+            r.get_option(|r: &mut R| -> Result<_, ScorexParsingError> {
+                // read the size bytes
+                // not used at the moment because PeerAddr is currently ipv4/4 bytes
+                r.get_u8()?;
+                let addr =
+                    PeerAddr::scorex_parse(r).map_err(|_| VlqEncodingError::VlqDecodingFailed)?;
 
-            Ok(addr)
-        });
+                Ok(addr)
+            })?;
 
         let feat_len = r.get_u8()?;
         let features = match feat_len {

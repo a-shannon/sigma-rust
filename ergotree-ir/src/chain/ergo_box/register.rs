@@ -323,7 +323,8 @@ pub(crate) mod arbitrary {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::serialization::sigma_serialize_roundtrip;
+    use crate::ergo_tree::ErgoTreeVersion;
+    use crate::serialization::{sigma_serialize_roundtrip, sigma_serialize_roundtrip_versioned};
     use crate::unsignedbigint256::UnsignedBigInt;
     #[cfg(feature = "arbitrary")]
     use proptest::prelude::*;
@@ -360,14 +361,18 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn test_v6_type_reject() {
         let regs = NonMandatoryRegisters::new([(
             NonMandatoryRegisterId::R4,
             Constant::from(UnsignedBigInt::from(1u32)),
         )])
         .unwrap();
-        sigma_serialize_roundtrip(&regs);
+        assert!(sigma_serialize_roundtrip_versioned(&regs, ErgoTreeVersion::V3).is_err());
+        // Option[SInt]
+        let regs =
+            NonMandatoryRegisters::new([(NonMandatoryRegisterId::R4, Constant::from(Some(1i32)))])
+                .unwrap();
+        assert!(sigma_serialize_roundtrip_versioned(&regs, ErgoTreeVersion::V3).is_err())
     }
 
     #[test]

@@ -98,6 +98,11 @@ impl DataSerializer {
             Literal::Header(h) if w.tree_version() >= ErgoTreeVersion::V3 => {
                 h.scorex_serialize(w)?;
             }
+            Literal::Opt(opt) if w.tree_version() >= ErgoTreeVersion::V3 => {
+                w.put_option(Option::as_ref(opt), |w, v| {
+                    DataSerializer::sigma_serialize(v, w)
+                })?;
+            }
             // unsupported, see
             // https://github.com/ScorexFoundation/sigmastate-interpreter/issues/659
             Literal::Opt(_) => {
@@ -181,6 +186,10 @@ impl DataSerializer {
                 return Err(SigmaParsingError::NotSupported(
                     "UnsignedBigInt can't be serialized on tree versions < 3",
                 ))
+            }
+            SOption(inner_tpe) if r.tree_version() >= ErgoTreeVersion::V3 => {
+                let res = r.get_option(|r| DataSerializer::sigma_parse(inner_tpe, r))?;
+                Literal::Opt(res.map(Box::new))
             }
             SBox => Literal::CBox(Arc::new(ErgoBox::sigma_parse(r)?).into()),
             SAvlTree => Literal::AvlTree(Box::new(AvlTreeData::sigma_parse(r)?)),

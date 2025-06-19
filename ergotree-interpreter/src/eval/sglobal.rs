@@ -3,11 +3,12 @@ use alloc::boxed::Box;
 use alloc::{string::ToString, sync::Arc};
 
 use ergo_chain_types::autolykos_pow_scheme::{decode_compact_bits, encode_compact_bits};
+use ergotree_ir::mir::constant::Literal;
 use ergotree_ir::serialization::sigma_byte_writer::SigmaByteWrite;
 use ergotree_ir::unsignedbigint256::UnsignedBigInt;
 use ergotree_ir::{
     mir::{
-        constant::{Constant, TryExtractInto},
+        constant::TryExtractInto,
         value::{CollKind, NativeColl, Value},
     },
     serialization::{
@@ -197,7 +198,7 @@ pub(crate) static SERIALIZE_EVAL_FN: EvalFn = |_mc, _env, ctx, obj, args| {
             obj
         )));
     }
-    let arg: Constant = args
+    let arg: Literal = args
         .first()
         .ok_or_else(|| EvalError::NotFound("serialize: missing first arg".into()))?
         .to_static()
@@ -207,7 +208,7 @@ pub(crate) static SERIALIZE_EVAL_FN: EvalFn = |_mc, _env, ctx, obj, args| {
     let mut buf = vec![];
     let mut writer = SigmaByteWriter::new(&mut buf, None);
     writer.with_tree_version(ctx.tree_version(), |writer| {
-        DataSerializer::sigma_serialize(&arg.v, writer)
+        DataSerializer::sigma_serialize(&arg, writer)
     })?;
     Ok(Value::from(buf))
 };
