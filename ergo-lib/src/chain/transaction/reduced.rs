@@ -27,8 +27,10 @@ use super::TxIoVec;
 /// see EIP-19 for more details -
 /// <https://github.com/ergoplatform/eips/blob/f280890a4163f2f2e988a0091c078e36912fc531/eip-0019.md>
 #[derive(PartialEq, Eq, Debug, Clone)]
+#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReducedInput {
     /// value of SigmaProp type which represents a statement verifiable via sigma protocol.
+    #[cfg_attr(feature = "json", serde(rename = "sigmaProp"))]
     pub sigma_prop: SigmaBoolean,
     /// estimated cost of expression evaluation
     pub cost: u64,
@@ -46,12 +48,16 @@ pub struct ReducedInput {
 /// Reference Scala implementation -
 /// <https://github.com/ergoplatform/ergo-appkit/blob/1b7347caa863ecb0b9ba49ae57b090d1f386c906/common/src/main/java/org/ergoplatform/appkit/AppkitProvingInterpreter.scala#L261-L266>
 #[derive(PartialEq, Eq, Debug, Clone)]
+#[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReducedTransaction {
     /// Unsigned transation
+    #[cfg_attr(feature = "json", serde(rename = "unsignedTx"))]
     pub unsigned_tx: UnsignedTransaction,
     /// Transaction cost according to the prover
+    #[cfg_attr(feature = "json", serde(rename = "txCost"))]
     tx_cost: u32,
     /// Reduction result for each unsigned tx input
+    #[cfg_attr(feature = "json", serde(rename = "reducedInputs"))]
     reduced_inputs: TxIoVec<ReducedInput>,
 }
 

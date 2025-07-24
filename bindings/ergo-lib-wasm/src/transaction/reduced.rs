@@ -65,6 +65,18 @@ impl ReducedTransaction {
             .map(ReducedTransaction::from)
     }
 
+    /// JSON representation as text (compatible with Ergo Node/Explorer API, numbers are encoded as numbers)
+    pub fn to_json(&self) -> Result<String, JsValue> {
+        serde_json::to_string_pretty(&self.0.clone())
+            .map_err(|e| JsValue::from_str(&format!("{}", e)))
+    }
+
+    /// parse from JSON
+    /// supports Ergo Node/Explorer API and box values and token amount encoded as strings
+    pub fn from_json(json: &str) -> Result<ReducedTransaction, JsValue> {
+        serde_json::from_str(json).map(Self).map_err(to_js)
+    }
+
     /// Returns serialized bytes or fails with error if cannot be serialized
     pub fn sigma_serialize_bytes(&self) -> Result<Vec<u8>, JsValue> {
         self.0.sigma_serialize_bytes().map_err(to_js)
