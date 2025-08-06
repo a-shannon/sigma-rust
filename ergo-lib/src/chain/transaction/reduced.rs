@@ -11,6 +11,8 @@ use ergotree_ir::serialization::SigmaSerializable;
 use ergotree_ir::serialization::SigmaSerializeResult;
 use ergotree_ir::sigma_protocol::sigma_boolean::SigmaBoolean;
 
+use super::unsigned::UnsignedTransaction;
+use super::TxIoVec;
 use crate::chain::ergo_state_context::ErgoStateContext;
 use crate::chain::transaction::Transaction;
 use crate::chain::transaction::UnsignedInput;
@@ -20,9 +22,6 @@ use crate::wallet::signing::TransactionContext;
 use crate::wallet::signing::TxSigningError;
 use crate::wallet::tx_context::TransactionContextError;
 
-use super::unsigned::UnsignedTransaction;
-use super::TxIoVec;
-
 /// Input box script reduced to SigmaBoolean
 /// see EIP-19 for more details -
 /// <https://github.com/ergoplatform/eips/blob/f280890a4163f2f2e988a0091c078e36912fc531/eip-0019.md>
@@ -30,7 +29,13 @@ use super::TxIoVec;
 #[cfg_attr(feature = "json", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReducedInput {
     /// value of SigmaProp type which represents a statement verifiable via sigma protocol.
-    #[cfg_attr(feature = "json", serde(rename = "sigmaProp"))]
+    #[cfg_attr(
+        feature = "json",
+        serde(
+            rename = "sigmaProp",
+            with = "ergotree_ir::chain::json::sigma_protocol"
+        )
+    )]
     pub sigma_prop: SigmaBoolean,
     /// estimated cost of expression evaluation
     pub cost: u64,

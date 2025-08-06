@@ -1,12 +1,10 @@
+//! SigmaBoolean JSON encoding
+
 use core::convert::TryFrom;
 use core::convert::TryInto;
 
-use alloc::vec::Vec;
-use bounded_vec::BoundedVecOutOfBounds;
-use ergo_chain_types::EcPoint;
-use serde::Deserialize;
-use serde::Serialize;
-
+use super::serialize_bytes;
+use crate::serialization::SigmaSerializable;
 use crate::sigma_protocol::sigma_boolean::cand::Cand;
 use crate::sigma_protocol::sigma_boolean::cor::Cor;
 use crate::sigma_protocol::sigma_boolean::cthreshold::Cthreshold;
@@ -15,11 +13,16 @@ use crate::sigma_protocol::sigma_boolean::ProveDlog;
 use crate::sigma_protocol::sigma_boolean::SigmaBoolean;
 use crate::sigma_protocol::sigma_boolean::SigmaConjecture;
 use crate::sigma_protocol::sigma_boolean::SigmaProofOfKnowledgeTree;
+use alloc::vec::Vec;
+use bounded_vec::BoundedVecOutOfBounds;
+use ergo_chain_types::EcPoint;
+use serde::Serialize;
+use serde::{Deserialize, Deserializer, Serializer};
 
 #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
 #[serde(tag = "op")]
 #[allow(clippy::large_enum_variant)]
-pub enum SigmaBooleanJson {
+pub(crate) enum SigmaBooleanJson {
     #[serde(rename = "205")] // OpCode::PROVE_DLOG
     ProveDlog { h: EcPoint },
     #[serde(rename = "206")] // OpCode::PROVE_DIFFIE_HELLMAN_TUPLE
@@ -131,4 +134,30 @@ impl TryFrom<SigmaBooleanJson> for SigmaBoolean {
             .into(),
         })
     }
+}
+
+/// Serializer (used in Wasm bindings)
+pub fn serialize<S>(sb: &SigmaBoolean, serializer: S) -> Result<S::Ok, S::Error>
+where
+    S: Serializer,
+{
+    use serde::ser::Error;
+
+    let bytes = sb
+        .sigma_serialize_bytes()
+        .map_err(|err| Error::custom(err.to_string()))?;
+    serialize_bytes(&bytes[..], serializer)
+}
+
+/// Deserializer (used in Wasm bindings)
+pub fn deserialize<'de, D>(deserializer: D) -> Result<SigmaBoolean, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    use serde::de::Error;
+    String::deserialize(deserializer)
+        .and_then(|str| base16::decode(&str).map_err(|err| Error::custom(err.to_string())))
+        .and_then(|bytes| {
+            SigmaBoolean::sigma_parse_bytes(&bytes).map_err(|err| Error::custom(err.to_string()))
+        })
 }
