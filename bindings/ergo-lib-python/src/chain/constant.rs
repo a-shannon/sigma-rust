@@ -108,7 +108,7 @@ impl SType {
                     tpes.bind(py)
                         .iter()
                         .map(|tpe| -> PyResult<stype::SType> {
-                            tpe.downcast::<SType>()?.get().to_stype(py)
+                            tpe.cast::<SType>()?.get().to_stype(py)
                         })
                         .collect::<PyResult<Vec<_>>>()?,
                 )
@@ -145,9 +145,9 @@ impl SType {
                 .iter()
                 .zip(t2.bind(py).iter())
                 .map(|(t1, t2)| -> PyResult<bool> {
-                    t1.downcast_into::<SType>()?
+                    t1.cast_into::<SType>()?
                         .get()
-                        .__eq__(t2.downcast_into::<SType>()?.get(), py)
+                        .__eq__(t2.cast_into::<SType>()?.get(), py)
                 })
                 .reduce(|res1, res2| res1.and_then(|res1| res2.map(|res2| res1 == res2)))
                 .transpose()?
@@ -174,7 +174,7 @@ impl Constant {
         if let Ok(bytes) = arg.extract::<&[u8]>() {
             return Ok(Self(constant::Constant::from(bytes.to_owned())));
         }
-        if let Ok(tuple) = arg.downcast_exact::<PyTuple>() {
+        if let Ok(tuple) = arg.cast_exact::<PyTuple>() {
             return from_tuple(tuple);
         }
         if let Ok(arr) = arg.extract::<Vec<Constant>>() {
