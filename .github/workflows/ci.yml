@@ -45,6 +45,7 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           override: true
+      - uses: taiki-e/install-action@nextest
       - name: cargo fetch
         uses: actions-rs/cargo@v1
         with:
@@ -53,12 +54,12 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --verbose --release --tests
+          args: --verbose --tests
       - name: Run tests
         uses: actions-rs/cargo@v1
         with:
-          command: test
-          args: --verbose --release
+          command: nextest
+          args: run --verbose
 
   test_coverage:
     name: Code coverage in tests
