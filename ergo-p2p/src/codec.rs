@@ -6,6 +6,7 @@ use crate::message::Request;
 
 /// Encoder/Decoder for network messages from/to bytes
 #[derive(Default)]
+#[allow(dead_code)]
 pub struct Codec {}
 
 impl Encoder<Request> for Codec {

@@ -76,7 +76,7 @@ pub(crate) fn constant_from_js(val: &JsValue) -> Result<Constant, ConvError> {
             } else if let Ok(coll_longs) = coll_long_from_js(&arr) {
                 Ok(coll_longs)
             } else {
-                return Err(ConvError::NotSupported(val.clone()));
+                Err(ConvError::NotSupported(val.clone()))
             }
         } else {
             // regular array

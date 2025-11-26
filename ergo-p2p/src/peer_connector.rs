@@ -18,12 +18,14 @@ use crate::peer_connection_handler::PeerConnectionHandler;
 use crate::Client;
 
 /// Opens a TCP connection before forwarding to the inner peer connection handling service for a handshake.
+#[allow(dead_code)]
 pub struct PeerConnector {
     handshaker: PeerConnectionHandler,
 }
 
 /// A connector request.
 /// Contains the information needed to make an outbound connection to the peer.
+#[allow(dead_code)]
 pub struct OutboundConnectorRequest {
     /// The listener address of the peer.
     pub addr: PeerAddr,

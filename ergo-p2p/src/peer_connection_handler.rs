@@ -26,6 +26,7 @@ use crate::PeerInfo;
 
 /// A service that handshakes with a remote peer and constructs a client/server pair.
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct PeerConnectionHandler {}
 
 impl Service<HandshakeRequest> for PeerConnectionHandler {
@@ -89,6 +90,7 @@ pub struct ConnectionId {
     direction: ConnectionDirection,
 }
 impl ConnectionId {
+    #[allow(dead_code)]
     pub(crate) fn new_outbound_direct(_addr: PeerAddr) -> Self {
         todo!()
     }

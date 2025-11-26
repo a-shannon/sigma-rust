@@ -89,7 +89,7 @@ pub trait ErgoTransaction: ContextExtensionProvider {
     fn outputs(&self) -> &[ErgoBox];
 
     /// Stateless transaction validation (no blockchain context) for a transaction
-    /// Returns [`Ok(())`] if validation has succeeded or returns [`TxValidationError`]
+    /// Returns [Ok(())] if validation has succeeded or returns [`TxValidationError`]
     fn validate_stateless(&self) -> Result<(), TxValidationError> {
         // Note that we don't need to check if inputs/data inputs/outputs are >= 1 <= 32767 here since BoundedVec takes care of that
         let inputs = self.inputs_ids();

@@ -44,7 +44,7 @@ impl ProofTree {
         }
     }
 
-    pub(crate) fn as_tree_kind(&self) -> ProofTreeKind {
+    pub(crate) fn as_tree_kind(&self) -> ProofTreeKind<'_> {
         match self {
             ProofTree::UncheckedTree(unch) => unch.as_tree_kind(),
             ProofTree::UnprovenTree(unp) => unp.as_tree_kind(),
