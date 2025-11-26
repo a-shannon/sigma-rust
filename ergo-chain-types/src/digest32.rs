@@ -3,6 +3,7 @@
 use alloc::boxed::Box;
 use alloc::string::String;
 use alloc::vec::Vec;
+use base64::Engine;
 use core::array::TryFromSliceError;
 use core::convert::TryFrom;
 use core::convert::TryInto;
@@ -46,7 +47,7 @@ impl<const N: usize> Digest<N> {
 
     /// Parse `Digest<N>` from base64 encoded string
     pub fn from_base64(s: &str) -> Result<Digest<N>, DigestNError> {
-        let bytes = base64::decode(s)?;
+        let bytes = base64::engine::general_purpose::STANDARD.decode(s)?;
         let arr: [u8; N] = bytes.as_slice().try_into()?;
         Ok(Digest(arr))
     }

@@ -69,7 +69,7 @@ num-bigint = { version = "0.4.0", default-features = false }
 lazy_static = { version = "1.4", features = ["spin_no_std"] }
 bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 base16 = { version = "0.2.1", default-features = false, features = ["alloc"] }
-base64 = { version = "0.13.0", default-features = false, features = ["alloc"] }
+base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
 indexmap = { version = "2.6.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = [
@@ -89,7 +89,7 @@ bounded-integer = { version = "^0.5", features = ["types"] }
 url = "2.5.4"
 getrandom = { version = "0.2.16" }
 itertools = { version = "0.10.3", default-features = false }
-miette = { version = "5", features = ["fancy"] }
+miette = { version = "7.6.0", features = ["fancy"] }
 hashbrown = { version = "0.14.3", features = ["serde"] }
 core2 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 # dev-dependencies
