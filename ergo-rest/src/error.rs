@@ -1,4 +1,3 @@
-use crate::reqwest;
 use derive_more::From;
 use thiserror::Error;
 

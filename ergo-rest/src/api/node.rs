@@ -25,7 +25,7 @@ pub use crate::api::peer_discovery_internals::ChromePeerDiscoveryScan;
 pub async fn get_info(node: NodeConf) -> Result<NodeInfo, NodeError> {
     #[allow(clippy::unwrap_used)]
     let url = node.addr.as_http_url().join("info").unwrap();
-    let client = build_client(&node)?;
+    let client = build_client()?;
     let rb = client.get(url);
     Ok(set_req_headers(rb, node)
         .send()
@@ -42,7 +42,7 @@ pub async fn get_header(node: NodeConf, header_id: BlockId) -> Result<Header, No
     path.push_str("/header");
     #[allow(clippy::unwrap_used)]
     let url = node.addr.as_http_url().join(&path).unwrap();
-    let client = build_client(&node)?;
+    let client = build_client()?;
     let rb = client.get(url);
     Ok(set_req_headers(rb, node)
         .send()
@@ -136,7 +136,7 @@ pub async fn get_nipopow_proof_by_header_id(
     path.push_str(&header_str);
     #[allow(clippy::unwrap_used)]
     let url = node.addr.as_http_url().join(&path).unwrap();
-    let client = build_client(&node)?;
+    let client = build_client()?;
     let rb = client.get(url);
     Ok(set_req_headers(rb, node)
         .send()
@@ -160,7 +160,7 @@ pub async fn get_blocks_header_id_proof_for_tx_id(
     path.push_str(&tx_id_str);
     #[allow(clippy::unwrap_used)]
     let url = node.addr.as_http_url().join(&path).unwrap();
-    let client = build_client(&node)?;
+    let client = build_client()?;
     let rb = client.get(url);
     Ok(set_req_headers(rb, node)
         .send()

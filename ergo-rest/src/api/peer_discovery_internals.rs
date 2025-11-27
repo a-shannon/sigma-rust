@@ -23,7 +23,7 @@ use super::{build_client, set_req_headers};
 async fn get_peers_all(node: NodeConf) -> Result<Vec<PeerInfo>, NodeError> {
     #[allow(clippy::unwrap_used)]
     let url = node.addr.as_http_url().join("peers/all").unwrap();
-    let client = build_client(&node)?;
+    let client = build_client()?;
     let rb = client.get(url);
     let response = set_req_headers(rb, node).send().await?;
     Ok(response.json::<Vec<PeerInfo>>().await?)

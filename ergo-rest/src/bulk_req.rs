@@ -1,7 +1,7 @@
-use crate::reqwest::{Request, Response};
 use ergo_chain_types::BlockId;
 use ergo_chain_types::PeerAddr;
 use ergo_nipopow::NipopowProof;
+use reqwest::{Request, Response};
 
 use crate::NodeError;
 
