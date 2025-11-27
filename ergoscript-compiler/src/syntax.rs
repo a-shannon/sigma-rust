@@ -4,7 +4,7 @@ use super::lexer::TokenKind;
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, FromPrimitive, ToPrimitive, PartialOrd, Ord, Hash)]
 pub enum SyntaxKind {
     Whitespace,
     FnKw,
