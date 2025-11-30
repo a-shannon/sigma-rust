@@ -88,7 +88,7 @@ tokio-util = { version = "0.7.17", features = ["codec"] }
 bounded-integer = { version = "^0.5", features = ["types"] }
 url = "2.5.4"
 getrandom = { version = "0.2.16" }
-itertools = { version = "0.10.3", default-features = false }
+itertools = { version = "0.14", default-features = false }
 miette = { version = "7.6.0", features = ["fancy"] }
 hashbrown = { version = "0.16.1", features = ["serde"] }
 core2 = { version = "0.4.0", default-features = false, features = ["alloc"] }
