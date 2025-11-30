@@ -142,9 +142,6 @@ impl<S: ErgoBoxAssets + ErgoBoxId + Clone> TxBuilder<S> {
     }
 
     fn build_tx(&self) -> Result<UnsignedTransaction, TxBuilderError> {
-        if self.box_selection.boxes.is_empty() {
-            return Err(TxBuilderError::InvalidArgs("inputs are empty".to_string()));
-        }
         if self.output_candidates.is_empty() {
             return Err(TxBuilderError::InvalidArgs("outputs are empty".to_string()));
         }

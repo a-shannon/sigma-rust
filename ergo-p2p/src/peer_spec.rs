@@ -120,7 +120,7 @@ impl ScorexSerializable for PeerSpec {
                 for _ in 0..n {
                     f.push(PeerFeature::scorex_parse(r)?);
                 }
-                Some(BoundedVec::from_vec(f)?)
+                Some(PeerFeatures::from_vec(f)?)
             }
         };
 
@@ -154,7 +154,7 @@ pub mod arbitrary {
                 option::of(vec(any::<PeerFeature>(), 1..4)),
             )
                 .prop_map(|(version, declared_addr, features)| {
-                    let feats = features.map(|f| BoundedVec::from_vec(f).unwrap());
+                    let feats = features.map(|f| PeerFeatures::from_vec(f).unwrap());
 
                     PeerSpec::new(
                         "/Ergo-Scala-client:2.0.0(iPad; U; CPU OS 3_2_1)/AndroidBuild:0.8/",

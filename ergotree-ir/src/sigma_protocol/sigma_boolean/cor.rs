@@ -27,7 +27,6 @@ impl Cor {
     /// Connects the given sigma propositions into COR proposition performing
     /// partial evaluation when some of them are trivial propositioins.
     pub fn normalized(items: SigmaConjectureItems<SigmaBoolean>) -> SigmaBoolean {
-        assert!(!items.is_empty());
         let mut res = Vec::new();
         for it in items {
             match it {
