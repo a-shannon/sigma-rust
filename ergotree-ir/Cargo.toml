@@ -35,8 +35,8 @@ serde_json = { workspace = true, optional = true }
 serde_with = { workspace = true, optional = true }
 bnum = { version = "0.12.0", features = ["numtraits"] }
 impl-trait-for-tuples = "0.2.0"
-strum = { version = "0.26.2", default-features = false, features = ["derive"] }
-strum_macros = { version = "0.26.4", default-features = false }
+strum = { version = "0.27.2", default-features = false, features = ["derive"] }
+strum_macros = { version = "0.27.2", default-features = false }
 miette = { workspace = true, optional = true }
 hashbrown = { workspace = true }
 core2 = { workspace = true }
