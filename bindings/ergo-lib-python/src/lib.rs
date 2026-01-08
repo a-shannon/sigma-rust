@@ -38,7 +38,7 @@ pub(crate) fn to_value_error<E: std::error::Error>(e: E) -> PyErr {
 }
 
 pub(crate) fn from_json<T: DeserializeOwned>(json: Bound<'_, PyAny>) -> PyResult<T> {
-    let res = match json.downcast_into::<PyDict>() {
+    let res = match json.cast_into::<PyDict>() {
         Ok(dict) => from_pyobject::<T, PyDict>(dict).map_err(to_value_error)?,
         Err(json) => {
             serde_json::from_str(json.into_inner().extract::<&str>()?).map_err(JsonError::from)?

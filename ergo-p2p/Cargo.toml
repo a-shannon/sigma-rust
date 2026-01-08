@@ -27,7 +27,7 @@ tracing-error = { version = "0.2.0", features = ["traced-error"] }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tokio-util = { workspace = true }
-tower = { version = "0.4.11", features = ["retry", "discover", "load", "load-shed", "timeout", "util", "buffer"] }
+tower = { version = "0.5.2", features = ["retry", "discover", "load", "load-shed", "timeout", "util", "buffer"] }
 bytes = { workspace = true }
 chrono = "0.4.19"
 proptest = { workspace = true , optional = true }

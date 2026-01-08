@@ -27,7 +27,7 @@ impl<'t, 'input> Source<'t, 'input> {
         self.peek_kind_raw()
     }
 
-    pub fn peek_token(&mut self) -> Option<&Token> {
+    pub fn peek_token(&mut self) -> Option<&Token<'_>> {
         self.eat_trivia();
         self.peek_token_raw()
     }
@@ -50,7 +50,7 @@ impl<'t, 'input> Source<'t, 'input> {
         self.peek_token_raw().map(|Token { kind, .. }| *kind)
     }
 
-    fn peek_token_raw(&self) -> Option<&Token> {
+    fn peek_token_raw(&self) -> Option<&Token<'_>> {
         self.tokens.get(self.cursor)
     }
 }

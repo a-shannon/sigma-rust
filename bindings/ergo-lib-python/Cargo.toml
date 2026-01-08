@@ -12,11 +12,11 @@ name = "ergo_lib_python"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.24.2", features = ["indexmap"] }
+pyo3 = { version = "0.27.1", features = ["indexmap"] }
 base16 = { workspace = true }
 derive_more = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 ergo-lib = { workspace = true, features = ["mnemonic_gen"] }
 sigma-ser = { workspace = true }
-serde-pyobject = "0.6.1"
+serde-pyobject = "0.8.0"

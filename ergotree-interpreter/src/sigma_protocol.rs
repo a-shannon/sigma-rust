@@ -120,6 +120,6 @@ mod tests {
         assert!(SOUNDNESS_BITS < GROUP_SIZE_BITS);
         // blake2b hash function requirements
         assert!(SOUNDNESS_BYTES * 8 <= 512);
-        assert!(SOUNDNESS_BYTES % 8 == 0);
+        assert!(SOUNDNESS_BYTES.is_multiple_of(8));
     }
 }

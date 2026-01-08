@@ -47,7 +47,7 @@ impl UncheckedTree {
         }
     }
 
-    pub(crate) fn as_tree_kind(&self) -> ProofTreeKind {
+    pub(crate) fn as_tree_kind(&self) -> ProofTreeKind<'_> {
         match self {
             UncheckedTree::UncheckedLeaf(ul) => ProofTreeKind::Leaf(ul),
             UncheckedTree::UncheckedConjecture(uc) => ProofTreeKind::Conjecture(uc),

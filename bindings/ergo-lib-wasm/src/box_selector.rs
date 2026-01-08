@@ -29,7 +29,7 @@ impl BoxSelection {
         Ok(BoxSelection(wallet::box_selector::BoxSelection::<
             ergo_lib::ergotree_ir::chain::ergo_box::ErgoBox,
         > {
-            boxes: BoundedVec::from_vec(boxes.clone().into()).map_err(to_js)?,
+            boxes: BoundedVec::<_, 1, _>::from_vec(boxes.clone().into()).map_err(to_js)?,
             change_boxes: change.clone().into(),
         }))
     }

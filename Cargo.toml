@@ -59,7 +59,7 @@ derive_more = { version = "2.0.1", default-features = false, features = [
 ] }
 num-derive = "0.4.2"
 thiserror = { version = "2.0.1", default-features = false }
-bounded-vec = { version = "0.8.0", default-features = false }
+bounded-vec = { version = "0.9.0", default-features = false }
 bitvec = { version = "1.0.1", default-features = false, features = ["alloc"] }
 blake2 = { version = "0.10.6", default-features = false }
 sha2 = { version = "0.10", default-features = false }
@@ -67,9 +67,9 @@ num-traits = { version = "0.2.14", default-features = false }
 num-integer = { version = "0.1.44", default-features = false }
 num-bigint = { version = "0.4.0", default-features = false }
 lazy_static = { version = "1.4", features = ["spin_no_std"] }
-bs58 = { version = "0.4.0", default-features = false, features = ["alloc"] }
+bs58 = { version = "0.5.1", default-features = false, features = ["alloc"] }
 base16 = { version = "0.2.1", default-features = false, features = ["alloc"] }
-base64 = { version = "0.13.0", default-features = false, features = ["alloc"] }
+base64 = { version = "0.22.1", default-features = false, features = ["alloc"] }
 indexmap = { version = "2.6.0", default-features = false }
 serde = { version = "1.0", default-features = false, features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = [
@@ -82,15 +82,15 @@ serde_with = { version = "3.11.0", default-features = false, features = [
 rand = "0.8.5"
 bytes = { version = "1.1", default-features = false }
 futures = "0.3"
-tokio = { version = "1.15.0", features = ["full"] }
+tokio = { version = "1.15.0", default-features = false, features = ["rt", "rt-multi-thread"] }
 tokio-stream = { version = "0.1.8", features = ["sync", "time"] }
-tokio-util = { version = "0.6.9", features = ["codec"] }
-bounded-integer = { version = "^0.5", features = ["types"] }
+tokio-util = { version = "0.7.17", features = ["codec"] }
+bounded-integer = { version = "0.6.1" }
 url = "2.5.4"
 getrandom = { version = "0.2.16" }
-itertools = { version = "0.10.3", default-features = false }
-miette = { version = "5", features = ["fancy"] }
-hashbrown = { version = "0.14.3", features = ["serde"] }
+itertools = { version = "0.14", default-features = false }
+miette = { version = "7.6.0", features = ["fancy"] }
+hashbrown = { version = "0.16.1", features = ["serde"] }
 core2 = { version = "0.4.0", default-features = false, features = ["alloc"] }
 # dev-dependencies
 proptest = { version = "=1.6.0", default-features = false, features = [

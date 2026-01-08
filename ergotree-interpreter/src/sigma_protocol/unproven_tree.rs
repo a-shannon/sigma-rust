@@ -65,7 +65,7 @@ impl UnprovenTree {
         }
     }
 
-    pub(crate) fn as_tree_kind(&self) -> ProofTreeKind {
+    pub(crate) fn as_tree_kind(&self) -> ProofTreeKind<'_> {
         match self {
             UnprovenTree::UnprovenLeaf(ul) => ProofTreeKind::Leaf(ul),
             UnprovenTree::UnprovenConjecture(uc) => ProofTreeKind::Conjecture(uc),

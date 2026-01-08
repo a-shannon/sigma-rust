@@ -26,12 +26,15 @@ impl Mnemonic {
         let mut seed: MnemonicSeed = [0u8; SHA512_OUTPUT_LEN];
         let normalized_phrase = mnemonic_phrase.nfkd().collect::<String>();
         let normalized_pass = mnemonic_pass.nfkd().collect::<String>();
+        #[allow(clippy::unwrap_used)]
+        // pbkdf2 only fails if the output size is not the same as the hash size
         pbkdf2::<Hmac<Sha512>>(
             normalized_phrase.as_bytes(),
             format!("mnemonic{}", normalized_pass).as_bytes(),
             Mnemonic::PBKDF2_ITERATIONS,
             &mut seed,
-        );
+        )
+        .unwrap();
 
         seed
     }
