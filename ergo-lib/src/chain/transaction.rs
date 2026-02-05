@@ -234,20 +234,14 @@ pub enum TransactionSignatureVerificationError {
 }
 
 /// Returns distinct token ids from all given ErgoBoxCandidate's
-pub fn distinct_token_ids<I>(output_candidates: I) -> IndexSet<TokenId>
+pub fn distinct_token_ids<'a, I>(output_candidates: I) -> IndexSet<TokenId>
 where
-    I: IntoIterator<Item = ErgoBoxCandidate>,
+    I: IntoIterator<Item = &'a ErgoBoxCandidate>,
 {
-    let token_ids: Vec<TokenId> = output_candidates
+    let token_ids = output_candidates
         .into_iter()
-        .flat_map(|b| {
-            b.tokens
-                .into_iter()
-                .flatten()
-                .map(|t| t.token_id)
-                .collect::<Vec<TokenId>>()
-        })
-        .collect();
+        .flat_map(|b| b.tokens.iter().flatten().map(|t| t.token_id));
+
     IndexSet::<_>::from_iter(token_ids)
 }
 
@@ -267,7 +261,7 @@ impl SigmaSerializable for Transaction {
             }
 
             // Serialize distinct ids of tokens in transaction outputs.
-            let distinct_token_ids = distinct_token_ids(self.output_candidates.clone());
+            let distinct_token_ids = distinct_token_ids(&self.output_candidates);
 
             // Note that `self.output_candidates` is of type `TxIoVec` which has a max length of
             // `u16::MAX`. Therefore the following unwrap is safe.

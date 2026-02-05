@@ -542,8 +542,8 @@ impl AddressEncoder {
         let mut address_bytes = address.content_bytes();
         let mut bytes = vec![prefix_byte];
         bytes.append(&mut address_bytes);
-        let mut calculated_checksum = AddressEncoder::calc_checksum(&bytes[..]).to_vec();
-        bytes.append(&mut calculated_checksum);
+        let calculated_checksum = AddressEncoder::calc_checksum(&bytes[..]);
+        bytes.extend_from_slice(&calculated_checksum);
         bytes
     }
 

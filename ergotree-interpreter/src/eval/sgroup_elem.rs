@@ -26,7 +26,7 @@ pub(crate) static GET_ENCODED_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
 
 pub(crate) static NEGATE_EVAL_FN: EvalFn = |_mc, _env, _ctx, obj, _args| {
     let negated: EcPoint = match obj {
-        Value::GroupElement(ec_point) => Ok(-(*ec_point).clone()),
+        Value::GroupElement(ec_point) => Ok(-(*ec_point)),
         _ => Err(EvalError::UnexpectedValue(format!(
             "expected obj to be Value::GroupElement, got: {0:?}",
             obj
@@ -89,7 +89,7 @@ mod tests {
     fn eval_get_encoded() {
         let input = force_any_val::<EcPoint>();
         let expr: Expr = MethodCall::new(
-            input.clone().into(),
+            input.into(),
             sgroup_elem::GET_ENCODED_METHOD.clone(),
             vec![],
         )
@@ -106,20 +106,16 @@ mod tests {
     #[test]
     fn eval_negate() {
         let input = force_any_val::<EcPoint>();
-        let expr: Expr = MethodCall::new(
-            input.clone().into(),
-            sgroup_elem::NEGATE_METHOD.clone(),
-            vec![],
-        )
-        .unwrap()
-        .into();
+        let expr: Expr = MethodCall::new(input.into(), sgroup_elem::NEGATE_METHOD.clone(), vec![])
+            .unwrap()
+            .into();
         assert_eq!(-input, eval_out_wo_ctx::<EcPoint>(&expr))
     }
 
     proptest! {
         #[test]
         fn eval_exponentiate(a in any::<EcPoint>(), b in any::<BigInt256>()) {
-            let mc: Expr = MethodCall::new(Constant::from(a.clone()).into(), sgroup_elem::EXPONENTIATE_METHOD.clone(), vec![Constant::from(b).into()]).unwrap().into();
+            let mc: Expr = MethodCall::new(Constant::from(a).into(), sgroup_elem::EXPONENTIATE_METHOD.clone(), vec![Constant::from(b).into()]).unwrap().into();
             let exponentiate_node: Expr = Exponentiate::new(Constant::from(a).into(), Constant::from(b).into()).unwrap().into();
             assert_eq!(try_eval_out_wo_ctx::<Value>(&mc), try_eval_out_wo_ctx::<Value>(&exponentiate_node))
         }
@@ -131,12 +127,12 @@ mod tests {
                 &left,
                 pi.w.as_scalar_ref()
             );
-            let mc: Expr = MethodCall::new(Constant::from(left.clone()).into(), sgroup_elem::EXPONENTIATE_UNSIGNED_METHOD.clone(), vec![Constant::from(right).into()]).unwrap().into();
+            let mc: Expr = MethodCall::new(Constant::from(left).into(), sgroup_elem::EXPONENTIATE_UNSIGNED_METHOD.clone(), vec![Constant::from(right).into()]).unwrap().into();
             assert_eq!(eval_out_wo_ctx::<EcPoint>(&mc), expected_exp);
         }
         #[test]
         fn eval_multiply(a in any::<EcPoint>(), b in any::<EcPoint>()) {
-            let mc: Expr = MethodCall::new(Constant::from(a.clone()).into(), sgroup_elem::MULTIPLY_METHOD.clone(), vec![Constant::from(b.clone()).into()]).unwrap().into();
+            let mc: Expr = MethodCall::new(Constant::from(a).into(), sgroup_elem::MULTIPLY_METHOD.clone(), vec![Constant::from(b).into()]).unwrap().into();
             let multiply_node: Expr = MultiplyGroup::new(Constant::from(a).into(), Constant::from(b).into()).unwrap().into();
             assert_eq!(try_eval_out_wo_ctx::<Value>(&mc), try_eval_out_wo_ctx::<Value>(&multiply_node))
         }

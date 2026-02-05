@@ -115,7 +115,7 @@ fn check_commitments(sp: UncheckedTree, message: &[u8]) -> Result<bool, Verifier
     // Perform Verifier Step 4
     let new_root = compute_commitments(sp);
     let mut s = fiat_shamir_tree_to_bytes(&new_root.clone().into())?;
-    s.append(&mut message.to_vec());
+    s.extend_from_slice(message);
     // Verifier Steps 5-6: Convert the tree to a string `s` for input to the Fiat-Shamir hash function,
     // using the same conversion as the prover in 7
     // Accept the proof if the challenge at the root of the tree is equal to the Fiat-Shamir hash of `s`

@@ -862,7 +862,7 @@ impl TryExtractFrom<Literal> for i64 {
 impl TryExtractFrom<Literal> for EcPoint {
     fn try_extract_from(cv: Literal) -> Result<EcPoint, TryExtractFromError> {
         match cv {
-            Literal::GroupElement(v) => Ok((*v).clone()),
+            Literal::GroupElement(v) => Ok(*v),
             _ => Err(TryExtractFromError(format!(
                 "expected EcPoint, found {:?}",
                 cv

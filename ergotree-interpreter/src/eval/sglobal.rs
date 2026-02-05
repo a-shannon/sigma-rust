@@ -680,7 +680,7 @@ mod tests {
         ))
         .unwrap();
         let get_encoded = MethodCall::new(
-            Constant::from(ec_point.clone()).into(),
+            Constant::from(ec_point).into(),
             GET_ENCODED_METHOD.clone(),
             vec![],
         )
@@ -698,7 +698,7 @@ mod tests {
         ))
         .unwrap();
         let get_encoded = MethodCall::new(
-            Constant::from(ec_point.clone()).into(),
+            Constant::from(ec_point).into(),
             GET_ENCODED_METHOD.clone(),
             vec![],
         )

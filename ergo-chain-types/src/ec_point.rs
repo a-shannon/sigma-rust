@@ -4,6 +4,7 @@ use alloc::string::String;
 use core::convert::TryFrom;
 use core::ops::{Add, Mul, Neg};
 use derive_more::{From, Into};
+use elliptic_curve::ops::MulByGenerator;
 use k256::elliptic_curve::group::prime::PrimeCurveAffine;
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use k256::{ProjectivePoint, PublicKey, Scalar};
@@ -11,7 +12,7 @@ use sigma_ser::vlq_encode::{ReadSigmaVlqExt, WriteSigmaVlqExt};
 use sigma_ser::{ScorexParsingError, ScorexSerializable, ScorexSerializeResult};
 
 /// Elliptic curve point
-#[derive(PartialEq, Clone, Default, From, Into)]
+#[derive(PartialEq, Clone, Copy, Default, From, Into)]
 #[cfg_attr(
     feature = "json",
     derive(serde::Serialize, serde::Deserialize),
@@ -104,7 +105,7 @@ pub fn is_identity(ge: &EcPoint) -> bool {
 
 /// Calculates the inverse of the given group element
 pub fn inverse(ec: &EcPoint) -> EcPoint {
-    -ec.clone()
+    -*ec
 }
 
 /// Raises the base GroupElement to the exponent. The result is another GroupElement.
@@ -113,8 +114,13 @@ pub fn exponentiate(base: &EcPoint, exponent: &Scalar) -> EcPoint {
         // we treat EC as a multiplicative group, therefore, exponentiate point is multiply.
         EcPoint(base.0 * exponent)
     } else {
-        base.clone()
+        *base
     }
+}
+
+/// Raise the generator g to the exponent. This is faster than exponentiate(&generator(), exponent)
+pub fn exponentiate_gen(exponent: &Scalar) -> EcPoint {
+    ProjectivePoint::mul_by_generator(exponent).into()
 }
 
 impl ScorexSerializable for EcPoint {

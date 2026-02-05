@@ -77,7 +77,7 @@ mod test {
     use crate::wallet::Wallet;
     fn gen_boxes() -> impl Strategy<Value = (SecretKey, Vec<ErgoBox>)> {
         any::<Wscalar>()
-            .prop_map(|s| SecretKey::DlogSecretKey(DlogProverInput { w: s }))
+            .prop_map(|s| SecretKey::DlogSecretKey(DlogProverInput::new(s)))
             .prop_flat_map(|sk: SecretKey| {
                 (
                     Just(sk.clone()),

@@ -17,7 +17,7 @@ impl Evaluable for MultiplyGroup {
 
         match (&left_v, &right_v) {
             (Value::GroupElement(left), Value::GroupElement(right)) => {
-                Ok(((**left).clone() * right).into())
+                Ok(((**left) * right).into())
             }
             _ => Err(EvalError::UnexpectedValue(format!(
                 "Expected MultiplyGroup input to be GroupElement, got: {0:?}",
@@ -46,7 +46,7 @@ mod tests {
         #[test]
         fn eval_any(left in any::<EcPoint>(), right in any::<EcPoint>()) {
 
-            let expected_mul = left.clone() * &right;
+            let expected_mul = left * &right;
 
             let expr: Expr = MultiplyGroup {
                 left: Box::new(Expr::Const(left.into())),

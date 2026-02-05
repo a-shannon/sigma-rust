@@ -559,7 +559,7 @@ impl TryExtractFrom<Value<'_>> for i64 {
 impl TryExtractFrom<Value<'_>> for EcPoint {
     fn try_extract_from(cv: Value) -> Result<EcPoint, TryExtractFromError> {
         match cv {
-            Value::GroupElement(v) => Ok((*v).clone()),
+            Value::GroupElement(v) => Ok(*v),
             _ => Err(TryExtractFromError(format!(
                 "expected EcPoint, found {:?}",
                 cv

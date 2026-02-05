@@ -401,7 +401,7 @@ impl UnsignedTransaction {
 
     /// Returns distinct token id from output_candidates as array of byte arrays
     pub fn distinct_token_ids(&self) -> Vec<Uint8Array> {
-        distinct_token_ids(self.0.output_candidates.clone())
+        distinct_token_ids(&self.0.output_candidates)
             .iter()
             .map(|id| Uint8Array::from(id.as_ref()))
             .collect()

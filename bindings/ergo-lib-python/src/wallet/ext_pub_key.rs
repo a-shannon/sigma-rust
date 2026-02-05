@@ -32,7 +32,7 @@ impl ExtPubKey {
         ))
     }
     fn public_key(&self) -> EcPoint {
-        self.0.public_key.clone().into()
+        self.0.public_key.into()
     }
     fn address(&self) -> Address {
         address::Address::from(self.0.clone()).into()

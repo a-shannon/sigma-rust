@@ -7,6 +7,7 @@ use core::fmt::Formatter;
 
 use derive_more::From;
 use derive_more::Into;
+use elliptic_curve::PrimeField;
 use ergo_chain_types::Base16DecodedBytes;
 use ergo_chain_types::Base16EncodedBytes;
 use k256::elliptic_curve::generic_array::GenericArray;
@@ -31,9 +32,29 @@ use super::SOUNDNESS_BYTES;
 pub struct Wscalar(Scalar);
 
 impl Wscalar {
+    /// Scalar(secret key) size in bytes
+    pub const SIZE_BYTES: usize = 32;
+
     /// Returns a reference to underlying Scalar
     pub fn as_scalar_ref(&self) -> &Scalar {
         &self.0
+    }
+
+    /// Attempts to parse the given byte array as an SEC-1-encoded scalar(secret key).
+    /// Returns None if the byte array does not contain a big-endian integer in the range [0, modulus).
+    pub fn from_bytes(bytes: &[u8; Self::SIZE_BYTES]) -> Option<Self> {
+        k256::Scalar::from_repr((*bytes).into())
+            .map(Wscalar::from)
+            .into()
+    }
+
+    /// Convert scalar to big-endian byte representation
+    pub fn to_bytes(&self) -> [u8; Self::SIZE_BYTES] {
+        self.0.to_bytes().into()
+    }
+    /// Return true if the scalar is 0
+    pub fn is_zero(&self) -> bool {
+        self.0.is_zero().into()
     }
 }
 
@@ -45,12 +66,11 @@ impl From<GroupSizedBytes> for Wscalar {
     }
 }
 
-impl From<Challenge> for Scalar {
-    fn from(v: Challenge) -> Self {
-        let v: [u8; SOUNDNESS_BYTES] = v.0.into();
-        // prepend zeroes to 32 bytes (big-endian)
-        let mut prefix = vec![0u8; 8];
-        prefix.append(&mut v.to_vec());
+impl From<&Challenge> for Scalar {
+    fn from(v: &Challenge) -> Self {
+        let v: [u8; SOUNDNESS_BYTES] = *v.0 .0;
+        let mut prefix = [0u8; 32];
+        prefix[32 - SOUNDNESS_BYTES..].copy_from_slice(&v);
         <Scalar as Reduce<U256>>::reduce_bytes(&GenericArray::clone_from_slice(&prefix))
     }
 }
