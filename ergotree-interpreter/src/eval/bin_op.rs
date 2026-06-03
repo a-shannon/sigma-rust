@@ -187,8 +187,37 @@ impl Evaluable for BinOp {
         env: &mut Env<'ctx>,
         ctx: &Context<'ctx>,
     ) -> Result<Value<'ctx>, EvalError> {
-        //ctx.cost_accum.add(Costs::DEFAULT.eq_const_size)?;
         let lv = self.left.eval(env, ctx)?;
+        // JIT type-based cost
+        let is_bigint = matches!(lv, Value::BigInt(_) | Value::UnsignedBigInt(_));
+        match self.kind {
+            BinOpKind::Arith(op) => match op {
+                ArithOp::Plus | ArithOp::Minus => {
+                    ctx.add_jit_cost(if is_bigint { 20 } else { 15 })?;
+                }
+                ArithOp::Multiply | ArithOp::Divide | ArithOp::Modulo => {
+                    ctx.add_jit_cost(if is_bigint { 25 } else { 15 })?;
+                }
+                ArithOp::Max | ArithOp::Min => {
+                    ctx.add_jit_cost(if is_bigint { 10 } else { 5 })?;
+                }
+            },
+            BinOpKind::Relation(op) => match op {
+                // Eq/NEq cost is charged by eq_with_cost during the eval
+                // dispatch below (per-type + per-coll-element), since the cost
+                // depends on the runtime value type.
+                RelationOp::Eq | RelationOp::NEq => {}
+                _ => {
+                    ctx.add_jit_cost(20)?;
+                } // LT, LE, GT, GE = Fixed(20)
+            },
+            BinOpKind::Logical(_) => {
+                ctx.add_jit_cost(20)?; // BinOr, BinAnd, BinXor = Fixed(20)
+            }
+            BinOpKind::Bit(_) => {
+                ctx.add_jit_cost(1)?; // BitOp (all 6) = Fixed(1)
+            }
+        }
         // using closure to keep right value from evaluation (for lazy AND, OR, XOR)
         let mut rv = || self.right.eval(env, ctx);
         match self.kind {
@@ -208,8 +237,18 @@ impl Evaluable for BinOp {
                 )),
             },
             BinOpKind::Relation(op) => match op {
-                RelationOp::Eq => Ok(Value::Boolean(lv == rv()?)),
-                RelationOp::NEq => Ok(Value::Boolean(lv != rv()?)),
+                RelationOp::Eq => {
+                    let rv_val = rv()?;
+                    Ok(Value::Boolean(
+                        crate::eval::data_value_comparer::eq_with_cost(&lv, &rv_val, ctx)?,
+                    ))
+                }
+                RelationOp::NEq => {
+                    let rv_val = rv()?;
+                    Ok(Value::Boolean(
+                        !crate::eval::data_value_comparer::eq_with_cost(&lv, &rv_val, ctx)?,
+                    ))
+                }
                 RelationOp::Gt => eval_gt(lv, rv()?),
                 RelationOp::Lt => eval_lt(lv, rv()?),
                 RelationOp::Ge => eval_ge(lv, rv()?),
