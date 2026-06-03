@@ -327,9 +327,12 @@ pub(crate) static POW_HIT_EVAL_FN: EvalFn = |_mc, _env, ctx, _obj, mut args| {
 #[cfg(test)]
 #[cfg(feature = "arbitrary")]
 mod tests {
-    use ergo_chain_types::{EcPoint, Header};
+    use ergo_chain_types::{
+        ADDigest, AutolykosSolution, BlockId, Digest32, EcPoint, Header, Votes,
+    };
     use ergotree_ir::bigint256::BigInt256;
     use ergotree_ir::ergo_tree::ErgoTreeVersion;
+    use ergotree_ir::mir::avl_tree_data::{AvlTreeData, AvlTreeFlags};
     use ergotree_ir::mir::constant::Constant;
     use ergotree_ir::mir::expr::Expr;
     use ergotree_ir::mir::long_to_byte_array::LongToByteArray;
@@ -585,6 +588,132 @@ mod tests {
         let enc_kind = cost_of::<i64>(&enc_mc) - cost_of::<BigInt256>(&enc_arg);
         let dec_kind = cost_of::<BigInt256>(&dec_mc) - cost_of::<i64>(&dec_arg);
         assert_eq!(dec_kind - enc_kind, 25);
+    }
+
+    /// Regression: `Global.serialize` charges the `SigmaByteWriter` per-`put` costs on top of
+    /// `StartWriterCost(10)`. Scala constants (`SigmaByteWriter.scala`): `PutByteCost`=1,
+    /// `Put{Signed,Unsigned}NumericCost`=3, `PutChunkCost`=`PerItemCost(3,1,1)` => `3 + n`.
+    /// Isolate each value's serialize cost by subtracting its arg-const eval; the shared
+    /// `Global` receiver, `MethodCall` Fixed(4) and `StartWriterCost(10)` cancel in the
+    /// cross-type differences. Matches the blessed JVM v6 vectors (Byte 90, numerics 92,
+    /// Coll[Byte] 95 empty / 98 for 3 bytes).
+    #[test]
+    fn serialize_charges_writer_costkinds() {
+        use crate::eval::test_util::eval_out;
+        use ergotree_ir::chain::context::Context;
+        use ergotree_ir::mir::constant::TryExtractFrom;
+        use ergotree_ir::mir::value::Value;
+        use sigma_test_util::force_any_val;
+
+        fn cost_of<T: TryExtractFrom<Value<'static>> + 'static>(e: &Expr) -> u64 {
+            let ctx = force_any_val::<Context>();
+            // UnsignedBigInt/Option/Header serialize arms are gated to tree version >= V3;
+            // pin V3 so eval_out doesn't hit a random pre-V3 context. Cost is version-independent.
+            ctx.tree_version.set(ErgoTreeVersion::V3);
+            let before = ctx.jit_cost_value();
+            let _: T = eval_out(e, &ctx);
+            ctx.jit_cost_value() - before
+        }
+
+        fn serialize_mc(c: &Constant) -> Expr {
+            MethodCall::new(
+                Expr::Global,
+                SERIALIZE_METHOD
+                    .clone()
+                    .with_concrete_types(&[(STypeVar::t(), c.tpe.clone())].into_iter().collect()),
+                vec![c.clone().into()],
+            )
+            .unwrap()
+            .into()
+        }
+
+        // serialize cost of `c` isolated from its argument eval.
+        fn ser_kind<T: TryExtractFrom<Value<'static>> + 'static>(c: Constant) -> u64 {
+            cost_of::<Vec<u8>>(&serialize_mc(&c)) - cost_of::<T>(&c.into())
+        }
+
+        let byte = ser_kind::<i8>(1i8.into());
+        let long = ser_kind::<i64>(1i64.into());
+        let coll0 = ser_kind::<Vec<i8>>(Vec::<i8>::new().into());
+        let coll3 = ser_kind::<Vec<i8>>(vec![1i8, 2, 3].into());
+        let bigint = ser_kind::<BigInt256>(BigInt256::from(1i8).into());
+
+        // PutSignedNumericCost(3) - PutByteCost(1)
+        assert_eq!(long - byte, 2);
+        // Coll[Byte] n=0: putU16(3) + PutChunkCost.cost(0)=3 => 6; minus Byte(1)
+        assert_eq!(coll0 - byte, 5);
+        // Coll[Byte] n=3: putU16(3) + PutChunkCost.cost(3)=6 => 9; minus Byte(1)
+        assert_eq!(coll3 - byte, 8);
+        // PutChunkCost per-item slope: cost(3) - cost(0)
+        assert_eq!(coll3 - coll0, 3);
+        // BigInt(1): putU16(3) + PutChunkCost.cost(1)=4 => 7; minus Byte(1)
+        assert_eq!(bigint - byte, 6);
+
+        // --- Phase A1: delegated nested serializers metered at the ergotree-ir site ---
+        let gel = ser_kind::<EcPoint>(Constant::from(
+            EcPoint::from_base16_str(String::from(
+                "026930cb9972e01534918a6f6d6b8e35bc398f57140d13eb3623ea31fbd069939b",
+            ))
+            .unwrap(),
+        ));
+        let ubi = ser_kind::<UnsignedBigInt>(Constant::from(UnsignedBigInt::from(1u32)));
+
+        // GroupElement: EcPoint writes one GROUP_SIZE(33)-byte block => PutChunkCost(33)=36; minus Byte(1)
+        assert_eq!(gel - byte, 35);
+        // UnsignedBigInt(1): putU16(3) + PutChunkCost.cost(1)=4 => 7; identical shape to BigInt(1)
+        assert_eq!(ubi, bigint);
+
+        // --- Phase A2c: AvlTree (delegated AvlTreeData serializer) ---
+        let avl_dummy = ser_kind::<AvlTreeData>(Constant::from(AvlTreeData {
+            digest: ADDigest::zero(),
+            tree_flags: AvlTreeFlags::new(true, true, true),
+            key_length: 32,
+            value_length_opt: None,
+        }));
+        let avl_withlen = ser_kind::<AvlTreeData>(Constant::from(AvlTreeData {
+            digest: ADDigest::zero(),
+            tree_flags: AvlTreeFlags::new(true, true, true),
+            key_length: 32,
+            value_length_opt: Some(Box::new(8u32)),
+        }));
+        // AvlTree: putBytes(33-digest)=36 + putUByte(flags)=1 + putUInt(keyLength)=0
+        // + putOption tag=1 = 38; the Some valueLength inner putUInt nets to 0 (no-info putUInt),
+        // so dummy and withValueLen are identical. minus Byte(1) => 37.
+        assert_eq!(avl_dummy - byte, 37);
+        assert_eq!(avl_withlen - byte, 37);
+
+        // --- Header (delegated Header::scorex_serialize, hand-mirrored at the data.rs site) ---
+        // Deterministic v2 / empty-unparsed header (autolykos v2: pk + 8-byte nonce, no w/d).
+        let header = ser_kind::<Header>(Constant::from(Header {
+            version: 2,
+            id: BlockId(Digest32::zero()),
+            parent_id: BlockId(Digest32::zero()),
+            ad_proofs_root: Digest32::zero(),
+            state_root: ADDigest::zero(),
+            transaction_root: Digest32::zero(),
+            timestamp: 0,
+            n_bits: 0,
+            height: 0,
+            extension_root: Digest32::zero(),
+            autolykos_solution: AutolykosSolution {
+                miner_pk: Box::new(
+                    EcPoint::from_base16_str(String::from(
+                        "026930cb9972e01534918a6f6d6b8e35bc398f57140d13eb3623ea31fbd069939b",
+                    ))
+                    .unwrap(),
+                ),
+                pow_onetime_pk: None,
+                nonce: vec![0u8; 8],
+                pow_distance: None,
+            },
+            votes: Votes([0, 0, 0]),
+            unparsed_bytes: Box::new([]),
+        }));
+        // put_cost 244 (blessed Global.serialize[Header] 333 = 89 + 244): ver 1 + 4×Digest32
+        // putBytes(32)=35 + ADDigest putBytes(33)=36 + putULong 3 + nBits putBytes(4)=7
+        // + putUInt(height)=0 + votes putBytes(3)=6 + unparsedLen 1 + unparsed putBytes(0)=3
+        // + pk putBytes(33)=36 + nonce putBytes(8)=11. minus Byte(1) => 243.
+        assert_eq!(header - byte, 243);
     }
 
     use proptest::prelude::*;
