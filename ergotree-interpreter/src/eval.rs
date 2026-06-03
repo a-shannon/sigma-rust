@@ -12,6 +12,7 @@ use ergotree_ir::mir::value::Value;
 use ergotree_ir::sigma_protocol::sigma_boolean::SigmaBoolean;
 
 use ergotree_ir::types::smethod::SMethod;
+use ergotree_ir::types::stype::SType;
 
 use self::env::Env;
 use ergotree_ir::chain::context::Context;
@@ -126,16 +127,53 @@ pub struct ReductionResult {
     pub diag: ReductionDiagnosticInfo,
 }
 
+/// JIT cost for a script that trivially reduces to a SigmaProp constant (e.g.
+/// bare P2PK). Scala's `EvalSigmaPropConstant` charges 50 JitCost.
+const EVAL_SIGMA_PROP_CONSTANT: u64 = 50;
+
+/// Short-circuit for trees whose proposition is a plain SigmaProp constant.
+/// Returns `Some(sigma_bool)` for both forms:
+///
+/// * non-segregated P2PK where the root is already `Expr::Const(SSigmaProp)`,
+/// * segregated P2PK where the root is `Expr::ConstPlaceholder` with a
+///   `resolved` SSigmaProp constant (populated by
+///   `ErgoTree::proposition_for_cost_eval`).
+///
+/// Returns `None` when full evaluation is required.
+fn trivial_reduce(expr: &Expr) -> Option<SigmaBoolean> {
+    let c = match expr {
+        Expr::Const(c) => Some(c),
+        Expr::ConstPlaceholder(cp) => cp.resolved.as_ref(),
+        _ => None,
+    }?;
+    if c.tpe != SType::SSigmaProp {
+        return None;
+    }
+    c.clone()
+        .try_extract_into::<SigmaProp>()
+        .ok()
+        .map(|sp| sp.into())
+}
+
 /// Evaluate the given expression by reducing it to SigmaBoolean value.
 pub fn reduce_to_crypto(tree: &ErgoTree, ctx: &Context) -> Result<ReductionResult, EvalError> {
-    fn inner<'ctx>(expr: &'ctx Expr, ctx: &Context<'ctx>) -> Result<ReductionResult, EvalError> {
+    // Track cost as a delta from the caller's accumulator state so the per-call cost
+    // reported in ReductionResult stays meaningful while the ctx accumulator grows
+    // cumulatively across repeated reduce_to_crypto invocations on the same Context
+    // (required for per-tx jit_cost_limit enforcement — see tx_context::validate).
+    fn inner<'ctx>(
+        expr: &'ctx Expr,
+        ctx: &Context<'ctx>,
+        cost_before: u64,
+    ) -> Result<ReductionResult, EvalError> {
         let mut env_mut = Env::empty();
         expr.eval(&mut env_mut, ctx)
             .and_then(|v| -> Result<ReductionResult, EvalError> {
+                let cost = (ctx.jit_cost_value() - cost_before) / 10; // convert JitCost to block cost
                 match v {
                     Value::Boolean(b) => Ok(ReductionResult {
                         sigma_prop: SigmaBoolean::TrivialProp(b),
-                        cost: 0,
+                        cost,
                         diag: ReductionDiagnosticInfo {
                             env: env_mut.to_static(),
                             pretty_printed_expr: None,
@@ -143,7 +181,7 @@ pub fn reduce_to_crypto(tree: &ErgoTree, ctx: &Context) -> Result<ReductionResul
                     }),
                     Value::SigmaProp(sp) => Ok(ReductionResult {
                         sigma_prop: sp.value().clone(),
-                        cost: 0,
+                        cost,
                         diag: ReductionDiagnosticInfo {
                             env: env_mut.to_static(),
                             pretty_printed_expr: None,
@@ -154,35 +192,60 @@ pub fn reduce_to_crypto(tree: &ErgoTree, ctx: &Context) -> Result<ReductionResul
             })
     }
 
-    let expr = tree.proposition()?;
+    let cost_before = ctx.jit_cost_value();
+    let expr = tree.proposition_for_cost_eval()?;
     let expr = if tree.has_deserialize() {
         expr.substitute_deserialize(ctx)?
     } else {
         expr
     };
-    let res = inner(&expr, ctx);
-    if let Ok(reduction) = res {
-        if reduction.sigma_prop == SigmaBoolean::TrivialProp(false) {
-            let (_, printed_expr_str) = expr
+    // Trivial short-circuit: trees whose proposition is a SigmaProp constant
+    // (e.g. plain P2PK) are priced at a flat 50 JitCost, matching Scala's
+    // EvalSigmaPropConstant. Without this path, the generic Expr::Const arm
+    // only charges 5 JitCost — half a block-cost unit — systematically
+    // undercharging every P2PK input.
+    if let Some(sigma_bool) = trivial_reduce(&expr) {
+        ctx.add_jit_cost(EVAL_SIGMA_PROP_CONSTANT)?;
+        return Ok(ReductionResult {
+            sigma_prop: sigma_bool,
+            cost: (ctx.jit_cost_value() - cost_before) / 10,
+            diag: ReductionDiagnosticInfo {
+                env: Env::empty().to_static(),
+                pretty_printed_expr: None,
+            },
+        });
+    }
+    let res = inner(&expr, ctx, cost_before);
+    match res {
+        Ok(reduction) => {
+            if reduction.sigma_prop == SigmaBoolean::TrivialProp(false) {
+                let (_, printed_expr_str) = expr
+                    .pretty_print()
+                    .map_err(|e| EvalError::Misc(e.to_string()))?;
+                Ok(ReductionResult {
+                    sigma_prop: SigmaBoolean::TrivialProp(false),
+                    cost: reduction.cost,
+                    diag: ReductionDiagnosticInfo {
+                        env: reduction.diag.env,
+                        pretty_printed_expr: Some(printed_expr_str),
+                    },
+                })
+            } else {
+                Ok(reduction)
+            }
+        }
+        Err(EvalError::CostError(e)) => Err(EvalError::CostError(e)),
+        Err(_) => {
+            let (spanned_expr, printed_expr_str) = expr
                 .pretty_print()
                 .map_err(|e| EvalError::Misc(e.to_string()))?;
-            let new_reduction = ReductionResult {
-                sigma_prop: SigmaBoolean::TrivialProp(false),
-                cost: reduction.cost,
-                diag: ReductionDiagnosticInfo {
-                    env: reduction.diag.env,
-                    pretty_printed_expr: Some(printed_expr_str),
-                },
-            };
-            return Ok(new_reduction);
-        } else {
-            return Ok(reduction);
+            // Roll the accumulator back to the pre-reduce state so the diagnostic
+            // retry doesn't double-count and can't spuriously trip jit_cost_limit.
+            ctx.jit_cost.set(cost_before);
+            inner(&spanned_expr, ctx, cost_before)
+                .map_err(|e| e.wrap_spanned_with_src(printed_expr_str.to_string()))
         }
     }
-    let (spanned_expr, printed_expr_str) = expr
-        .pretty_print()
-        .map_err(|e| EvalError::Misc(e.to_string()))?;
-    inner(&spanned_expr, ctx).map_err(|e| e.wrap_spanned_with_src(printed_expr_str.to_string()))
 }
 
 /// Expects SigmaProp constant value and returns it's value. Otherwise, returns an error.
@@ -487,13 +550,14 @@ mod test {
             val_def::ValDef,
             val_use::ValUse,
         },
-        sigma_protocol::sigma_boolean::SigmaBoolean,
+        sigma_protocol::sigma_boolean::{SigmaBoolean, SigmaProp},
         types::stype::SType,
     };
     use expect_test::expect;
     use sigma_test_util::force_any_val;
 
     use crate::eval::reduce_to_crypto;
+    use crate::eval::EvalError;
 
     #[test]
     fn diag_on_reduced_to_false() {
@@ -536,5 +600,138 @@ mod test {
             v1: 1
         "#]]
         .assert_eq(&res.diag.to_string());
+    }
+
+    #[test]
+    fn jit_cost_trivial_prop() {
+        // try_from puts a Boolean Const in a segregated v0(true) tree, so the
+        // root becomes a ConstPlaceholder = JitCost(1) => block cost 0.
+        let tree = ErgoTree::try_from(Expr::Const(true.into())).unwrap();
+        let ctx = force_any_val::<Context>();
+        let res = reduce_to_crypto(&tree, &ctx).unwrap();
+        assert_eq!(res.sigma_prop, SigmaBoolean::TrivialProp(true));
+        assert_eq!(res.cost, 0); // JitCost 1 / 10 = 0
+    }
+
+    #[test]
+    fn jit_cost_self_value() {
+        // SELF.value > 0 => Self(10) + ExtractAmount(8) + Constant(5) + GT(20) + BoolToSigmaProp(15)
+        // = JitCost(58) => block cost 5
+        use ergotree_ir::mir::bool_to_sigma::BoolToSigmaProp;
+        use ergotree_ir::mir::extract_amount::ExtractAmount;
+        use ergotree_ir::mir::global_vars::GlobalVars;
+
+        let self_value: Expr = ExtractAmount {
+            input: Box::new(GlobalVars::SelfBox.into()),
+        }
+        .into();
+        let tree = ErgoTree::try_from(Expr::BoolToSigmaProp(BoolToSigmaProp {
+            input: Box::new(
+                BinOp {
+                    kind: BinOpKind::Relation(RelationOp::Gt),
+                    left: Box::new(self_value),
+                    right: Box::new(Expr::Const(0i64.into())),
+                }
+                .into(),
+            ),
+        }))
+        .unwrap();
+        let ctx = force_any_val::<Context>();
+        let res = reduce_to_crypto(&tree, &ctx).unwrap();
+        assert_eq!(res.cost, 5); // 58 / 10 = 5
+    }
+
+    #[test]
+    fn jit_cost_limit_exceeded() {
+        // Set a zero cost limit and verify that evaluation returns CostError.
+        // The tree is segregated (Boolean Const → v0(true)), so its single
+        // ConstPlaceholder eval charges 1 JitCost; any positive limit would
+        // accept it. Limit 0 catches the very first cost addition.
+        let tree = ErgoTree::try_from(Expr::Const(true.into())).unwrap();
+        let mut ctx = force_any_val::<Context>();
+        ctx.jit_cost_limit = Some(0);
+        let res = reduce_to_crypto(&tree, &ctx);
+        assert!(res.is_err());
+        let is_cost_error = match res.unwrap_err() {
+            EvalError::CostError(_) => true,
+            EvalError::Spanned(e) => matches!(*e.error, EvalError::CostError(_)),
+            _ => false,
+        };
+        assert!(is_cost_error, "Expected CostError");
+    }
+
+    // Bug 1 regression: in a constant-segregated tree, every reference to a
+    // constant is a ConstPlaceholder node, not an inline Const. Scala prices
+    // these differently: ConstPlaceholder = 1 JitCost, Const = 5 JitCost.
+    // Pre-fix, `ErgoTree::proposition()` substituted placeholders into Const
+    // nodes before eval, so segregated trees paid 5 JIT per constant — a
+    // 5× overcharge on every reference. Post-fix,
+    // `proposition_for_cost_eval()` preserves the placeholder nodes and the
+    // eval arm charges 1 JIT per placeholder.
+    #[test]
+    fn segregated_constants_charge_1_not_5_per_placeholder() {
+        // Segregated: a Boolean Const goes through `ErgoTree::try_from`'s
+        // v0(true) branch, so the root is a ConstPlaceholder.
+        let segregated = ErgoTree::try_from(Expr::Const(true.into())).unwrap();
+        let ctx_seg = force_any_val::<Context>();
+        let before_seg = ctx_seg.jit_cost_value();
+        reduce_to_crypto(&segregated, &ctx_seg).unwrap();
+        assert_eq!(
+            ctx_seg.jit_cost_value() - before_seg,
+            1,
+            "segregated ConstPlaceholder eval must charge JitCost(1); pre-fix \
+             charged JitCost(5) via the substituted Const.",
+        );
+
+        // Non-segregated: a SigmaProp Const goes through try_from's v0(false)
+        // branch. It's also short-circuited by trivial_reduce (Phase 8), which
+        // pays EVAL_SIGMA_PROP_CONSTANT = 50 JitCost. The contrast proves the
+        // 1-vs-5 per-node distinction isn't masked by something collapsing the
+        // placeholder-aware path with the Const path.
+        use ergotree_ir::sigma_protocol::sigma_boolean::ProveDlog;
+        let sp = SigmaProp::from(force_any_val::<ProveDlog>());
+        let non_segregated = ErgoTree::try_from(Expr::Const(sp.into())).unwrap();
+        let ctx_ns = force_any_val::<Context>();
+        let before_ns = ctx_ns.jit_cost_value();
+        reduce_to_crypto(&non_segregated, &ctx_ns).unwrap();
+        assert_eq!(
+            ctx_ns.jit_cost_value() - before_ns,
+            50,
+            "non-segregated SigmaProp Const must short-circuit to \
+             EVAL_SIGMA_PROP_CONSTANT = 50.",
+        );
+    }
+
+    // Bug 2 regression: a tree whose proposition is a plain SigmaProp constant
+    // (e.g. bare P2PK) must be priced at Scala's EvalSigmaPropConstant = 50
+    // JitCost via the trivial_reduce short-circuit. Pre-fix, it went through
+    // the generic Expr::Const arm and paid only 5 JitCost — 10× undercharge
+    // on every P2PK input.
+    #[test]
+    fn p2pk_trivial_reduce_charges_50() {
+        use ergotree_ir::sigma_protocol::sigma_boolean::ProveDlog;
+
+        let pd = force_any_val::<ProveDlog>();
+        let sp = SigmaProp::from(pd.clone());
+        let expr: Expr = Expr::Const(sp.into());
+        let tree = ErgoTree::try_from(expr).unwrap();
+        let ctx = force_any_val::<Context>();
+        let before = ctx.jit_cost_value();
+
+        let res = reduce_to_crypto(&tree, &ctx).unwrap();
+
+        // JitCost delta must be exactly 50 (EvalSigmaPropConstant), not 5
+        // (the Expr::Const generic cost that the pre-fix path would pay).
+        assert_eq!(
+            ctx.jit_cost_value() - before,
+            50,
+            "P2PK trivial reduce must charge JitCost(50), not the generic \
+             Expr::Const(5). Got JitCost delta {}.",
+            ctx.jit_cost_value() - before,
+        );
+        // Returned block cost = 50 / 10 = 5.
+        assert_eq!(res.cost, 5);
+        // SigmaProp round-trips back out through reduction.
+        assert_eq!(res.sigma_prop, SigmaBoolean::from(pd));
     }
 }
