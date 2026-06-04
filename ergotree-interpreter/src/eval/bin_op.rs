@@ -415,16 +415,19 @@ mod tests {
         let cases: &[(&str, Option<Value>)] = &[
             ("009a04020504", Some(Value::Long(3))), // Plus(Int 1, Long 2)
             ("009a05040402", Some(Value::Long(3))), // Plus(Long 2, Int 1)
-            ("009a04feffffffffffffffff010502", Some(Value::Long(2147483648))), // Plus(IntMax, Long 1)
+            (
+                "009a04feffffffffffffffff010502",
+                Some(Value::Long(2147483648)),
+            ), // Plus(IntMax, Long 1)
             ("009a05feffffffffffffffff010402", None), // Plus(LongMax, Int 1) -> reject
             ("009904020504", Some(Value::Long(-1))), // Minus(Int 1, Long 2)
-            ("009c04020504", Some(Value::Long(2))),  // Multiply(Int 1, Long 2)
-            ("009d04020504", Some(Value::Long(0))),  // Divide(Int 1, Long 2)
-            ("009e04020504", Some(Value::Long(1))),  // Modulo(Int 1, Long 2)
-            ("00a104020504", Some(Value::Long(1))),  // Min(Int 1, Long 2)
-            ("00a204020504", Some(Value::Long(2))),  // Max(Int 1, Long 2)
-            ("009a02010404", Some(Value::Int(3))),   // Plus(Byte 1, Int 2)
-            ("009a03020404", Some(Value::Int(3))),   // Plus(Short 1, Int 2)
+            ("009c04020504", Some(Value::Long(2))), // Multiply(Int 1, Long 2)
+            ("009d04020504", Some(Value::Long(0))), // Divide(Int 1, Long 2)
+            ("009e04020504", Some(Value::Long(1))), // Modulo(Int 1, Long 2)
+            ("00a104020504", Some(Value::Long(1))), // Min(Int 1, Long 2)
+            ("00a204020504", Some(Value::Long(2))), // Max(Int 1, Long 2)
+            ("009a02010404", Some(Value::Int(3))),  // Plus(Byte 1, Int 2)
+            ("009a03020404", Some(Value::Int(3))),  // Plus(Short 1, Int 2)
             ("009a0402060102", Some(Value::BigInt(BigInt256::from(3i32)))), // Plus(Int 1, BigInt 2)
             ("009a0502060102", Some(Value::BigInt(BigInt256::from(3i32)))), // Plus(Long 1, BigInt 2)
         ];
