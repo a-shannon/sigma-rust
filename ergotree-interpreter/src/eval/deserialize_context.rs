@@ -6,6 +6,7 @@ mod tests {
     use ergotree_ir::mir::deserialize_context::DeserializeContext;
     use ergotree_ir::mir::expr::Expr;
     use ergotree_ir::mir::global_vars::GlobalVars;
+    use ergotree_ir::mir::if_op::If;
     use ergotree_ir::mir::value::Value;
     use ergotree_ir::serialization::SigmaSerializable;
     use ergotree_ir::types::stype::SType;
@@ -130,6 +131,57 @@ mod tests {
         assert!(
             reduce_to_crypto(&tree, &ctx).is_err(),
             "substitution cost must be limit-checked even pre-V6"
+        );
+    }
+
+    // Each actually-substituted var charges the JVM's deserialization
+    // complexity — `scriptBytes.length × CostPerByteDeserialized(2)` block =
+    // bytes × 20 JitCost (`Interpreter.deserializeMeasured`). On this branch
+    // an absent var errors (no dead-branch leniency yet), so isolate the
+    // charge by varying the substituted payload size: the deserialize node
+    // sits on a dead `if` branch, keeping the evaluated path identical
+    // between the two runs — only the substitution charge differs.
+    #[test]
+    fn deserialize_substituted_var_charges_per_byte() {
+        let deser: Expr = DeserializeContext {
+            tpe: SType::SBoolean,
+            id: 0,
+        }
+        .into();
+        // if (true) true else deserializeContext(0)
+        let expr: Expr = If {
+            condition: Expr::Const(true.into()).into(),
+            true_branch: Expr::Const(true.into()).into(),
+            false_branch: deser.into(),
+        }
+        .into();
+
+        let run = |inner: &Expr| -> (u64, u64) {
+            let bytes = inner.sigma_serialize_bytes().unwrap();
+            let len = bytes.len() as u64;
+            let ext = ContextExtension {
+                values: [(0u8, Constant::from(bytes))].iter().cloned().collect(),
+            };
+            let ctx = force_any_val::<Context>().with_extension(&ext);
+            let before = ctx.jit_cost_value();
+            assert!(try_eval_with_deserialize::<bool>(&expr, &ctx).unwrap());
+            (ctx.jit_cost_value() - before, len)
+        };
+
+        let small: Expr = false.into();
+        let big: Expr = If {
+            condition: Expr::Const(true.into()).into(),
+            true_branch: Expr::Const(false.into()).into(),
+            false_branch: Expr::Const(false.into()).into(),
+        }
+        .into();
+        let (cost_small, len_small) = run(&small);
+        let (cost_big, len_big) = run(&big);
+        assert!(len_big > len_small);
+        assert_eq!(
+            cost_big - cost_small,
+            (len_big - len_small) * 20,
+            "substitution must charge the var's bytes × 20 JitCost"
         );
     }
 
