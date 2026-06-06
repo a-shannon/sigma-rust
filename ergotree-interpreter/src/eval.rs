@@ -581,19 +581,16 @@ mod test {
         use ergotree_ir::ergo_tree::ErgoTreeHeader;
         use ergotree_ir::mir::bool_to_sigma::BoolToSigmaProp;
 
-        let expr: Expr = Expr::BoolToSigmaProp(
-            BoolToSigmaProp {
-                input: Box::new(
-                    BinOp {
-                        kind: BinOpKind::Relation(RelationOp::Eq),
-                        left: Box::new(Expr::Const(1i32.into())),
-                        right: Box::new(Expr::Const(1i32.into())),
-                    }
-                    .into(),
-                ),
-            }
-            .into(),
-        );
+        let expr: Expr = Expr::BoolToSigmaProp(BoolToSigmaProp {
+            input: Box::new(
+                BinOp {
+                    kind: BinOpKind::Relation(RelationOp::Eq),
+                    left: Box::new(Expr::Const(1i32.into())),
+                    right: Box::new(Expr::Const(1i32.into())),
+                }
+                .into(),
+            ),
+        });
         let tree = ErgoTree::new(ErgoTreeHeader::v1(true), &expr).unwrap();
         // Verify this tree actually uses constant segregation
         assert!(
