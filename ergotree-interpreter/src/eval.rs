@@ -479,7 +479,18 @@ pub mod test_util {
         expr: &Expr,
         ctx: &'ctx Context<'ctx>,
     ) -> Result<T, EvalError> {
-        let expr = expr.clone().substitute_deserialize(ctx)?;
+        // Mirror `Interpreter.fullReduction`: a deserialize-bearing segregated
+        // tree is reduced from its constants-substituted proposition, not the
+        // lazy placeholder form used for ordinary trees. Values are identical
+        // either way; the distinction becomes observable once JIT costing
+        // lands (Constant vs ConstantPlaceholder visit costs).
+        let expr = match ctx.constants {
+            Some(constants) if expr.has_deserialize() => {
+                expr.clone().substitute_constants(constants)?
+            }
+            _ => expr.clone(),
+        };
+        let expr = expr.substitute_deserialize(ctx)?;
         try_eval_out(&expr, ctx)
     }
 
