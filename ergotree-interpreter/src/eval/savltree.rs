@@ -28,7 +28,18 @@ use ergotree_ir::types::stype::SType;
 /// Tree height as recorded in the digest's last byte — the same source Scala's
 /// `BatchAVLVerifier.rootNodeHeight` reads (`startingDigest.last & 0xff`), used
 /// to scale per-operation verifier costs.
+///
+/// `rootNodeHeight` is assigned only AFTER reconstruction's up-front
+/// `require`s pass (`keyLength > 0`, digest length); when they fail no root is
+/// built and the height stays 0, so the JVM charges degenerate trees a
+/// zero-height walk (`CAvlTreeVerifier.treeHeight`). `keyLength` is a signed
+/// `Int` on the JVM — wire values with the high bit set are negative there.
+/// (Failures *during* proof parsing — malformed proof bytes, wrong value
+/// length — happen after the assignment and keep the digest-derived height.)
 fn tree_height(avl_tree_data: &AvlTreeData) -> u32 {
+    if (avl_tree_data.key_length as i32) <= 0 {
+        return 0;
+    }
     avl_tree_data.digest.0.last().copied().unwrap_or(0) as u32
 }
 
@@ -1403,5 +1414,28 @@ mod tests {
             EXPR_OVERHEAD + 15,
             "insert on a non-insert-allowed tree charges only the flag check"
         );
+    }
+
+    /// JVM parity: `BatchAVLVerifier.rootNodeHeight` is assigned from the
+    /// digest's trailing byte only after the `keyLength > 0` require; a
+    /// non-positive keyLength (signed `Int` on the JVM) fails reconstruction
+    /// before the assignment, so the op-cost height is 0
+    /// (`CAvlTreeVerifier.treeHeight`).
+    #[test]
+    fn tree_height_zero_when_reconstruction_cannot_start() {
+        let mut digest_bytes = [0u8; 33];
+        digest_bytes[32] = 4;
+        let tree = |key_length: u32| AvlTreeData {
+            digest: ADDigest::try_from(digest_bytes.to_vec()).unwrap(),
+            tree_flags: AvlTreeFlags::new(false, false, false),
+            key_length,
+            value_length_opt: None,
+        };
+        // a valid-shaped tree keeps its digest-derived height
+        assert_eq!(tree_height(&tree(32)), 4);
+        // keyLength 0 or negative-on-the-JVM (high bit set) => height 0
+        assert_eq!(tree_height(&tree(0)), 0);
+        assert_eq!(tree_height(&tree(u32::MAX)), 0); // JVM Int -1
+        assert_eq!(tree_height(&tree(0x8000_0000)), 0); // JVM Int.MinValue
     }
 }
