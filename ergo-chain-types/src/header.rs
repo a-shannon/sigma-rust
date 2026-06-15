@@ -200,7 +200,7 @@ impl ScorexSerializable for Header {
         let end = r.seek(SeekFrom::Current(0))?;
         r.seek(SeekFrom::Start(start))?;
         let mut header_bytes = vec![0u8; (end - start) as usize];
-        r.read_exact(&mut header_bytes)?;
+        r.get_bytes_into(&mut header_bytes)?;
         let id = BlockId(blake2b256_hash(&header_bytes).into());
         Ok(Header {
             version,
