@@ -98,7 +98,7 @@ mod tests {
         }
         .into();
         let ctx = ctx_with_tree_version(ErgoTreeVersion::V0);
-        assert_eq!(eval_out::<bool>(&expr, &ctx), true);
+        assert!(eval_out::<bool>(&expr, &ctx));
     }
 
     #[test]
@@ -109,6 +109,6 @@ mod tests {
         }
         .into();
         let ctx = ctx_with_tree_version(ErgoTreeVersion::V2);
-        assert_eq!(eval_out::<bool>(&expr, &ctx), false);
+        assert!(!eval_out::<bool>(&expr, &ctx));
     }
 }
