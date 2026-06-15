@@ -238,19 +238,17 @@ impl ErgoTree {
         }
     }
 
-    /// Like [`Self::proposition`], but preserves `ConstPlaceholder` nodes and
-    /// populates their `resolved` field instead of substituting them with
-    /// `Const`. This keeps the per-node cost distinction intact for JIT
-    /// costing (ConstPlaceholder = 1 JIT, Const = 5 JIT), matching Scala's
-    /// reference interpreter.
-    pub fn proposition_for_cost_eval(&self) -> Result<Expr, ErgoTreeError> {
-        let tree = self.parsed_tree()?.clone();
-        let root = tree.root;
-        if tree.header.is_constant_segregation() {
-            Ok(root.resolve_placeholders(&tree.constants)?)
-        } else {
-            Ok(root)
-        }
+    /// Returns a reference to the root expression without cloning or substituting constants.
+    /// Use this with [`Context::with_constants`] for lazy ConstPlaceholder resolution
+    /// during evaluation, avoiding the deep clone that [`proposition`](Self::proposition) performs.
+    pub fn root_expr(&self) -> Result<&Expr, ErgoTreeError> {
+        Ok(&self.parsed_tree()?.root)
+    }
+
+    /// Returns a reference to the segregated constants array.
+    /// Empty when the tree does not use constant segregation.
+    pub fn constants(&self) -> Result<&[Constant], ErgoTreeError> {
+        Ok(&self.parsed_tree()?.constants)
     }
 
     /// Check if ErgoTree root has [`crate::mir::deserialize_context::DeserializeContext`] or [`crate::mir::deserialize_register::DeserializeRegister`] nodes

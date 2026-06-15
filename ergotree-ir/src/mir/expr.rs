@@ -395,7 +395,7 @@ impl Expr {
     }
 
     /// Returns true if the [`Expr`] has deserialize nodes, see: [`DeserializeContext`] and [`DeserializeRegister`]
-    pub(crate) fn has_deserialize(&self) -> bool {
+    pub fn has_deserialize(&self) -> bool {
         self.iter().any(|c| {
             matches!(
                 c,
@@ -486,28 +486,6 @@ impl Expr {
                         .cloned()
                         .map(Expr::from)
                         .ok_or(SigmaParsingError::ConstantForPlaceholderNotFound(*id))?;
-                }
-                Ok(())
-            },
-        )
-    }
-
-    /// Set the `resolved` field on every [`ConstantPlaceholder`] node, leaving
-    /// the node in place. Contrast with `substitute_constants`, which rewrites
-    /// placeholder nodes into `Expr::Const` and erases the distinction; this
-    /// method preserves it so the evaluator can charge the correct per-node
-    /// JIT cost (ConstPlaceholder = 1, Const = 5).
-    pub fn resolve_placeholders(self, constants: &[Constant]) -> Result<Self, SigmaParsingError> {
-        self.try_rewrite_bu::<SigmaParsingError>(
-            |expr| matches!(expr, Expr::ConstPlaceholder(_)),
-            |expr| {
-                if let Expr::ConstPlaceholder(cp) = expr {
-                    cp.resolved = Some(
-                        constants
-                            .get(cp.id as usize)
-                            .cloned()
-                            .ok_or(SigmaParsingError::ConstantForPlaceholderNotFound(cp.id))?,
-                    );
                 }
                 Ok(())
             },

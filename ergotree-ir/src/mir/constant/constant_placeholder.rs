@@ -1,5 +1,4 @@
 use crate::has_opcode::HasStaticOpCode;
-use crate::mir::constant::Constant;
 use crate::serialization::op_code::OpCode;
 use crate::types::stype::SType;
 
@@ -10,10 +9,6 @@ pub struct ConstantPlaceholder {
     pub id: u32,
     /// Type of the constant value
     pub tpe: SType,
-    /// Resolved constant value, set by `Expr::resolve_placeholders` so the
-    /// evaluator can read the value without carrying the constants array
-    /// through reduction. `None` immediately after parsing.
-    pub resolved: Option<Constant>,
 }
 
 impl ConstantPlaceholder {}

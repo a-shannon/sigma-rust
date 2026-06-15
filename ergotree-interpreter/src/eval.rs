@@ -169,21 +169,21 @@ pub(crate) fn eval_lambda_1arg<'ctx>(
 /// Returns `Some(sigma_bool)` for both forms:
 ///
 /// * non-segregated P2PK where the root is already `Expr::Const(SSigmaProp)`,
-/// * segregated P2PK where the root is `Expr::ConstPlaceholder` with a
-///   `resolved` SSigmaProp constant (populated by
-///   `ErgoTree::proposition_for_cost_eval`).
+/// * segregated P2PK where the root is `Expr::ConstPlaceholder` whose
+///   SSigmaProp constant is resolved on the fly from `ctx.constants`
+///   (lazy resolution).
 ///
 /// Returns `None` when full evaluation is required.
-fn trivial_reduce(expr: &Expr) -> Option<SigmaBoolean> {
-    let c = match expr {
-        Expr::Const(c) => Some(c),
-        Expr::ConstPlaceholder(cp) => cp.resolved.as_ref(),
-        _ => None,
-    }?;
-    if c.tpe != SType::SSigmaProp {
-        return None;
-    }
-    c.clone()
+fn trivial_reduce<'ctx>(expr: &Expr, ctx: &Context<'ctx>) -> Option<SigmaBoolean> {
+    let constant = match expr {
+        Expr::Const(c) if c.tpe == SType::SSigmaProp => c.clone(),
+        Expr::ConstPlaceholder(cp) if cp.tpe == SType::SSigmaProp => ctx
+            .constants
+            .and_then(|cs| cs.get(cp.id as usize))
+            .cloned()?,
+        _ => return None,
+    };
+    constant
         .try_extract_into::<SigmaProp>()
         .ok()
         .map(|sp| sp.into())
@@ -226,9 +226,15 @@ pub fn reduce_to_crypto(tree: &ErgoTree, ctx: &Context) -> Result<ReductionResul
             })
     }
 
+    // Snapshot the caller's accumulator so the per-call cost returned in
+    // ReductionResult stays a delta even as the outer ctx.jit_cost grows
+    // cumulatively across repeated reduce_to_crypto invocations (required
+    // for per-tx jit_cost_limit enforcement — see tx_context::validate).
     let cost_before = ctx.jit_cost_value();
-    let expr = tree.proposition_for_cost_eval()?;
-    let expr = if tree.has_deserialize() {
+
+    // Deserialize trees need an owned Expr for substitute_deserialize.
+    // This is the rare path — most scripts don't have deserialize nodes.
+    if tree.has_deserialize() {
         // The JVM charges the deserialize-substitution pass proportionally to
         // the serialized tree size: `ergoTree.bytes.length * CostPerTreeByte(2)`
         // block cost (`Interpreter.reductionWithDeserialize`). The charge is
@@ -242,30 +248,27 @@ pub fn reduce_to_crypto(tree: &ErgoTree, ctx: &Context) -> Result<ReductionResul
             ctx.jit_cost
                 .set(ctx.jit_cost.get().saturating_sub(subst_cost_jit));
         }
-        expr.substitute_deserialize(ctx)?
-    } else {
-        expr
-    };
-    // Trivial short-circuit: trees whose proposition is a SigmaProp constant
-    // (e.g. plain P2PK) are priced at a flat 50 JitCost, matching Scala's
-    // EvalSigmaPropConstant. Without this path, the generic Expr::Const arm
-    // only charges 5 JitCost — half a block-cost unit — systematically
-    // undercharging every P2PK input.
-    if let Some(sigma_bool) = trivial_reduce(&expr) {
-        ctx.add_jit_cost(EVAL_SIGMA_PROP_CONSTANT)?;
-        return Ok(ReductionResult {
-            sigma_prop: sigma_bool,
-            cost: (ctx.jit_cost_value() - cost_before) / 10,
-            diag: ReductionDiagnosticInfo {
-                env: Env::empty().to_static(),
-                pretty_printed_expr: None,
-            },
-        });
-    }
-    let res = inner(&expr, ctx, cost_before);
-    match res {
-        Ok(reduction) => {
-            if reduction.sigma_prop == SigmaBoolean::TrivialProp(false) {
+        let expr = tree.proposition()?;
+        let expr = expr.substitute_deserialize(ctx)?;
+        // Trivial short-circuit: plain SigmaProp constants (e.g. P2PK) are
+        // priced at a flat 50 JitCost via EvalSigmaPropConstant. `expr` here
+        // has placeholders already substituted, so only the Expr::Const arm
+        // can fire — the placeholder arm needs `ctx.constants`, which this
+        // path does not set up.
+        if let Some(sigma_bool) = trivial_reduce(&expr, ctx) {
+            ctx.add_jit_cost(EVAL_SIGMA_PROP_CONSTANT)?;
+            return Ok(ReductionResult {
+                sigma_prop: sigma_bool,
+                cost: (ctx.jit_cost_value() - cost_before) / 10,
+                diag: ReductionDiagnosticInfo {
+                    env: Env::empty().to_static(),
+                    pretty_printed_expr: None,
+                },
+            });
+        }
+        let res = inner(&expr, ctx, cost_before);
+        return match res {
+            Ok(reduction) if reduction.sigma_prop == SigmaBoolean::TrivialProp(false) => {
                 let (_, printed_expr_str) = expr
                     .pretty_print()
                     .map_err(|e| EvalError::Misc(e.to_string()))?;
@@ -277,18 +280,84 @@ pub fn reduce_to_crypto(tree: &ErgoTree, ctx: &Context) -> Result<ReductionResul
                         pretty_printed_expr: Some(printed_expr_str),
                     },
                 })
-            } else {
-                Ok(reduction)
             }
+            Ok(reduction) => Ok(reduction),
+            // A cost-limit error must NOT trigger the diagnostic retry — the
+            // retry re-evaluates and re-charges, making the charged cost (and
+            // near the budget even the verdict) path-dependent. `enrich_err`
+            // wraps every error — including `CostError` — in `Spanned` at
+            // each eval node boundary, so match through the wrappers.
+            Err(e) if e.is_cost_error() => Err(e),
+            Err(_) => {
+                let (spanned_expr, printed_expr_str) = expr
+                    .pretty_print()
+                    .map_err(|e| EvalError::Misc(e.to_string()))?;
+                ctx.jit_cost.set(cost_before);
+                inner(&spanned_expr, ctx, cost_before)
+                    .map_err(|e| e.wrap_spanned_with_src(printed_expr_str.to_string()))
+            }
+        };
+    }
+
+    // Common path: lazy constant resolution — no clone, no tree walk.
+    // ConstPlaceholder nodes are resolved on-demand during evaluation
+    // by looking up ctx.constants[placeholder.id].
+    // NB: with_constants clones the Cell<u64> accumulator, so the cost
+    // charged inside `inner` lives on `ctx_with_c` — we sync it back to
+    // the caller's ctx after `inner` returns so the per-tx limit in
+    // tx_context::validate sees the right running total.
+    let root = tree.root_expr()?;
+    let constants = tree.constants()?;
+    let ctx_with_c = ctx.with_constants(constants);
+    // Trivial short-circuit: plain SigmaProp constants (bare P2PK, both the
+    // non-segregated Expr::Const(SSigmaProp) form and the segregated
+    // Expr::ConstPlaceholder resolving to a SigmaProp via ctx.constants) are
+    // priced at a flat 50 JitCost, matching Scala's EvalSigmaPropConstant.
+    // Without this path, segregated P2PK pays only the 5 JitCost
+    // ConstPlaceholder cost — a 10× undercharge on every P2PK input.
+    if let Some(sigma_bool) = trivial_reduce(root, &ctx_with_c) {
+        ctx.add_jit_cost(EVAL_SIGMA_PROP_CONSTANT)?;
+        return Ok(ReductionResult {
+            sigma_prop: sigma_bool,
+            cost: (ctx.jit_cost_value() - cost_before) / 10,
+            diag: ReductionDiagnosticInfo {
+                env: Env::empty().to_static(),
+                pretty_printed_expr: None,
+            },
+        });
+    }
+    let res = inner(root, &ctx_with_c, cost_before);
+    ctx.jit_cost.set(ctx_with_c.jit_cost_value());
+    match res {
+        Ok(reduction) if reduction.sigma_prop == SigmaBoolean::TrivialProp(false) => {
+            // Diagnostic path: use proposition() for fully-resolved pretty-printing.
+            // This clones, but only on the rare false-reduction diagnostic path.
+            let resolved = tree.proposition()?;
+            let (_, printed_expr_str) = resolved
+                .pretty_print()
+                .map_err(|e| EvalError::Misc(e.to_string()))?;
+            Ok(ReductionResult {
+                sigma_prop: SigmaBoolean::TrivialProp(false),
+                cost: reduction.cost,
+                diag: ReductionDiagnosticInfo {
+                    env: reduction.diag.env,
+                    pretty_printed_expr: Some(printed_expr_str),
+                },
+            })
         }
-        // A cost-limit error must NOT trigger the diagnostic retry — the
-        // retry re-evaluates and re-charges, making the charged cost
-        // path-dependent near the budget. `enrich_err` wraps every error —
-        // including `CostError` — in `Spanned` at each eval node boundary,
-        // so the bare-variant match never fired; match through the wrappers.
+        Ok(reduction) => Ok(reduction),
+        // A cost-limit error must NOT trigger the diagnostic retry: the retry
+        // re-evaluates the constant-substituted `proposition()` tree, which
+        // charges on a different lattice (substituted `Constant`s cost 5
+        // JitCost where placeholders cost 1), making the charged cost — and
+        // near the budget even the verdict — path-dependent. `enrich_err`
+        // wraps every error — including `CostError` — in `Spanned` at each
+        // eval node boundary, so match through the wrappers.
         Err(e) if e.is_cost_error() => Err(e),
         Err(_) => {
-            let (spanned_expr, printed_expr_str) = expr
+            // Error path: use proposition() for fully-resolved spanned re-evaluation.
+            let resolved = tree.proposition()?;
+            let (spanned_expr, printed_expr_str) = resolved
                 .pretty_print()
                 .map_err(|e| EvalError::Misc(e.to_string()))?;
             // Roll the accumulator back to the pre-reduce state so the diagnostic
@@ -557,7 +626,18 @@ pub mod test_util {
         expr: &Expr,
         ctx: &'ctx Context<'ctx>,
     ) -> Result<T, EvalError> {
-        let expr = expr.clone().substitute_deserialize(ctx)?;
+        // Mirror `Interpreter.fullReduction`: a deserialize-bearing segregated
+        // tree is reduced from its constants-substituted proposition, not the
+        // lazy placeholder form used for ordinary trees. Values are identical
+        // either way; the distinction becomes observable once JIT costing
+        // lands (Constant vs ConstantPlaceholder visit costs).
+        let expr = match ctx.constants {
+            Some(constants) if expr.has_deserialize() => {
+                expr.clone().substitute_constants(constants)?
+            }
+            _ => expr.clone(),
+        };
+        let expr = expr.substitute_deserialize(ctx)?;
         try_eval_out(&expr, ctx)
     }
 
@@ -756,8 +836,8 @@ mod test {
     // these differently: ConstPlaceholder = 1 JitCost, Const = 5 JitCost.
     // Pre-fix, `ErgoTree::proposition()` substituted placeholders into Const
     // nodes before eval, so segregated trees paid 5 JIT per constant — a
-    // 5× overcharge on every reference. Post-fix,
-    // `proposition_for_cost_eval()` preserves the placeholder nodes and the
+    // 5× overcharge on every reference. Post-fix, the root is evaluated with
+    // placeholders intact (lazy resolution from `ctx.constants`) and the
     // eval arm charges 1 JIT per placeholder.
     #[test]
     fn segregated_constants_charge_1_not_5_per_placeholder() {
@@ -824,5 +904,40 @@ mod test {
         assert_eq!(res.cost, 5);
         // SigmaProp round-trips back out through reduction.
         assert_eq!(res.sigma_prop, SigmaBoolean::from(pd));
+    }
+
+    #[test]
+    fn reduce_to_crypto_with_constant_segregation() {
+        // Build a simple script: { 1 == 1 } with constant segregation enabled
+        use ergotree_ir::ergo_tree::ErgoTreeHeader;
+        use ergotree_ir::mir::bool_to_sigma::BoolToSigmaProp;
+
+        let expr: Expr = Expr::BoolToSigmaProp(BoolToSigmaProp {
+            input: Box::new(
+                BinOp {
+                    kind: BinOpKind::Relation(RelationOp::Eq),
+                    left: Box::new(Expr::Const(1i32.into())),
+                    right: Box::new(Expr::Const(1i32.into())),
+                }
+                .into(),
+            ),
+        });
+        let tree = ErgoTree::new(ErgoTreeHeader::v1(true), &expr).unwrap();
+        // Verify this tree actually uses constant segregation
+        assert!(
+            tree.header().unwrap().is_constant_segregation(),
+            "tree must use constant segregation"
+        );
+        // The root should contain ConstPlaceholder nodes, not Const nodes
+        let root = tree.root_expr().unwrap();
+        let has_placeholders = format!("{:?}", root).contains("ConstPlaceholder");
+        assert!(
+            has_placeholders,
+            "root should contain ConstPlaceholder nodes"
+        );
+
+        let ctx = force_any_val::<Context>();
+        let res = reduce_to_crypto(&tree, &ctx).unwrap();
+        assert_eq!(res.sigma_prop, SigmaBoolean::TrivialProp(true));
     }
 }
