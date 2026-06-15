@@ -446,6 +446,7 @@ impl Evaluable for BinOp {
 #[allow(clippy::panic)]
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
+#[allow(clippy::expect_used)]
 mod tests {
     use super::*;
     use crate::eval::test_util::eval_out_wo_ctx;
