@@ -34,17 +34,14 @@ impl STypeVar {
         })
     }
 
-    /// Creates a type variable from bytes of a UTF8 text string (name length 0..=255), or returns an error if not valid UTF8
+    /// Creates a type variable from bytes of a UTF8 text string (name length 0..=255).
+    ///
+    /// Mirrors the JVM `TypeSerializer` (`new String(bytes, UTF_8)`): a non-UTF8 name is
+    /// lossily decoded -- malformed bytes become U+FFFD -- and stored canonicalized, rather
+    /// than rejected. (`Result` is kept for API stability; this no longer errors.)
     pub fn new_from_bytes(bytes: Vec<u8>) -> Result<Self, InvalidArgumentError> {
-        // test if its UTF8
-        Ok(match String::from_utf8(bytes.clone()) {
-            Ok(_) => Self { name_bytes: bytes },
-            Err(_) => {
-                return Err(InvalidArgumentError(format!(
-                    "STypeVar: cannot decode {:?} from UTF8",
-                    bytes
-                )))
-            }
+        Ok(Self {
+            name_bytes: String::from_utf8_lossy(&bytes).into_owned().into_bytes(),
         })
     }
 
@@ -142,5 +139,18 @@ mod tests {
         let tv = STypeVar::sigma_parse_bytes(&bytes).unwrap();
         assert_eq!(tv.as_string(), "a".repeat(255));
         assert_eq!(tv.sigma_serialize_bytes().unwrap(), bytes);
+    }
+
+    #[test]
+    fn parse_non_utf8_name_lossy() {
+        // The JVM does `new String(bytes, UTF_8)` -- lossy. A non-UTF8 name parses to the
+        // U+FFFD-canonicalized form instead of erroring. Here: u8 length 1, byte 0xff.
+        let tv = STypeVar::sigma_parse_bytes(&[0x01u8, 0xff]).unwrap();
+        assert_eq!(tv.as_string(), "\u{fffd}");
+        // re-serializes as the canonical UTF-8 of U+FFFD (ef bf bd), length 3
+        assert_eq!(
+            tv.sigma_serialize_bytes().unwrap(),
+            vec![0x03u8, 0xef, 0xbf, 0xbd]
+        );
     }
 }
