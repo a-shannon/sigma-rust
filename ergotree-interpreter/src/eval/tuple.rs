@@ -30,14 +30,14 @@ impl Evaluable for Tuple {
         let items_v = self
             .items
             .try_mapped_ref(|i| -> Result<Value<'ctx>, EvalError> {
-                let v = i.eval(env, ctx)?;
-                // Mirror the JVM Tuple eval, which `checkType`s each item
-                // (values.scala:801/804): an item whose type is an unsupported tuple
-                // (arity != 2) is rejected ("Unsupported tuple type", SType.scala:200).
-                // Catches an arity-3 tuple constant carried as a pair item, which the
-                // JVM refuses but sigma-rust would otherwise evaluate.
+                // Mirror the JVM Tuple eval, which `checkType`s each item BEFORE
+                // evaluating it (values.scala:801/804): an item whose type is an
+                // unsupported tuple (arity != 2) is rejected ("Unsupported tuple
+                // type", SType.scala:200). Catches an arity-3 tuple constant carried
+                // as a pair item, which the JVM refuses but sigma-rust would
+                // otherwise evaluate.
                 crate::eval::check_value_type(&i.tpe())?;
-                Ok(v)
+                i.eval(env, ctx)
             });
         Ok(Value::Tup(items_v?))
     }
