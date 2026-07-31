@@ -82,7 +82,8 @@ impl NipopowProof {
         }
     }
 
-    fn is_valid(&self) -> bool {
+    /// Returns whether this proof satisfies the current structural validity checks.
+    pub(crate) fn is_valid(&self) -> bool {
         self.has_valid_connections() && self.has_valid_heights() && self.has_valid_proofs()
     }
 
@@ -215,28 +216,55 @@ pub struct PoPowHeader {
 }
 
 impl PoPowHeader {
+    fn has_packable_interlinks(&self) -> bool {
+        let Some(mut current) = self.interlinks.first() else {
+            return false;
+        };
+        let max_run_length = usize::from(u8::MAX);
+        let max_key_position = usize::from(u8::MAX);
+        let mut run_length = 1usize;
+
+        for (position, interlink) in self.interlinks.iter().enumerate().skip(1) {
+            if interlink == current {
+                if run_length == max_run_length {
+                    return false;
+                }
+                run_length += 1;
+            } else {
+                if position > max_key_position {
+                    return false;
+                }
+                current = interlink;
+                run_length = 1;
+            }
+        }
+        true
+    }
+
     /// Validates interlinks merkle root against provided proof
     pub fn check_interlinks_proof(&self) -> bool {
-        if self.interlinks.is_empty()
-            && self.interlinks_proof.get_indices().is_empty()
-            && self.interlinks_proof.get_proofs().is_empty()
-        {
-            true
-        } else {
-            let fields: Vec<ergo_merkle_tree::MerkleNode> =
-                NipopowAlgos::pack_interlinks(self.interlinks.clone())
-                    .into_iter()
-                    .map(|(k, v)| -> Vec<u8> {
-                        std::iter::once(2u8)
-                            .chain(k.iter().copied())
-                            .chain(v)
-                            .collect()
-                    })
-                    .map(ergo_merkle_tree::MerkleNode::from_bytes)
-                    .collect();
-            let tree = ergo_merkle_tree::MerkleTree::new(fields);
-            self.interlinks_proof.valid(tree.root_hash().as_ref())
+        let proof_is_empty = self.interlinks_proof.get_indices().is_empty()
+            && self.interlinks_proof.get_proofs().is_empty();
+        if self.interlinks.is_empty() {
+            return proof_is_empty;
         }
+        if !self.has_packable_interlinks() {
+            return false;
+        }
+
+        let fields: Vec<ergo_merkle_tree::MerkleNode> =
+            NipopowAlgos::pack_interlinks(self.interlinks.clone())
+                .into_iter()
+                .map(|(k, v)| -> Vec<u8> {
+                    std::iter::once(2u8)
+                        .chain(k.iter().copied())
+                        .chain(v)
+                        .collect()
+                })
+                .map(ergo_merkle_tree::MerkleNode::from_bytes)
+                .collect();
+        let tree = ergo_merkle_tree::MerkleTree::new(fields);
+        self.interlinks_proof.valid(tree.root_hash().as_ref())
     }
 }
 
