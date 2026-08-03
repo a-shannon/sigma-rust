@@ -251,6 +251,7 @@ impl NipopowAlgos {
                 let packed_value = std::iter::once(curr_block_id_count)
                     .chain(block_id_bytes)
                     .collect();
+                #[allow(clippy::expect_used)]
                 let ix_byte: u8 = curr_first_pos
                     .try_into()
                     .expect("interlinks first-position byte index > 255");
@@ -264,6 +265,7 @@ impl NipopowAlgos {
         let packed_value = std::iter::once(curr_block_id_count)
             .chain(block_id_bytes)
             .collect();
+        #[allow(clippy::expect_used)]
         let ix_byte: u8 = curr_first_pos
             .try_into()
             .expect("interlinks first-position byte index > 255");
