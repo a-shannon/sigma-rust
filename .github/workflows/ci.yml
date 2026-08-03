@@ -145,8 +145,8 @@ jobs:
         run: |
           cd bindings/ergo-lib-wasm
           wasm-pack build
-          wasm-pack test --chrome --headless
-          wasm-pack test --chrome --headless --release
+          wasm-pack test --node
+          wasm-pack test --node --release
 
       - name: run node JS tests
         run: |

@@ -27,7 +27,7 @@ use crate::{
 
 use super::{address::Address, constant::Constant, token::Token};
 
-#[pyclass(eq, frozen, hash, ord)]
+#[pyclass(eq, frozen, hash, ord, from_py_object)]
 #[derive(PartialEq, Eq, Hash, PartialOrd, Ord, Clone, Copy, Debug)]
 #[repr(u8)]
 pub(crate) enum NonMandatoryRegisterId {
@@ -60,7 +60,7 @@ impl From<NonMandatoryRegisterId> for ergo_box::NonMandatoryRegisterId {
 }
 
 /// Identifier of an :class:`ErgoBox`
-#[pyclass(str = "{0}", eq)]
+#[pyclass(str = "{0}", eq, from_py_object)]
 #[derive(PartialEq, Eq, Clone, Copy, From, Into)]
 pub(crate) struct BoxId(pub ergo_box::BoxId);
 
@@ -91,7 +91,7 @@ impl BoxId {
     }
 }
 
-#[pyclass(eq)]
+#[pyclass(eq, from_py_object)]
 #[derive(Clone, PartialEq, Eq, From, Into, Debug)]
 pub(crate) struct ErgoBoxCandidate(ergo_box::ErgoBoxCandidate);
 
@@ -199,7 +199,7 @@ impl ErgoBoxCandidate {
     }
 }
 
-#[pyclass(eq)]
+#[pyclass(eq, from_py_object)]
 #[derive(PartialEq, Eq, Clone, From, Into, Deserialize, Serialize)]
 pub(crate) struct ErgoBox(pub ergo_box::ErgoBox);
 
@@ -289,7 +289,7 @@ impl ErgoBox {
     }
 }
 
-#[pyclass(eq, frozen)]
+#[pyclass(eq, frozen, skip_from_py_object)]
 #[derive(PartialEq, Eq, From, Into)]
 pub(crate) struct NonMandatoryRegisters(NonMandatoryRegistersInner);
 
