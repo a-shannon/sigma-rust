@@ -99,7 +99,7 @@ proptest = { version = "=1.6.0", default-features = false, features = [
 ] }
 proptest-derive = "0.5.1"
 pretty_assertions = "1.3"
-wasm-bindgen-test = "0.3.37"
+wasm-bindgen-test = "0.3.76"
 expect-test = "1.4.1"
 criterion = { version = "0.5.1", features = ["default", "cargo_bench_support"] }
 

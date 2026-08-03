@@ -57,7 +57,19 @@ module.exports = function (config) {
     port: 9876,
     logLevel: config.LOG_INFO,
 
-    browsers: ["ChromeHeadless"],
+    browsers: ["ChromeHeadlessNoSandbox"],
+    customLaunchers: {
+      ChromeHeadlessNoSandbox: {
+        base: "ChromeHeadless",
+        flags: [
+          "--no-sandbox",
+          "--disable-setuid-sandbox",
+          "--disable-dev-shm-usage",
+          "--headless=new",
+          "--disable-gpu",
+        ],
+      },
+    },
     browserNoActivityTimeout: 900000,
 
     autoWatch: false,
