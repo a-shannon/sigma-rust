@@ -123,7 +123,7 @@ jobs:
       - name: checkout
         uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@1.91.1
 
       - uses: actions/setup-node@v4
         with:
@@ -133,6 +133,8 @@ jobs:
         uses: browser-actions/setup-chrome@v1
         with:
           chrome-version: stable
+          install-dependencies: true
+          install-chromedriver: true
 
       - name: install deps
         run: |
@@ -240,7 +242,7 @@ jobs:
 
       - uses: fwal/setup-swift@v2
 
-      - uses: dtolnay/rust-toolchain@master
+      - uses: dtolnay/rust-toolchain@1.91.1
 
       - name: install nightly toolchain for cbindgen
         run: rustup toolchain install nightly --profile minimal
