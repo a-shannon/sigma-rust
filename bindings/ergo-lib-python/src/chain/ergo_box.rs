@@ -152,22 +152,6 @@ impl ErgoBoxCandidate {
         }
         builder.build().map(Self).map_err(to_value_error)
     }
-    // this is only exists to fix stubtest errors
-    #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature=(*, value, script, creation_height, tokens=None, registers=None, mint_token= None, mint_token_name = None, mint_token_desc=None, mint_token_decimals=None))]
-    fn __init__(
-        &self,
-        value: u64,
-        script: &Bound<'_, PyAny>,
-        creation_height: u32,
-        tokens: Option<Vec<Token>>,
-        registers: Option<HashMap<NonMandatoryRegisterId, Constant>>,
-        mint_token: Option<Token>,
-        mint_token_name: Option<&str>,
-        mint_token_desc: Option<&str>,
-        mint_token_decimals: Option<usize>,
-    ) {
-    }
     #[getter]
     fn value(&self) -> u64 {
         *self.0.value.as_u64()

@@ -4,6 +4,11 @@ import XCTest
 @testable import ErgoLibC
 
 final class RestNodeApiTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        try XCTSkipIf(ProcessInfo.processInfo.environment["SKIP_NETWORK_TESTS"] == "1", "Skipping network-dependent tests")
+    }
+
     func testGetNipopowProofByHeaderIdNonAsync() throws {
         let expectation = self.expectation(description: "getNipopowByHeaderIdNonAsync")
         let nodeConf = try NodeConf(withAddrString: "213.239.193.208:9053")
