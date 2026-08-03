@@ -153,8 +153,7 @@ impl NipopowProof {
                 // Note that blocks with level 0 do not appear at all within
                 // interlinks, which is why we need to check the parent
                 // block id as well.
-                next.interlinks.contains(&prev.header.id)
-                    || next.header.parent_id == prev.header.id
+                next.interlinks.contains(&prev.header.id) || next.header.parent_id == prev.header.id
             })
         });
 
@@ -462,7 +461,10 @@ pub mod tests {
     /// `header.id`, `header.parent_id`, and `PoPowHeader::interlinks`.
     fn header_factory() -> impl Fn(BlockId, BlockId, u32) -> Header {
         let mut runner = TestRunner::default();
-        let base = any::<Box<Header>>().new_tree(&mut runner).unwrap().current();
+        let base = any::<Box<Header>>()
+            .new_tree(&mut runner)
+            .unwrap()
+            .current();
         move |id, parent_id, height| {
             let mut h = (*base).clone();
             h.id = id;
@@ -523,14 +525,8 @@ pub mod tests {
         // suffix_tail must be a strict parent_id chain.
         let suffix_tail = vec![mk_header(suffix_tail_id, suffix_head_id, 41)];
 
-        let proof = NipopowProof::new(
-            6,
-            2,
-            vec![h0, h1, h2, h3],
-            suffix_head,
-            suffix_tail,
-        )
-        .unwrap();
+        let proof =
+            NipopowProof::new(6, 2, vec![h0, h1, h2, h3], suffix_head, suffix_tail).unwrap();
 
         assert!(
             proof.has_valid_connections(),
@@ -568,20 +564,11 @@ pub mod tests {
         // h1/h2/h3 ids are NOT among its interlinks. With lookback span 3,
         // the lookback window for index 4 covers indices [1, 3] only —
         // h0 (index 0) is excluded → no valid predecessor → REJECT.
-        let suffix_head = pop_header(
-            mk_header(suffix_head_id, unrelated_parent, 40),
-            vec![h0_id],
-        );
+        let suffix_head = pop_header(mk_header(suffix_head_id, unrelated_parent, 40), vec![h0_id]);
         let suffix_tail = vec![mk_header(suffix_tail_id, suffix_head_id, 41)];
 
-        let mut proof = NipopowProof::new(
-            6,
-            2,
-            vec![h0, h1, h2, h3],
-            suffix_head,
-            suffix_tail,
-        )
-        .unwrap();
+        let mut proof =
+            NipopowProof::new(6, 2, vec![h0, h1, h2, h3], suffix_head, suffix_tail).unwrap();
 
         // Squeeze the lookback window to size 3 (= use_last_epochs + 3)
         // so a small synthetic chain can demonstrate the boundary.
@@ -607,22 +594,12 @@ pub mod tests {
         let suffix_tail_id = id_from_byte(3);
 
         let h0 = pop_header(mk_header(h0_id, id_from_byte(0), 1), vec![h0_id]);
-        let suffix_head = pop_header(
-            mk_header(suffix_head_id, h0_id, 10),
-            vec![h0_id],
-        );
+        let suffix_head = pop_header(mk_header(suffix_head_id, h0_id, 10), vec![h0_id]);
         // suffix_tail header's parent_id is unrelated to suffix_head.id
         // → suffix-side check must fail.
         let suffix_tail = vec![mk_header(suffix_tail_id, bad_parent, 11)];
 
-        let proof = NipopowProof::new(
-            6,
-            2,
-            vec![h0],
-            suffix_head,
-            suffix_tail,
-        )
-        .unwrap();
+        let proof = NipopowProof::new(6, 2, vec![h0], suffix_head, suffix_tail).unwrap();
 
         assert!(
             !proof.has_valid_connections(),
