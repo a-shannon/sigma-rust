@@ -312,6 +312,19 @@ mod tests {
     }
 
     #[test]
+    fn test_nipopow_verifier_rejects_nonempty_genesis_interlinks_with_empty_proof() {
+        let (genesis_id, mut proof) = generated_nipopow_proof();
+        assert_eq!(proof.prefix[0].header.height, 1);
+        assert!(proof.prefix[0].interlinks.is_empty());
+        assert!(proof.prefix[0].interlinks_proof.get_indices().is_empty());
+        assert!(proof.prefix[0].interlinks_proof.get_proofs().is_empty());
+        proof.prefix[0].interlinks = vec![genesis_id];
+        assert!(proof.has_valid_connections());
+        assert!(!proof.prefix[0].check_interlinks_proof());
+        assert_initial_proof_ignored(genesis_id, proof);
+    }
+
+    #[test]
     fn test_nipopow_verifier_rejects_reopened_interlink_run() {
         let (genesis_id, mut proof) = generated_nipopow_proof();
         assert!(proof.suffix_head.header.height > 1);
@@ -319,6 +332,27 @@ mod tests {
         let reopened_id = interlinks[0];
         assert_ne!(interlinks.last(), Some(&reopened_id));
         interlinks.push(reopened_id);
+        let extension =
+            ExtensionCandidate::new(NipopowAlgos::pack_interlinks(interlinks.clone())).unwrap();
+        proof.suffix_head.interlinks = interlinks;
+        proof.suffix_head.interlinks_proof =
+            NipopowAlgos::proof_for_interlink_vector(&extension).unwrap();
+        assert!(proof.has_valid_connections());
+        assert!(!proof.suffix_head.check_interlinks_proof());
+        assert_initial_proof_ignored(genesis_id, proof);
+    }
+
+    #[test]
+    fn test_nipopow_verifier_rejects_reopened_intermediate_interlink_run() {
+        let (genesis_id, mut proof) = generated_nipopow_proof();
+        assert!(proof.suffix_head.header.height > 1);
+        let mut interlinks = proof.suffix_head.interlinks.clone();
+        let reopened_id = indexed_block_id(1);
+        let separating_id = indexed_block_id(2);
+        assert!(!interlinks.contains(&reopened_id));
+        assert!(!interlinks.contains(&separating_id));
+        assert_ne!(reopened_id, separating_id);
+        interlinks.extend([reopened_id, separating_id, reopened_id]);
         let extension =
             ExtensionCandidate::new(NipopowAlgos::pack_interlinks(interlinks.clone())).unwrap();
         proof.suffix_head.interlinks = interlinks;
@@ -395,10 +429,12 @@ mod tests {
     fn test_nipopow_verifier_accepts_maximum_interlink_run() {
         let (genesis_id, mut proof) = generated_nipopow_proof();
         assert!(proof.suffix_head.header.height > 1);
-        set_suffix_head_interlinks_with_valid_proof(
-            &mut proof,
-            vec![genesis_id; usize::from(u8::MAX)],
-        );
+        let repeated_id = indexed_block_id(1);
+        assert_ne!(genesis_id, repeated_id);
+        let interlinks = std::iter::once(genesis_id)
+            .chain(std::iter::repeat_n(repeated_id, usize::from(u8::MAX)))
+            .collect();
+        set_suffix_head_interlinks_with_valid_proof(&mut proof, interlinks);
         assert!(proof.suffix_head.check_interlinks_proof());
         let mut verifier = NipopowVerifier::new(genesis_id);
         assert!(verifier.process(proof.clone()).is_ok());
@@ -409,7 +445,11 @@ mod tests {
     fn test_nipopow_verifier_accepts_maximum_interlink_key_count() {
         let (genesis_id, mut proof) = generated_nipopow_proof();
         assert!(proof.suffix_head.header.height > 1);
-        let interlinks = (0..=usize::from(u8::MAX)).map(indexed_block_id).collect();
+        let interlinks: Vec<_> = std::iter::once(genesis_id)
+            .chain((1..=usize::from(u8::MAX)).map(indexed_block_id))
+            .collect();
+        assert_eq!(interlinks.len(), usize::from(u8::MAX) + 1);
+        assert!(!interlinks[1..].contains(&genesis_id));
         set_suffix_head_interlinks_with_valid_proof(&mut proof, interlinks);
         assert!(proof.suffix_head.check_interlinks_proof());
         let mut verifier = NipopowVerifier::new(genesis_id);
