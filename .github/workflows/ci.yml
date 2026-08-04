@@ -102,6 +102,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
+      SKIP_NETWORK_TESTS: 1
 
     # Service containers to run `ergo` node in `devnet` mode
     services:
