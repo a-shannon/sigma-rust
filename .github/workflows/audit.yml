@@ -10,6 +10,8 @@ jobs:
   cargo_audit:
     name: cargo audit
     runs-on: ubuntu-latest
+    env:
+      RUSTUP_TOOLCHAIN: stable
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
