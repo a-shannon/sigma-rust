@@ -225,20 +225,7 @@ jobs:
     env:
       SKIP_NETWORK_TESTS: 1
 
-    # Service containers to run `ergo` node in `devnet` mode
-    services:
-      # Label used to access the service container
-      ergo_node:
-        # Docker Hub image
-        image: ergoplatform/ergo-devnet:latest
-        ports:
-          # Maps tcp port 9053 on service container to the host
-          - 9053:9053
-
     steps:
-      - name: set_file_permissions
-        run: sudo chown -R $USER:$USER ${{ github.workspace }}
-
       - name: checkout
         uses: actions/checkout@v4
 
