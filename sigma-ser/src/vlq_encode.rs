@@ -5,7 +5,7 @@ use alloc::{
     vec::Vec,
 };
 use core::convert::TryFrom;
-use core3::io;
+use core2::io;
 
 use bitvec::order::Lsb0;
 use bitvec::prelude::BitVec;
@@ -276,9 +276,9 @@ mod tests {
     use super::*;
     use alloc::format;
     use alloc::vec;
-    use core3::io::Cursor;
-    use core3::io::Read;
-    use core3::io::Write;
+    use core2::io::Cursor;
+    use core2::io::Read;
+    use core2::io::Write;
     use proptest::collection;
 
     extern crate derive_more;
