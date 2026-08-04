@@ -6,6 +6,7 @@ use sigma_ser::{
     vlq_encode::{ReadSigmaVlqExt, WriteSigmaVlqExt},
     ScorexParsingError, ScorexSerializable, ScorexSerializeResult,
 };
+use std::collections::HashSet;
 
 use crate::nipopow_algos::NipopowAlgos;
 
@@ -271,13 +272,14 @@ pub struct PoPowHeader {
 }
 
 impl PoPowHeader {
-    fn has_packable_interlinks(&self) -> bool {
+    fn has_canonical_interlink_runs(&self) -> bool {
         let Some(mut current) = self.interlinks.first() else {
             return false;
         };
         let max_run_length = usize::from(u8::MAX);
         let max_key_position = usize::from(u8::MAX);
         let mut run_length = 1usize;
+        let mut closed_runs = HashSet::new();
 
         for (position, interlink) in self.interlinks.iter().enumerate().skip(1) {
             if interlink == current {
@@ -287,6 +289,12 @@ impl PoPowHeader {
                 run_length += 1;
             } else {
                 if position > max_key_position {
+                    return false;
+                }
+                // Canonical update_interlinks output never reopens an id after
+                // a different run.
+                closed_runs.insert(*current);
+                if closed_runs.contains(interlink) {
                     return false;
                 }
                 current = interlink;
@@ -300,10 +308,13 @@ impl PoPowHeader {
     pub fn check_interlinks_proof(&self) -> bool {
         let proof_is_empty = self.interlinks_proof.get_indices().is_empty()
             && self.interlinks_proof.get_proofs().is_empty();
-        if self.interlinks.is_empty() {
-            return proof_is_empty;
+        if self.header.height == 1 {
+            return self.interlinks.is_empty() && proof_is_empty;
         }
-        if !self.has_packable_interlinks() {
+        if self.interlinks.is_empty() {
+            return false;
+        }
+        if !self.has_canonical_interlink_runs() {
             return false;
         }
 
