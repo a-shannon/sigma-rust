@@ -202,6 +202,13 @@ mod tests {
         BlockId(Digest32::from(bytes))
     }
 
+    fn packed_interlink_field_value(count: u8, block_id: BlockId) -> Vec<u8> {
+        let mut value = vec![count];
+        let block_id_bytes: Vec<u8> = block_id.0.into();
+        value.extend(block_id_bytes);
+        value
+    }
+
     fn set_suffix_head_interlinks_with_valid_proof(
         proof: &mut NipopowProof,
         interlinks: Vec<BlockId>,
@@ -367,7 +374,29 @@ mod tests {
     fn test_nipopow_verifier_rejects_interlink_run_overflow() {
         let (genesis_id, mut proof) = generated_nipopow_proof();
         assert!(proof.suffix_head.header.height > 1);
-        proof.suffix_head.interlinks = vec![genesis_id; usize::from(u8::MAX) + 1];
+        let repeated_id = indexed_block_id(1);
+        assert_ne!(genesis_id, repeated_id);
+        let interlinks = std::iter::once(genesis_id)
+            .chain(std::iter::repeat_n(repeated_id, usize::from(u8::MAX) + 1))
+            .collect();
+        // This is the exact extension that unchecked release-mode u8
+        // arithmetic would produce for the overflowing run: 256 wraps to 0.
+        // A proof over these bytes ensures the structural guard, rather than a
+        // stale Merkle proof, is what makes the verifier fail closed.
+        let extension = ExtensionCandidate::new(vec![
+            (
+                [INTERLINK_VECTOR_PREFIX, 0],
+                packed_interlink_field_value(1, genesis_id),
+            ),
+            (
+                [INTERLINK_VECTOR_PREFIX, 1],
+                packed_interlink_field_value(0, repeated_id),
+            ),
+        ])
+        .unwrap();
+        proof.suffix_head.interlinks = interlinks;
+        proof.suffix_head.interlinks_proof =
+            NipopowAlgos::proof_for_interlink_vector(&extension).unwrap();
         assert!(proof.has_valid_connections());
         assert!(!proof.suffix_head.check_interlinks_proof());
         assert_initial_proof_ignored(genesis_id, proof);
@@ -396,24 +425,18 @@ mod tests {
         assert_ne!(second_run_id, third_run_id);
         let mut interlinks = vec![genesis_id; usize::from(u8::MAX)];
         interlinks.extend([second_run_id, third_run_id]);
-        let interlink_field_value = |count: u8, block_id: BlockId| {
-            let mut value = vec![count];
-            let block_id_bytes: Vec<u8> = block_id.0.into();
-            value.extend(block_id_bytes);
-            value
-        };
         let extension = ExtensionCandidate::new(vec![
             (
                 [INTERLINK_VECTOR_PREFIX, 0],
-                interlink_field_value(u8::MAX, genesis_id),
+                packed_interlink_field_value(u8::MAX, genesis_id),
             ),
             (
                 [INTERLINK_VECTOR_PREFIX, 1],
-                interlink_field_value(1, second_run_id),
+                packed_interlink_field_value(1, second_run_id),
             ),
             (
                 [INTERLINK_VECTOR_PREFIX, 2],
-                interlink_field_value(1, third_run_id),
+                packed_interlink_field_value(1, third_run_id),
             ),
         ])
         .unwrap();
