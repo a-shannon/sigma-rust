@@ -18,6 +18,73 @@ const MAX_POPOW_HEADER_BYTES: usize = 10_000;
 const MAX_POPOW_INTERLINKS: usize = 10_000;
 /// Upper bound for the serialized interlinks proof (bytes).
 const MAX_POPOW_PROOF_BYTES: usize = 1_000_000;
+/// Upper bound for one serialized `PoPowHeader` element frame.
+///
+/// This is derived from the existing nested limits, plus room for length
+/// fields and other fixed-size structure. It must remain checked before the
+/// frame buffer is allocated.
+const MAX_POPOW_HEADER_ELEMENT_BYTES: usize =
+    MAX_POPOW_HEADER_BYTES + MAX_POPOW_INTERLINKS * 32 + MAX_POPOW_PROOF_BYTES + 64;
+
+/// Read one length-declared element frame.
+///
+/// The declared size owns the outer stream boundary: exactly that many bytes
+/// are consumed before parsing the element. The parser may leave trailing
+/// bytes inside its private slice, matching the JVM `parseBytes` behavior.
+fn read_framed<T: ScorexSerializable, R: ReadSigmaVlqExt>(
+    r: &mut R,
+    max_bytes: usize,
+    what: &str,
+) -> Result<T, ScorexParsingError> {
+    let size = r.get_u32()? as usize;
+    if size > max_bytes {
+        return Err(ScorexParsingError::Io(format!(
+            "{what} declared size {size} exceeds sanity limit {max_bytes}"
+        )));
+    }
+    let mut buf = vec![0; size];
+    r.read_exact(&mut buf)?;
+    T::scorex_parse_bytes(&buf)
+}
+
+fn validate_batch_merkle_proof_frame(bytes: &[u8]) -> Result<(), ScorexParsingError> {
+    const COUNT_BYTES: usize = 8;
+    const INDEX_BYTES: usize = 36;
+    const PROOF_BYTES: usize = 33;
+
+    let counts = bytes.get(..COUNT_BYTES).ok_or_else(|| {
+        ScorexParsingError::ValueOutOfBounds(
+            "BatchMerkleProof counts do not fit declared proof frame".into(),
+        )
+    })?;
+    let indices_len = u32::from_be_bytes([counts[0], counts[1], counts[2], counts[3]]) as usize;
+    let proofs_len = u32::from_be_bytes([counts[4], counts[5], counts[6], counts[7]]) as usize;
+    let indices_bytes = indices_len.checked_mul(INDEX_BYTES).ok_or_else(|| {
+        ScorexParsingError::ValueOutOfBounds(
+            "BatchMerkleProof index count does not fit declared proof frame".into(),
+        )
+    })?;
+    let proofs_bytes = proofs_len.checked_mul(PROOF_BYTES).ok_or_else(|| {
+        ScorexParsingError::ValueOutOfBounds(
+            "BatchMerkleProof proof count does not fit declared proof frame".into(),
+        )
+    })?;
+    let required_bytes = COUNT_BYTES
+        .checked_add(indices_bytes)
+        .and_then(|size| size.checked_add(proofs_bytes))
+        .ok_or_else(|| {
+            ScorexParsingError::ValueOutOfBounds(
+                "BatchMerkleProof counts do not fit declared proof frame".into(),
+            )
+        })?;
+    if required_bytes > bytes.len() {
+        return Err(ScorexParsingError::ValueOutOfBounds(format!(
+            "BatchMerkleProof encoded length requires {required_bytes} bytes and does not fit declared proof frame of {} bytes",
+            bytes.len()
+        )));
+    }
+    Ok(())
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 /// A structure representing NiPoPow proof as a persistent modifier.
@@ -233,11 +300,13 @@ impl ScorexSerializable for NipopowProof {
         }
         let mut prefix = Vec::with_capacity(num_prefixes);
         for _ in 0..num_prefixes {
-            let _size = r.get_u32()?;
-            prefix.push(PoPowHeader::scorex_parse(r)?);
+            prefix.push(read_framed(
+                r,
+                MAX_POPOW_HEADER_ELEMENT_BYTES,
+                "prefix element",
+            )?);
         }
-        let _suffix_head_size = r.get_u32()?;
-        let suffix_head = PoPowHeader::scorex_parse(r)?;
+        let suffix_head = read_framed(r, MAX_POPOW_HEADER_ELEMENT_BYTES, "suffix head")?;
         let num_suffix_tail = r.get_u32()? as usize;
         if num_suffix_tail > MAX_NIPOPOW_PROOF_ELEMENTS {
             return Err(ScorexParsingError::Io(
@@ -246,8 +315,11 @@ impl ScorexSerializable for NipopowProof {
         }
         let mut suffix_tail = Vec::with_capacity(num_suffix_tail);
         for _ in 0..num_suffix_tail {
-            let _size = r.get_u32();
-            suffix_tail.push(Header::scorex_parse(r)?);
+            suffix_tail.push(read_framed(
+                r,
+                MAX_POPOW_HEADER_BYTES,
+                "suffix-tail header",
+            )?);
         }
         Ok(NipopowProof {
             popow_algos: NipopowAlgos::default(),
@@ -393,6 +465,7 @@ impl ScorexSerializable for PoPowHeader {
         }
         let mut proof_buf = vec![0u8; proof_bytes];
         r.read_exact(&mut proof_buf)?;
+        validate_batch_merkle_proof_frame(&proof_buf)?;
         let interlinks_proof = BatchMerkleProof::scorex_parse_bytes(&proof_buf);
 
         Ok(Self {
@@ -648,6 +721,301 @@ pub mod tests {
         let mut buf = Vec::new();
         sigma_ser::vlq_encode::WriteSigmaVlqExt::put_u32(&mut buf, v).unwrap();
         buf
+    }
+
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum FrameSite {
+        Prefix(usize),
+        SuffixHead,
+        SuffixTail(usize),
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    enum DeclaredSizeMutation {
+        Delta(i64),
+        Override(u32),
+        Raw(&'static [u8]),
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    struct FrameMutation {
+        site: FrameSite,
+        declared_size: DeclaredSizeMutation,
+        filler_len: usize,
+    }
+
+    fn sample_framing_proof() -> NipopowProof {
+        let mut runner = TestRunner::default();
+        let mut proof = any::<NipopowProof>()
+            .new_tree(&mut runner)
+            .unwrap()
+            .current();
+        if proof.prefix.len() == 1 {
+            proof.prefix.push(proof.prefix[0].clone());
+        }
+        if proof.suffix_tail.len() == 1 {
+            proof.suffix_tail.push(proof.suffix_tail[0].clone());
+        }
+        proof
+    }
+
+    fn frame_sites(proof: &NipopowProof) -> Vec<FrameSite> {
+        let mut sites = (0..proof.prefix.len())
+            .map(FrameSite::Prefix)
+            .collect::<Vec<_>>();
+        sites.push(FrameSite::SuffixHead);
+        sites.extend((0..proof.suffix_tail.len()).map(FrameSite::SuffixTail));
+        sites
+    }
+
+    fn write_test_frame<T: ScorexSerializable>(
+        w: &mut Vec<u8>,
+        value: &T,
+        site: FrameSite,
+        mutation: FrameMutation,
+    ) {
+        let bytes = value.scorex_serialize_bytes().unwrap();
+        if site == mutation.site {
+            match mutation.declared_size {
+                DeclaredSizeMutation::Delta(delta) => {
+                    let declared = i64::try_from(bytes.len()).unwrap() + delta;
+                    w.put_u32(u32::try_from(declared).unwrap()).unwrap();
+                }
+                DeclaredSizeMutation::Override(declared) => {
+                    w.put_u32(declared).unwrap();
+                }
+                DeclaredSizeMutation::Raw(raw) => w.extend_from_slice(raw),
+            }
+        } else {
+            w.put_u32(u32::try_from(bytes.len()).unwrap()).unwrap();
+        }
+        w.extend_from_slice(&bytes);
+        if site == mutation.site {
+            w.resize(w.len() + mutation.filler_len, 0x7f);
+        }
+    }
+
+    fn serialize_with_frame_mutation(proof: &NipopowProof, mutation: FrameMutation) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.put_u32(proof.m).unwrap();
+        bytes.put_u32(proof.k).unwrap();
+        bytes
+            .put_u32(u32::try_from(proof.prefix.len()).unwrap())
+            .unwrap();
+        for (index, prefix) in proof.prefix.iter().enumerate() {
+            write_test_frame(&mut bytes, prefix, FrameSite::Prefix(index), mutation);
+        }
+        write_test_frame(
+            &mut bytes,
+            &proof.suffix_head,
+            FrameSite::SuffixHead,
+            mutation,
+        );
+        bytes
+            .put_u32(u32::try_from(proof.suffix_tail.len()).unwrap())
+            .unwrap();
+        for (index, header) in proof.suffix_tail.iter().enumerate() {
+            write_test_frame(&mut bytes, header, FrameSite::SuffixTail(index), mutation);
+        }
+        bytes
+    }
+
+    #[test]
+    fn declared_element_frames_roundtrip() {
+        let proof = sample_framing_proof();
+        let canonical = proof.scorex_serialize_bytes().unwrap();
+        for site in frame_sites(&proof) {
+            let reemitted = serialize_with_frame_mutation(
+                &proof,
+                FrameMutation {
+                    site,
+                    declared_size: DeclaredSizeMutation::Delta(0),
+                    filler_len: 0,
+                },
+            );
+            assert_eq!(reemitted, canonical, "honest re-emission changed {site:?}");
+            assert_eq!(
+                NipopowProof::scorex_parse_bytes(&reemitted).unwrap(),
+                proof,
+                "honest frame did not round-trip at {site:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn declared_element_frames_reject_overstatement_without_filler() {
+        let proof = sample_framing_proof();
+        for site in frame_sites(&proof) {
+            let mutated = serialize_with_frame_mutation(
+                &proof,
+                FrameMutation {
+                    site,
+                    declared_size: DeclaredSizeMutation::Delta(1),
+                    filler_len: 0,
+                },
+            );
+            assert!(
+                NipopowProof::scorex_parse_bytes(&mutated).is_err(),
+                "accepted over-declared {site:?} without filler"
+            );
+        }
+    }
+
+    #[test]
+    fn declared_element_frames_reject_understatement() {
+        let proof = sample_framing_proof();
+        for site in frame_sites(&proof) {
+            let mutated = serialize_with_frame_mutation(
+                &proof,
+                FrameMutation {
+                    site,
+                    declared_size: DeclaredSizeMutation::Delta(-1),
+                    filler_len: 0,
+                },
+            );
+            assert!(
+                NipopowProof::scorex_parse_bytes(&mutated).is_err(),
+                "accepted under-declared {site:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn declared_element_frames_accept_matching_filler() {
+        let proof = sample_framing_proof();
+        for site in frame_sites(&proof) {
+            let mutated = serialize_with_frame_mutation(
+                &proof,
+                FrameMutation {
+                    site,
+                    declared_size: DeclaredSizeMutation::Delta(1),
+                    filler_len: 1,
+                },
+            );
+            let parsed = NipopowProof::scorex_parse_bytes(&mutated)
+                .unwrap_or_else(|err| panic!("rejected padded {site:?}: {err}"));
+            assert_eq!(parsed, proof, "padded {site:?} changed the proof");
+        }
+    }
+
+    fn serialize_popow_header_with_nested_frames(
+        value: &PoPowHeader,
+        header_frame: &[u8],
+        proof_frame: &[u8],
+    ) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes
+            .put_u32(u32::try_from(header_frame.len()).unwrap())
+            .unwrap();
+        bytes.extend_from_slice(header_frame);
+        bytes
+            .put_u32(u32::try_from(value.interlinks.len()).unwrap())
+            .unwrap();
+        for interlink in &value.interlinks {
+            bytes.extend_from_slice(&interlink.0 .0);
+        }
+        bytes
+            .put_u32(u32::try_from(proof_frame.len()).unwrap())
+            .unwrap();
+        bytes.extend_from_slice(proof_frame);
+        bytes
+    }
+
+    #[test]
+    fn nested_header_frame_accepts_trailing_padding() {
+        let value = sample_framing_proof().prefix.remove(0);
+        let mut header_frame = value.header.scorex_serialize_bytes().unwrap();
+        header_frame.push(0x7f);
+        let proof_frame = value.interlinks_proof.scorex_serialize_bytes().unwrap();
+        let bytes = serialize_popow_header_with_nested_frames(&value, &header_frame, &proof_frame);
+
+        assert_eq!(PoPowHeader::scorex_parse_bytes(&bytes).unwrap(), value);
+    }
+
+    #[test]
+    fn nested_merkle_proof_frame_accepts_trailing_padding() {
+        let value = sample_framing_proof().prefix.remove(0);
+        let header_frame = value.header.scorex_serialize_bytes().unwrap();
+        let mut proof_frame = value.interlinks_proof.scorex_serialize_bytes().unwrap();
+        proof_frame.push(0x7f);
+        let bytes = serialize_popow_header_with_nested_frames(&value, &header_frame, &proof_frame);
+
+        assert_eq!(PoPowHeader::scorex_parse_bytes(&bytes).unwrap(), value);
+    }
+
+    fn assert_merkle_count_preflight(indices_len: u32, proofs_len: u32, label: &str) {
+        let mut value = sample_framing_proof().prefix.remove(0);
+        value.interlinks_proof = BatchMerkleProof::new(vec![], vec![]);
+        let header_frame = value.header.scorex_serialize_bytes().unwrap();
+        let mut proof_frame = value.interlinks_proof.scorex_serialize_bytes().unwrap();
+        assert_eq!(proof_frame.len(), 8);
+        proof_frame[..4].copy_from_slice(&indices_len.to_be_bytes());
+        proof_frame[4..8].copy_from_slice(&proofs_len.to_be_bytes());
+        let bytes = serialize_popow_header_with_nested_frames(&value, &header_frame, &proof_frame);
+
+        let error = PoPowHeader::scorex_parse_bytes(&bytes).unwrap_err();
+        let ScorexParsingError::ValueOutOfBounds(message) = error else {
+            panic!("{label} count reached the nested parser before preflight: {error:?}");
+        };
+        assert!(
+            message.contains("does not fit declared proof frame"),
+            "unexpected {label} preflight message: {message}"
+        );
+    }
+
+    #[test]
+    fn merkle_index_count_outside_declared_frame_is_rejected_before_parse() {
+        assert_merkle_count_preflight(1, 0, "index");
+    }
+
+    #[test]
+    fn merkle_proof_count_outside_declared_frame_is_rejected_before_parse() {
+        assert_merkle_count_preflight(0, 1, "proof");
+    }
+
+    #[test]
+    fn declared_element_frames_reject_sizes_above_caps() {
+        let proof = sample_framing_proof();
+        let popow_header_cap =
+            MAX_POPOW_HEADER_BYTES + MAX_POPOW_INTERLINKS * 32 + MAX_POPOW_PROOF_BYTES + 64;
+        let cases = [
+            (FrameSite::Prefix(0), popow_header_cap + 1),
+            (FrameSite::SuffixHead, popow_header_cap + 1),
+            (FrameSite::SuffixTail(0), MAX_POPOW_HEADER_BYTES + 1),
+        ];
+        for (site, declared) in cases {
+            let mutated = serialize_with_frame_mutation(
+                &proof,
+                FrameMutation {
+                    site,
+                    declared_size: DeclaredSizeMutation::Override(u32::try_from(declared).unwrap()),
+                    filler_len: 0,
+                },
+            );
+            assert!(
+                NipopowProof::scorex_parse_bytes(&mutated).is_err(),
+                "accepted {site:?} above its declared-size cap"
+            );
+        }
+    }
+
+    #[test]
+    fn malformed_suffix_tail_frame_size_is_rejected() {
+        const MALFORMED_VLQ: &[u8] = &[0x80; 10];
+
+        let proof = sample_framing_proof();
+        let mutated = serialize_with_frame_mutation(
+            &proof,
+            FrameMutation {
+                site: FrameSite::SuffixTail(0),
+                declared_size: DeclaredSizeMutation::Raw(MALFORMED_VLQ),
+                filler_len: 0,
+            },
+        );
+        assert!(
+            NipopowProof::scorex_parse_bytes(&mutated).is_err(),
+            "accepted malformed suffix-tail size VLQ"
+        );
     }
 
     #[test]
