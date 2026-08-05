@@ -801,4 +801,36 @@ pub mod tests {
 
         assert!(popow_header.check_interlinks_proof());
     }
+
+    #[test]
+    fn full_root_cross_runtime_fixture_roundtrips_and_rejects_mutations() {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/nipopow-full-root-mixed-popow-header.json"
+        ))
+        .unwrap();
+        let bytes_hex = fixture["bytes_hex"].as_str().unwrap();
+        let bytes = base16::decode(bytes_hex).unwrap();
+
+        assert_eq!(bytes.len(), fixture["length"].as_u64().unwrap() as usize);
+        assert_eq!(
+            base16::encode_lower(sigma_util::hash::sha256_hash(&bytes).as_slice()),
+            fixture["sha256"].as_str().unwrap()
+        );
+
+        let parsed = PoPowHeader::scorex_parse_bytes(&bytes).unwrap();
+        assert_eq!(parsed.scorex_serialize_bytes().unwrap(), bytes);
+        assert_eq!(
+            parsed.header.extension_root.to_string(),
+            fixture["extension_root"].as_str().unwrap()
+        );
+        assert!(parsed.check_interlinks_proof());
+
+        let mut wrong_root = parsed.clone();
+        wrong_root.header.extension_root.0[0] ^= 1;
+        assert!(!wrong_root.check_interlinks_proof());
+
+        let mut wrong_interlink = parsed;
+        wrong_interlink.interlinks[1] = id_from_byte(0x33);
+        assert!(!wrong_interlink.check_interlinks_proof());
+    }
 }
