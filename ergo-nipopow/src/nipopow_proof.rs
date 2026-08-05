@@ -1,4 +1,3 @@
-use derive_more::From;
 use ergo_chain_types::{autolykos_pow_scheme::AutolykosPowSchemeError, BlockId, Header};
 use ergo_merkle_tree::{BatchMerkleProof, MerkleNode};
 use serde::{Deserialize, Serialize};
@@ -10,7 +9,7 @@ use std::collections::HashSet;
 
 use crate::nipopow_algos::NipopowAlgos;
 
-/// Upper bound for prefix/suffix element counts in a NiPoPow proof.
+/// Upper bound for prefix/suffix element counts and proof parameters.
 /// Real proofs never exceed a few hundred entries; 20 000 is generous.
 const MAX_NIPOPOW_PROOF_ELEMENTS: usize = 20_000;
 /// Upper bound for a serialized header within a PoPowHeader (bytes).
@@ -119,49 +118,102 @@ impl NipopowProof {
         suffix_head: PoPowHeader,
         suffix_tail: Vec<Header>,
     ) -> Result<NipopowProof, NipopowProofError> {
-        if k >= 1 {
-            Ok(NipopowProof {
-                popow_algos: NipopowAlgos::default(),
-                m,
-                k,
-                prefix,
-                suffix_head,
-                suffix_tail,
-            })
-        } else {
-            Err(NipopowProofError::ZeroKParameter)
+        Self::validate_parameters(m, k)?;
+        Self::validate_suffix_length(k, suffix_tail.len())?;
+        Ok(NipopowProof {
+            popow_algos: NipopowAlgos::default(),
+            m,
+            k,
+            prefix,
+            suffix_head,
+            suffix_tail,
+        })
+    }
+
+    /// Validate proof parameters before any parameter-dependent allocation,
+    /// arithmetic, loop, or indexing.
+    pub(crate) fn validate_parameters(m: u32, k: u32) -> Result<(), NipopowProofError> {
+        if m == 0 || m > MAX_NIPOPOW_PROOF_ELEMENTS as u32 {
+            return Err(NipopowProofError::InvalidMParameter(m));
         }
+        if k == 0 {
+            return Err(NipopowProofError::ZeroKParameter);
+        }
+        if k > MAX_NIPOPOW_PROOF_ELEMENTS as u32 {
+            return Err(NipopowProofError::InvalidKParameter(k));
+        }
+        Ok(())
+    }
+
+    fn validate_suffix_length(k: u32, suffix_tail_len: usize) -> Result<(), NipopowProofError> {
+        let actual = u32::try_from(suffix_tail_len)
+            .ok()
+            .and_then(|len| len.checked_add(1))
+            .ok_or(NipopowProofError::SuffixLengthMismatch {
+                expected: k,
+                actual: suffix_tail_len.saturating_add(1),
+            })?;
+        if actual != k {
+            return Err(NipopowProofError::SuffixLengthMismatch {
+                expected: k,
+                actual: actual as usize,
+            });
+        }
+        Ok(())
     }
 
     /// Implementation of the ≥ algorithm from [`KMZ17`], see Algorithm 4
     ///
     /// [`KMZ17`]: https://fc20.ifca.ai/preproceedings/74.pdf
     pub fn is_better_than(&self, that: &NipopowProof) -> Result<bool, NipopowProofError> {
-        if self.is_valid() && that.is_valid() {
-            if let Some(lca) = self.popow_algos.lowest_common_ancestor(
-                &self.headers_chain().collect::<Vec<_>>(),
-                &that.headers_chain().collect::<Vec<_>>(),
-            ) {
-                let self_headers = self
-                    .headers_chain()
-                    .filter(|h| h.height > lca.height)
-                    .collect::<Vec<_>>();
-                let that_headers = that
-                    .headers_chain()
-                    .filter(|h| h.height > lca.height)
-                    .collect::<Vec<_>>();
-                Ok(self.popow_algos.best_arg(&self_headers, self.m)?
-                    > self.popow_algos.best_arg(&that_headers, self.m)?)
-            } else {
-                Ok(false)
-            }
+        self.validate()?;
+        that.validate()?;
+        if (self.m, self.k) != (that.m, that.k) {
+            return Err(NipopowProofError::IncompatibleComparisonParameters {
+                left_m: self.m,
+                left_k: self.k,
+                right_m: that.m,
+                right_k: that.k,
+            });
+        }
+        if let Some(lca) = self.popow_algos.lowest_common_ancestor(
+            &self.headers_chain().collect::<Vec<_>>(),
+            &that.headers_chain().collect::<Vec<_>>(),
+        ) {
+            let self_headers = self
+                .headers_chain()
+                .filter(|h| h.height > lca.height)
+                .collect::<Vec<_>>();
+            let that_headers = that
+                .headers_chain()
+                .filter(|h| h.height > lca.height)
+                .collect::<Vec<_>>();
+            Ok(self.popow_algos.best_arg(&self_headers, self.m)?
+                > self.popow_algos.best_arg(&that_headers, that.m)?)
         } else {
-            Ok(self.is_valid())
+            Ok(false)
         }
     }
 
-    fn is_valid(&self) -> bool {
-        self.has_valid_connections() && self.has_valid_heights() && self.has_valid_proofs()
+    /// Validate parameters, suffix cardinality, chain structure, and interlink proofs.
+    pub fn validate(&self) -> Result<(), NipopowProofError> {
+        Self::validate_parameters(self.m, self.k)?;
+        Self::validate_suffix_length(self.k, self.suffix_tail.len())?;
+        if !self.has_valid_connections() {
+            return Err(NipopowProofError::InvalidProofStructure("connections"));
+        }
+        if !self.has_valid_heights() {
+            return Err(NipopowProofError::InvalidProofStructure("heights"));
+        }
+        if !self.has_valid_proofs() {
+            return Err(NipopowProofError::InvalidProofStructure("interlink proofs"));
+        }
+        Ok(())
+    }
+
+    /// Returns whether this proof passes [`NipopowProof::validate`].
+    pub fn is_valid(&self) -> bool {
+        self.validate().is_ok()
     }
 
     /// Checks the connections of the blocks in the proof.
@@ -292,6 +344,8 @@ impl ScorexSerializable for NipopowProof {
     fn scorex_parse<R: ReadSigmaVlqExt>(r: &mut R) -> Result<Self, ScorexParsingError> {
         let m = r.get_u32()?;
         let k = r.get_u32()?;
+        Self::validate_parameters(m, k)
+            .map_err(|err| ScorexParsingError::ValueOutOfBounds(err.to_string()))?;
         let num_prefixes = r.get_u32()? as usize;
         if num_prefixes > MAX_NIPOPOW_PROOF_ELEMENTS {
             return Err(ScorexParsingError::Io(
@@ -313,6 +367,8 @@ impl ScorexSerializable for NipopowProof {
                 "num_suffix_tail exceeds sanity limit".into(),
             ));
         }
+        Self::validate_suffix_length(k, num_suffix_tail)
+            .map_err(|err| ScorexParsingError::ValueOutOfBounds(err.to_string()))?;
         let mut suffix_tail = Vec::with_capacity(num_suffix_tail);
         for _ in 0..num_suffix_tail {
             suffix_tail.push(read_framed(
@@ -321,26 +377,51 @@ impl ScorexSerializable for NipopowProof {
                 "suffix-tail header",
             )?);
         }
-        Ok(NipopowProof {
-            popow_algos: NipopowAlgos::default(),
-            m,
-            k,
-            prefix,
-            suffix_head,
-            suffix_tail,
-        })
+        Self::new(m, k, prefix, suffix_head, suffix_tail)
+            .map_err(|err| ScorexParsingError::ValueOutOfBounds(err.to_string()))
     }
 }
 
 /// `NipopowProof` errors
-#[derive(PartialEq, Eq, Debug, Clone, From, thiserror::Error)]
+#[derive(PartialEq, Eq, Debug, Clone, thiserror::Error)]
 pub enum NipopowProofError {
     /// Errors from `AutolykosPowScheme`
     #[error("{0:?}")]
-    AutolykosPowSchemeError(AutolykosPowSchemeError),
+    AutolykosPowSchemeError(#[from] AutolykosPowSchemeError),
+    /// `m` is outside the supported proof-resource range.
+    #[error("m parameter {0} must be in 1..=20000")]
+    InvalidMParameter(u32),
     /// `k` parameter == 0. Must be >= 1.
     #[error("k parameter == 0. Must be >= 1")]
     ZeroKParameter,
+    /// `k` exceeds the supported proof-resource range.
+    #[error("k parameter {0} must be in 1..=20000")]
+    InvalidKParameter(u32),
+    /// Declared `k` does not match the number of suffix headers.
+    #[error("suffix length {actual} does not match k parameter {expected}")]
+    SuffixLengthMismatch {
+        /// Declared suffix length.
+        expected: u32,
+        /// Actual suffix length, including the suffix head.
+        actual: usize,
+    },
+    /// Proofs with different security parameters cannot be compared.
+    #[error(
+        "cannot compare proofs with parameters ({left_m}, {left_k}) and ({right_m}, {right_k})"
+    )]
+    IncompatibleComparisonParameters {
+        /// Left proof `m`.
+        left_m: u32,
+        /// Left proof `k`.
+        left_k: u32,
+        /// Right proof `m`.
+        right_m: u32,
+        /// Right proof `k`.
+        right_k: u32,
+    },
+    /// A structural or cryptographic proof predicate failed.
+    #[error("invalid NiPoPoW proof structure: {0}")]
+    InvalidProofStructure(&'static str),
     /// Can not prove non-anchored (first block is non-Genesis) chain
     #[error("Can not prove non-anchored (first block is non-Genesis) chain")]
     NonAnchoredChain,
@@ -535,19 +616,21 @@ mod arbitrary {
 
         fn arbitrary_with(_args: Self::Parameters) -> Self::Strategy {
             (
-                any::<u32>(),
-                any::<u32>(),
+                1_u32..=MAX_NIPOPOW_PROOF_ELEMENTS as u32,
                 vec(any::<PoPowHeader>(), 1..10),
                 any::<PoPowHeader>(),
-                vec(any::<Header>(), 1..10),
+                vec(any::<Header>(), 0..10),
             )
-                .prop_map(|(m, k, prefix, suffix_head, suffix_tail)| NipopowProof {
-                    popow_algos: NipopowAlgos::default(),
-                    m,
-                    k,
-                    prefix,
-                    suffix_head,
-                    suffix_tail,
+                .prop_map(|(m, prefix, suffix_head, suffix_tail)| {
+                    let k = suffix_tail.len() as u32 + 1;
+                    NipopowProof {
+                        popow_algos: NipopowAlgos::default(),
+                        m,
+                        k,
+                        prefix,
+                        suffix_head,
+                        suffix_tail,
+                    }
                 })
                 .boxed()
         }
@@ -630,6 +713,238 @@ pub mod tests {
                 })
                 .collect::<Vec<_>>(),
         )
+    }
+
+    /// Build a structurally valid proof whose suffix contains exactly `k`
+    /// headers. A genesis suffix head needs neither interlinks nor a Merkle
+    /// proof, so this fixture isolates parameter validation from cryptography.
+    fn valid_proof(m: u32, k: u32) -> NipopowProof {
+        assert!(k >= 1);
+        let mk_header = header_factory();
+        let suffix_head_id = id_from_byte(0x40);
+        let suffix_head = pop_header(mk_header(suffix_head_id, id_from_byte(0), 1), vec![]);
+        let mut suffix_tail = Vec::new();
+        let mut parent_id = suffix_head_id;
+        for index in 1..k {
+            let id = id_from_byte(0x40_u8.wrapping_add(index as u8));
+            suffix_tail.push(mk_header(id, parent_id, index + 1));
+            parent_id = id;
+        }
+        NipopowProof {
+            popow_algos: NipopowAlgos::default(),
+            m,
+            k,
+            prefix: vec![],
+            suffix_head,
+            suffix_tail,
+        }
+    }
+
+    #[test]
+    fn new_rejects_zero_m() {
+        let proof = valid_proof(1, 1);
+        assert_eq!(
+            NipopowProof::new(
+                0,
+                proof.k,
+                proof.prefix,
+                proof.suffix_head,
+                proof.suffix_tail,
+            )
+            .unwrap_err(),
+            NipopowProofError::InvalidMParameter(0)
+        );
+    }
+
+    #[test]
+    fn parameter_bounds_accept_sanity_limit() {
+        let max = MAX_NIPOPOW_PROOF_ELEMENTS as u32;
+        assert_eq!(NipopowProof::validate_parameters(max, max), Ok(()));
+    }
+
+    #[test]
+    fn new_rejects_zero_k() {
+        let proof = valid_proof(1, 1);
+        assert_eq!(
+            NipopowProof::new(
+                proof.m,
+                0,
+                proof.prefix,
+                proof.suffix_head,
+                proof.suffix_tail,
+            )
+            .unwrap_err(),
+            NipopowProofError::ZeroKParameter
+        );
+    }
+
+    #[test]
+    fn new_rejects_m_above_sanity_limit() {
+        let proof = valid_proof(1, 1);
+        assert_eq!(
+            NipopowProof::new(
+                20_001,
+                proof.k,
+                proof.prefix,
+                proof.suffix_head,
+                proof.suffix_tail,
+            )
+            .unwrap_err(),
+            NipopowProofError::InvalidMParameter(20_001)
+        );
+    }
+
+    #[test]
+    fn new_rejects_k_above_sanity_limit() {
+        let proof = valid_proof(1, 1);
+        assert_eq!(
+            NipopowProof::new(
+                proof.m,
+                20_001,
+                proof.prefix,
+                proof.suffix_head,
+                proof.suffix_tail,
+            )
+            .unwrap_err(),
+            NipopowProofError::InvalidKParameter(20_001)
+        );
+    }
+
+    #[test]
+    fn new_rejects_suffix_length_not_equal_to_k() {
+        let proof = valid_proof(6, 1);
+        assert_eq!(
+            NipopowProof::new(
+                proof.m,
+                2,
+                proof.prefix,
+                proof.suffix_head,
+                proof.suffix_tail,
+            )
+            .unwrap_err(),
+            NipopowProofError::SuffixLengthMismatch {
+                expected: 2,
+                actual: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn parser_rejects_zero_m() {
+        let bytes = valid_proof(0, 1).scorex_serialize_bytes().unwrap();
+        assert!(NipopowProof::scorex_parse_bytes(&bytes).is_err());
+    }
+
+    #[test]
+    fn parser_rejects_suffix_length_not_equal_to_k() {
+        let mut proof = valid_proof(6, 2);
+        proof.k = 1;
+        let bytes = proof.scorex_serialize_bytes().unwrap();
+        let mut cursor = std::io::Cursor::new(bytes.as_slice());
+        assert!(NipopowProof::scorex_parse(&mut cursor).is_err());
+        assert!(
+            cursor.position() < bytes.len() as u64,
+            "suffix mismatch must be rejected before parsing tail elements"
+        );
+    }
+
+    #[test]
+    fn comparison_rejects_different_m() {
+        assert_eq!(
+            valid_proof(6, 1)
+                .is_better_than(&valid_proof(7, 1))
+                .unwrap_err(),
+            NipopowProofError::IncompatibleComparisonParameters {
+                left_m: 6,
+                left_k: 1,
+                right_m: 7,
+                right_k: 1,
+            }
+        );
+    }
+
+    #[test]
+    fn comparison_rejects_different_k() {
+        assert_eq!(
+            valid_proof(6, 1)
+                .is_better_than(&valid_proof(6, 2))
+                .unwrap_err(),
+            NipopowProofError::IncompatibleComparisonParameters {
+                left_m: 6,
+                left_k: 1,
+                right_m: 6,
+                right_k: 2,
+            }
+        );
+    }
+
+    #[test]
+    fn validate_accepts_consistent_proof() {
+        let proof = valid_proof(6, 2);
+        assert_eq!(proof.validate(), Ok(()));
+        assert!(proof.is_valid());
+    }
+
+    #[test]
+    fn validate_rejects_zero_m() {
+        let proof = valid_proof(0, 1);
+        assert_eq!(
+            proof.validate(),
+            Err(NipopowProofError::InvalidMParameter(0))
+        );
+    }
+
+    #[test]
+    fn validate_rejects_zero_k() {
+        let mut proof = valid_proof(6, 1);
+        proof.k = 0;
+        assert_eq!(proof.validate(), Err(NipopowProofError::ZeroKParameter));
+    }
+
+    #[test]
+    fn validate_rejects_suffix_length_not_equal_to_k() {
+        let mut proof = valid_proof(6, 1);
+        proof.k = 2;
+        assert_eq!(
+            proof.validate(),
+            Err(NipopowProofError::SuffixLengthMismatch {
+                expected: 2,
+                actual: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn validate_rejects_connection_failure() {
+        let mut proof = valid_proof(6, 2);
+        proof.suffix_tail[0].parent_id = id_from_byte(0xff);
+        assert_eq!(
+            proof.validate(),
+            Err(NipopowProofError::InvalidProofStructure("connections"))
+        );
+        assert!(!proof.is_valid());
+    }
+
+    #[test]
+    fn validate_rejects_height_failure() {
+        let mut proof = valid_proof(6, 2);
+        proof.suffix_tail[0].height = 1;
+        assert!(proof.has_valid_connections());
+        assert_eq!(
+            proof.validate(),
+            Err(NipopowProofError::InvalidProofStructure("heights"))
+        );
+    }
+
+    #[test]
+    fn validate_rejects_interlink_proof_failure() {
+        let mut proof = valid_proof(6, 1);
+        proof.suffix_head.header.height = 2;
+        assert!(proof.has_valid_connections());
+        assert_eq!(
+            proof.validate(),
+            Err(NipopowProofError::InvalidProofStructure("interlink proofs"))
+        );
     }
 
     fn interlinks_only_popow_header(height: u32, interlinks: Vec<BlockId>) -> PoPowHeader {
