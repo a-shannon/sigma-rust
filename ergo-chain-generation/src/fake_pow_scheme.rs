@@ -216,8 +216,23 @@ mod tests {
         let extension =
             ExtensionCandidate::new(NipopowAlgos::pack_interlinks(interlinks.clone())).unwrap();
         let interlinks_proof = NipopowAlgos::proof_for_interlink_vector(&extension).unwrap();
+        let extension_root = MerkleTree::new(
+            extension
+                .fields()
+                .iter()
+                .map(|(key, value)| {
+                    std::iter::once(2u8)
+                        .chain(key.iter().copied())
+                        .chain(value.iter().copied())
+                        .collect::<Vec<_>>()
+                })
+                .map(MerkleNode::from_bytes)
+                .collect::<Vec<_>>(),
+        )
+        .root_hash();
         proof.suffix_head.interlinks = interlinks;
         proof.suffix_head.interlinks_proof = interlinks_proof;
+        proof.suffix_head.header.extension_root = extension_root;
     }
 
     #[test]
