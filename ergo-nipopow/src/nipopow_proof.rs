@@ -1120,6 +1120,257 @@ pub mod tests {
         assert!(popow_header.check_interlinks_proof());
     }
 
+    fn jvm_nipopow_fixture() -> (serde_json::Value, Vec<u8>) {
+        let fixture: serde_json::Value = serde_json::from_str(include_str!(
+            "../tests/fixtures/nipopow-full-root-mixed-nipopow-proof.json"
+        ))
+        .unwrap();
+        let bytes = base16::decode(fixture["bytes_hex"].as_str().unwrap()).unwrap();
+        (fixture, bytes)
+    }
+
+    fn fixture_usize(fixture: &serde_json::Value, field: &str) -> usize {
+        usize::try_from(fixture[field].as_u64().unwrap()).unwrap()
+    }
+
+    fn fixture_u8(fixture: &serde_json::Value, field: &str) -> u8 {
+        u8::try_from(fixture[field].as_u64().unwrap()).unwrap()
+    }
+
+    /// Parse the Rust-owned core and validate the one-byte JVM envelope.
+    ///
+    /// `continuous` remains an adapter concern: it is checked here, but is
+    /// intentionally not represented by the Rust `NipopowProof` core type.
+    fn parse_jvm_nipopow_fixture(
+        bytes: &[u8],
+        core_length: usize,
+        terminal_mode: u8,
+    ) -> Result<NipopowProof, String> {
+        if terminal_mode > 1 {
+            return Err(format!("invalid JVM terminal mode {terminal_mode}"));
+        }
+        if bytes.len()
+            != core_length
+                .checked_add(1)
+                .ok_or("fixture length overflow")?
+        {
+            return Err(format!(
+                "expected one terminal byte after {core_length} core bytes, got {} total bytes",
+                bytes.len()
+            ));
+        }
+
+        let mut cursor = std::io::Cursor::new(bytes);
+        let proof = NipopowProof::scorex_parse(&mut cursor).map_err(|err| err.to_string())?;
+        let parsed_core_length =
+            usize::try_from(cursor.position()).map_err(|err| err.to_string())?;
+        if parsed_core_length != core_length {
+            return Err(format!(
+                "Rust parser stopped at {parsed_core_length}, expected {core_length}"
+            ));
+        }
+        let terminal = bytes
+            .get(parsed_core_length)
+            .copied()
+            .ok_or("missing JVM terminal byte")?;
+        if terminal != terminal_mode {
+            return Err(format!(
+                "JVM terminal mode {terminal} does not match expected {terminal_mode}"
+            ));
+        }
+
+        proof.validate().map_err(|err| err.to_string())?;
+        Ok(proof)
+    }
+
+    fn read_fixture_vlq(bytes: &[u8], offset: &mut usize) -> Result<u32, String> {
+        let mut value = 0_u32;
+        for shift in (0..35).step_by(7) {
+            let byte = bytes.get(*offset).copied().ok_or("truncated fixture VLQ")?;
+            *offset = offset.checked_add(1).ok_or("fixture offset overflow")?;
+            value |= u32::from(byte & 0x7f) << shift;
+            if byte & 0x80 == 0 {
+                return Ok(value);
+            }
+        }
+        Err("fixture VLQ exceeds u32".to_owned())
+    }
+
+    fn fixture_suffix_head_range(bytes: &[u8]) -> std::ops::Range<usize> {
+        let mut offset = 0;
+        read_fixture_vlq(bytes, &mut offset).unwrap();
+        read_fixture_vlq(bytes, &mut offset).unwrap();
+        let prefix_count = read_fixture_vlq(bytes, &mut offset).unwrap();
+        for _ in 0..prefix_count {
+            let frame_length =
+                usize::try_from(read_fixture_vlq(bytes, &mut offset).unwrap()).unwrap();
+            offset = offset.checked_add(frame_length).unwrap();
+        }
+        let suffix_head_length =
+            usize::try_from(read_fixture_vlq(bytes, &mut offset).unwrap()).unwrap();
+        let end = offset.checked_add(suffix_head_length).unwrap();
+        assert!(end <= bytes.len());
+        offset..end
+    }
+
+    fn single_subslice_offset(bytes: &[u8], range: std::ops::Range<usize>, needle: &[u8]) -> usize {
+        assert!(!needle.is_empty());
+        let matches = bytes[range.clone()]
+            .windows(needle.len())
+            .enumerate()
+            .filter_map(|(index, window)| (window == needle).then_some(range.start + index))
+            .collect::<Vec<_>>();
+        assert_eq!(matches.len(), 1, "fixture mutation target must be unique");
+        matches[0]
+    }
+
+    #[test]
+    fn jvm_nipopow_fixture_roundtrips_at_the_explicit_core_boundary() {
+        let (fixture, bytes) = jvm_nipopow_fixture();
+        let core_length = fixture_usize(&fixture, "rust_core_length");
+        let terminal_mode = fixture_u8(&fixture, "terminal_continuous_byte");
+
+        assert_eq!(
+            fixture["format"].as_str().unwrap(),
+            "scorex-nipopow-proof-with-jvm-mode-v1"
+        );
+        assert_eq!(bytes.len(), core_length + 1);
+        assert_eq!(
+            base16::encode_lower(sigma_util::hash::sha256_hash(&bytes).as_slice()),
+            fixture["sha256"].as_str().unwrap()
+        );
+
+        let mut cursor = std::io::Cursor::new(bytes.as_slice());
+        let parsed = NipopowProof::scorex_parse(&mut cursor).unwrap();
+        assert_eq!(cursor.position(), core_length as u64);
+        assert_eq!(&bytes[core_length..], &[terminal_mode]);
+        assert_eq!(parsed.m, fixture["m"].as_u64().unwrap() as u32);
+        assert_eq!(parsed.k, fixture["k"].as_u64().unwrap() as u32);
+        assert_eq!(parsed.prefix.len(), fixture_usize(&fixture, "prefix_count"));
+        assert_eq!(
+            parsed.suffix_tail.len() + 1,
+            fixture_usize(&fixture, "suffix_count")
+        );
+        assert_eq!(
+            parsed.suffix_tail.len(),
+            fixture_usize(&fixture, "suffix_tail_count")
+        );
+        assert_eq!(
+            parsed.suffix_head.header.extension_root.to_string(),
+            fixture["extension_root"].as_str().unwrap()
+        );
+        assert_eq!(
+            parsed.suffix_head.interlinks,
+            vec![id_from_byte(0x11), id_from_byte(0x22)]
+        );
+        assert!(parsed.prefix[0].check_interlinks_proof());
+        assert!(parsed.suffix_head.check_interlinks_proof());
+        assert_eq!(parsed.validate(), Ok(()));
+        assert_eq!(
+            parsed.scorex_serialize_bytes().unwrap(),
+            bytes[..core_length]
+        );
+        assert!(parse_jvm_nipopow_fixture(&bytes, core_length, terminal_mode).is_ok());
+    }
+
+    #[test]
+    fn jvm_nipopow_fixture_rejects_extension_root_mutation() {
+        let (fixture, mut bytes) = jvm_nipopow_fixture();
+        let core_length = fixture_usize(&fixture, "rust_core_length");
+        let terminal_mode = fixture_u8(&fixture, "terminal_continuous_byte");
+        let extension_root = base16::decode(fixture["extension_root"].as_str().unwrap()).unwrap();
+        let root_offset =
+            single_subslice_offset(&bytes, fixture_suffix_head_range(&bytes), &extension_root);
+        bytes[root_offset] ^= 1;
+
+        assert!(parse_jvm_nipopow_fixture(&bytes, core_length, terminal_mode).is_err());
+    }
+
+    #[test]
+    fn jvm_nipopow_fixture_rejects_disclosed_interlink_mutation() {
+        let (fixture, mut bytes) = jvm_nipopow_fixture();
+        let core_length = fixture_usize(&fixture, "rust_core_length");
+        let terminal_mode = fixture_u8(&fixture, "terminal_continuous_byte");
+        let interlink = [0x22; 32];
+        let interlink_offset =
+            single_subslice_offset(&bytes, fixture_suffix_head_range(&bytes), &interlink);
+        bytes[interlink_offset] ^= 1;
+
+        assert!(parse_jvm_nipopow_fixture(&bytes, core_length, terminal_mode).is_err());
+    }
+
+    #[test]
+    fn jvm_nipopow_fixture_rejects_m_mutation() {
+        let (fixture, mut bytes) = jvm_nipopow_fixture();
+        let core_length = fixture_usize(&fixture, "rust_core_length");
+        let terminal_mode = fixture_u8(&fixture, "terminal_continuous_byte");
+        assert_eq!(bytes[0], 1);
+        bytes[0] = 0;
+
+        assert!(parse_jvm_nipopow_fixture(&bytes, core_length, terminal_mode).is_err());
+    }
+
+    #[test]
+    fn jvm_nipopow_fixture_rejects_k_mutation() {
+        let (fixture, mut bytes) = jvm_nipopow_fixture();
+        let core_length = fixture_usize(&fixture, "rust_core_length");
+        let terminal_mode = fixture_u8(&fixture, "terminal_continuous_byte");
+        assert_eq!(&bytes[..2], &[1, 2]);
+        bytes[1] = 1;
+
+        assert!(parse_jvm_nipopow_fixture(&bytes, core_length, terminal_mode).is_err());
+    }
+
+    #[test]
+    fn jvm_nipopow_fixture_rejects_nested_header_frame_mutation() {
+        let (fixture, mut bytes) = jvm_nipopow_fixture();
+        let core_length = fixture_usize(&fixture, "rust_core_length");
+        let terminal_mode = fixture_u8(&fixture, "terminal_continuous_byte");
+        let suffix_head_range = fixture_suffix_head_range(&bytes);
+        let nested_size_offset = suffix_head_range.start;
+        let mut after_size = nested_size_offset;
+        assert_eq!(read_fixture_vlq(&bytes, &mut after_size).unwrap(), 218);
+        assert_eq!(bytes[nested_size_offset], 0xda);
+        bytes[nested_size_offset] = 0xd9;
+
+        assert!(parse_jvm_nipopow_fixture(&bytes, core_length, terminal_mode).is_err());
+    }
+
+    #[test]
+    fn jvm_nipopow_fixture_rejects_missing_terminal_byte() {
+        let (fixture, bytes) = jvm_nipopow_fixture();
+        let core_length = fixture_usize(&fixture, "rust_core_length");
+        let terminal_mode = fixture_u8(&fixture, "terminal_continuous_byte");
+
+        assert!(
+            parse_jvm_nipopow_fixture(&bytes[..bytes.len() - 1], core_length, terminal_mode)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn jvm_nipopow_fixture_rejects_extra_terminal_byte() {
+        let (fixture, mut bytes) = jvm_nipopow_fixture();
+        let core_length = fixture_usize(&fixture, "rust_core_length");
+        let terminal_mode = fixture_u8(&fixture, "terminal_continuous_byte");
+        bytes.push(terminal_mode);
+
+        assert!(parse_jvm_nipopow_fixture(&bytes, core_length, terminal_mode).is_err());
+    }
+
+    #[test]
+    fn jvm_nipopow_fixture_rejects_terminal_mode_mutation() {
+        let (fixture, mut bytes) = jvm_nipopow_fixture();
+        let core_length = fixture_usize(&fixture, "rust_core_length");
+        let terminal_mode = fixture_u8(&fixture, "terminal_continuous_byte");
+        let last = bytes.len() - 1;
+        bytes[last] = 1;
+        assert!(parse_jvm_nipopow_fixture(&bytes, core_length, terminal_mode).is_err());
+
+        bytes[last] = 2;
+        assert!(parse_jvm_nipopow_fixture(&bytes, core_length, 2).is_err());
+    }
+
     #[test]
     fn full_root_cross_runtime_fixture_roundtrips_and_rejects_mutations() {
         let fixture: serde_json::Value = serde_json::from_str(include_str!(
