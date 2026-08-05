@@ -77,7 +77,7 @@ fn validate_batch_merkle_proof_frame(bytes: &[u8]) -> Result<(), ScorexParsingEr
                 "BatchMerkleProof counts do not fit declared proof frame".into(),
             )
         })?;
-    if required_bytes > bytes.len() {
+    if required_bytes != bytes.len() {
         return Err(ScorexParsingError::ValueOutOfBounds(format!(
             "BatchMerkleProof encoded length requires {required_bytes} bytes and does not fit declared proof frame of {} bytes",
             bytes.len()
@@ -933,14 +933,21 @@ pub mod tests {
     }
 
     #[test]
-    fn nested_merkle_proof_frame_accepts_trailing_padding() {
+    fn nested_merkle_proof_frame_rejects_trailing_padding() {
         let value = sample_framing_proof().prefix.remove(0);
         let header_frame = value.header.scorex_serialize_bytes().unwrap();
         let mut proof_frame = value.interlinks_proof.scorex_serialize_bytes().unwrap();
         proof_frame.push(0x7f);
         let bytes = serialize_popow_header_with_nested_frames(&value, &header_frame, &proof_frame);
 
-        assert_eq!(PoPowHeader::scorex_parse_bytes(&bytes).unwrap(), value);
+        let error = PoPowHeader::scorex_parse_bytes(&bytes).unwrap_err();
+        let ScorexParsingError::ValueOutOfBounds(message) = error else {
+            panic!("padding reached the nested parser before preflight: {error:?}");
+        };
+        assert!(
+            message.contains("does not fit declared proof frame"),
+            "unexpected padding preflight message: {message}"
+        );
     }
 
     fn assert_merkle_count_preflight(indices_len: u32, proofs_len: u32, label: &str) {
