@@ -1,11 +1,12 @@
 use derive_more::From;
 use ergo_chain_types::{autolykos_pow_scheme::AutolykosPowSchemeError, BlockId, Header};
-use ergo_merkle_tree::BatchMerkleProof;
+use ergo_merkle_tree::{BatchMerkleProof, MerkleNode};
 use serde::{Deserialize, Serialize};
 use sigma_ser::{
     vlq_encode::{ReadSigmaVlqExt, WriteSigmaVlqExt},
     ScorexParsingError, ScorexSerializable, ScorexSerializeResult,
 };
+use std::collections::HashSet;
 
 use crate::nipopow_algos::NipopowAlgos;
 
@@ -297,28 +298,71 @@ pub struct PoPowHeader {
 }
 
 impl PoPowHeader {
-    /// Validates interlinks merkle root against provided proof
-    pub fn check_interlinks_proof(&self) -> bool {
-        if self.interlinks.is_empty()
-            && self.interlinks_proof.get_indices().is_empty()
-            && self.interlinks_proof.get_proofs().is_empty()
-        {
-            true
-        } else {
-            let fields: Vec<ergo_merkle_tree::MerkleNode> =
-                NipopowAlgos::pack_interlinks(self.interlinks.clone())
-                    .into_iter()
-                    .map(|(k, v)| -> Vec<u8> {
-                        std::iter::once(2u8)
-                            .chain(k.iter().copied())
-                            .chain(v)
-                            .collect()
-                    })
-                    .map(ergo_merkle_tree::MerkleNode::from_bytes)
-                    .collect();
-            let tree = ergo_merkle_tree::MerkleTree::new(fields);
-            self.interlinks_proof.valid(tree.root_hash().as_ref())
+    fn has_canonical_interlink_runs(&self) -> bool {
+        let Some(mut current) = self.interlinks.first() else {
+            return false;
+        };
+        let max_run_length = usize::from(u8::MAX);
+        let max_key_position = usize::from(u8::MAX);
+        let mut run_length = 1usize;
+        let mut closed_runs = HashSet::new();
+
+        for (position, interlink) in self.interlinks.iter().enumerate().skip(1) {
+            if interlink == current {
+                if run_length == max_run_length {
+                    return false;
+                }
+                run_length += 1;
+            } else {
+                if position > max_key_position {
+                    return false;
+                }
+                closed_runs.insert(*current);
+                if closed_runs.contains(interlink) {
+                    return false;
+                }
+                current = interlink;
+                run_length = 1;
+            }
         }
+        true
+    }
+
+    /// Validates the exact packed interlink leaves against the full extension root
+    pub fn check_interlinks_proof(&self) -> bool {
+        let proof_is_empty = self.interlinks_proof.get_indices().is_empty()
+            && self.interlinks_proof.get_proofs().is_empty();
+        if self.header.height == 1 {
+            return self.interlinks.is_empty() && proof_is_empty;
+        }
+        if self.interlinks.is_empty() {
+            return false;
+        }
+        if !self.has_canonical_interlink_runs() {
+            return false;
+        }
+
+        let expected_leaf_hashes: Vec<_> = NipopowAlgos::pack_interlinks(self.interlinks.clone())
+            .into_iter()
+            .map(|(key, value)| -> Vec<u8> {
+                std::iter::once(2u8)
+                    .chain(key.iter().copied())
+                    .chain(value)
+                    .collect()
+            })
+            .map(MerkleNode::from_bytes)
+            .filter_map(|node| node.get_hash().copied())
+            .collect();
+        let proven_leaves = self.interlinks_proof.get_indices();
+
+        expected_leaf_hashes.len() == proven_leaves.len()
+            && expected_leaf_hashes
+                .iter()
+                .zip(proven_leaves)
+                .all(|(expected, proven)| expected == &proven.hash)
+            && self
+                .interlinks_proof
+                .valid(self.header.extension_root.as_ref())
     }
 }
 
@@ -442,8 +486,8 @@ mod arbitrary {
 #[allow(clippy::unwrap_used, clippy::panic)]
 pub mod tests {
     use super::*;
-    use ergo_chain_types::Digest32;
-    use ergo_merkle_tree::BatchMerkleProof;
+    use ergo_chain_types::{Digest32, ExtensionCandidate};
+    use ergo_merkle_tree::{BatchMerkleProof, MerkleNode, MerkleTree};
     use proptest::prelude::*;
     use proptest::strategy::ValueTree;
     use proptest::test_runner::TestRunner;
@@ -497,6 +541,35 @@ pub mod tests {
             header,
             interlinks,
             interlinks_proof: BatchMerkleProof::new(vec![], vec![]),
+        }
+    }
+
+    fn extension_tree(fields: &[([u8; 2], Vec<u8>)]) -> MerkleTree {
+        MerkleTree::new(
+            fields
+                .iter()
+                .map(|(key, value)| {
+                    let leaf: Vec<u8> = std::iter::once(2u8)
+                        .chain(key.iter().copied())
+                        .chain(value.iter().copied())
+                        .collect();
+                    MerkleNode::from_bytes(leaf)
+                })
+                .collect::<Vec<_>>(),
+        )
+    }
+
+    fn interlinks_only_popow_header(height: u32, interlinks: Vec<BlockId>) -> PoPowHeader {
+        let fields = NipopowAlgos::pack_interlinks(interlinks.clone());
+        let extension = ExtensionCandidate::new(fields.clone()).unwrap();
+        let proof = NipopowAlgos::proof_for_interlink_vector(&extension).unwrap();
+        let make_header = header_factory();
+        let mut header = make_header(id_from_byte(0x31), id_from_byte(0x30), height);
+        header.extension_root = extension_tree(&fields).root_hash();
+        PoPowHeader {
+            header,
+            interlinks,
+            interlinks_proof: proof,
         }
     }
 
@@ -620,6 +693,215 @@ pub mod tests {
             "broken suffix tail (parent_id chain violation) must still be \
              rejected after the prefix-tolerance fix"
         );
+    }
+
+    #[test]
+    fn interlink_proof_accepts_empty_genesis() {
+        let make_header = header_factory();
+        let header = make_header(id_from_byte(0x31), id_from_byte(0x30), 1);
+        let popow_header = pop_header(header, Vec::new());
+
+        assert!(popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn interlink_proof_rejects_non_empty_genesis() {
+        let popow_header = interlinks_only_popow_header(1, vec![id_from_byte(0x11)]);
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn interlink_proof_rejects_empty_non_genesis() {
+        let make_header = header_factory();
+        let header = make_header(id_from_byte(0x31), id_from_byte(0x30), 2);
+        let popow_header = pop_header(header, Vec::new());
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn interlink_proof_accepts_a_255_element_run() {
+        let popow_header =
+            interlinks_only_popow_header(2, vec![id_from_byte(0x11); usize::from(u8::MAX)]);
+
+        assert!(popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn interlink_proof_rejects_a_256_element_run() {
+        let make_header = header_factory();
+        let header = make_header(id_from_byte(0x31), id_from_byte(0x30), 2);
+        let popow_header = pop_header(header, vec![id_from_byte(0x11); usize::from(u8::MAX) + 1]);
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn interlink_proof_rejects_a_run_starting_at_position_256() {
+        let mut interlinks = vec![id_from_byte(0x11); usize::from(u8::MAX)];
+        interlinks.push(id_from_byte(0x22));
+        interlinks.push(id_from_byte(0x33));
+        let make_header = header_factory();
+        let header = make_header(id_from_byte(0x31), id_from_byte(0x30), 2);
+        let popow_header = pop_header(header, interlinks);
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn interlink_proof_rejects_a_reopened_id() {
+        let first = id_from_byte(0x11);
+        let popow_header = interlinks_only_popow_header(2, vec![first, id_from_byte(0x22), first]);
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn full_root_accepts_a_complete_mixed_extension_proof() {
+        let interlinks = vec![id_from_byte(0x11), id_from_byte(0x22)];
+        let mut fields = NipopowAlgos::pack_interlinks(interlinks.clone());
+        fields.push(([0x02, 0x00], vec![0x01]));
+        let extension = ExtensionCandidate::new(fields.clone()).unwrap();
+        let proof = NipopowAlgos::proof_for_interlink_vector(&extension).unwrap();
+        let full_root = extension_tree(&fields).root_hash();
+        assert!(proof.valid(full_root.as_ref()));
+
+        let make_header = header_factory();
+        let mut header = make_header(id_from_byte(0x31), id_from_byte(0x30), 2);
+        header.extension_root = full_root;
+        let popow_header = PoPowHeader {
+            header,
+            interlinks,
+            interlinks_proof: proof,
+        };
+
+        assert!(popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn full_root_rejects_a_one_byte_header_root_mutation() {
+        let interlinks = vec![id_from_byte(0x11), id_from_byte(0x22)];
+        let mut fields = NipopowAlgos::pack_interlinks(interlinks.clone());
+        fields.push(([0x02, 0x00], vec![0x01]));
+        let extension = ExtensionCandidate::new(fields.clone()).unwrap();
+        let proof = NipopowAlgos::proof_for_interlink_vector(&extension).unwrap();
+        let full_root = extension_tree(&fields).root_hash();
+        let mut wrong_root = full_root;
+        wrong_root.0[0] ^= 1;
+
+        let make_header = header_factory();
+        let mut header = make_header(id_from_byte(0x31), id_from_byte(0x30), 2);
+        header.extension_root = wrong_root;
+        let popow_header = PoPowHeader {
+            header,
+            interlinks,
+            interlinks_proof: proof,
+        };
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn full_root_rejects_an_interlink_mutation_with_the_original_proof() {
+        let interlinks = vec![id_from_byte(0x11), id_from_byte(0x22)];
+        let mut fields = NipopowAlgos::pack_interlinks(interlinks);
+        fields.push(([0x02, 0x00], vec![0x01]));
+        let extension = ExtensionCandidate::new(fields.clone()).unwrap();
+        let proof = NipopowAlgos::proof_for_interlink_vector(&extension).unwrap();
+        let full_root = extension_tree(&fields).root_hash();
+
+        let make_header = header_factory();
+        let mut header = make_header(id_from_byte(0x31), id_from_byte(0x30), 2);
+        header.extension_root = full_root;
+        let popow_header = PoPowHeader {
+            header,
+            interlinks: vec![id_from_byte(0x11), id_from_byte(0x33)],
+            interlinks_proof: proof,
+        };
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn full_root_rejects_an_incomplete_interlink_disclosure() {
+        let interlinks = vec![id_from_byte(0x11), id_from_byte(0x22)];
+        let mut fields = NipopowAlgos::pack_interlinks(interlinks.clone());
+        let first_interlink_key = fields[0].0;
+        fields.push(([0x02, 0x00], vec![0x01]));
+        let extension = ExtensionCandidate::new(fields.clone()).unwrap();
+        let incomplete_proof =
+            NipopowAlgos::extension_batch_proof_for(&extension, &[first_interlink_key]).unwrap();
+        let full_root = extension_tree(&fields).root_hash();
+        assert!(incomplete_proof.valid(full_root.as_ref()));
+
+        let make_header = header_factory();
+        let mut header = make_header(id_from_byte(0x31), id_from_byte(0x30), 2);
+        header.extension_root = full_root;
+        let popow_header = PoPowHeader {
+            header,
+            interlinks,
+            interlinks_proof: incomplete_proof,
+        };
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn full_root_rejects_an_extra_disclosed_extension_leaf() {
+        let interlinks = vec![id_from_byte(0x11), id_from_byte(0x22)];
+        let mut fields = NipopowAlgos::pack_interlinks(interlinks.clone());
+        fields.push(([0x02, 0x00], vec![0x01]));
+        let extension = ExtensionCandidate::new(fields.clone()).unwrap();
+        let all_keys: Vec<_> = fields.iter().map(|(key, _)| *key).collect();
+        let overcomplete_proof =
+            NipopowAlgos::extension_batch_proof_for(&extension, &all_keys).unwrap();
+        let full_root = extension_tree(&fields).root_hash();
+        assert!(overcomplete_proof.valid(full_root.as_ref()));
+
+        let make_header = header_factory();
+        let mut header = make_header(id_from_byte(0x31), id_from_byte(0x30), 2);
+        header.extension_root = full_root;
+        let popow_header = PoPowHeader {
+            header,
+            interlinks,
+            interlinks_proof: overcomplete_proof,
+        };
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn full_root_rejects_an_interlinks_only_proof_under_a_mixed_root() {
+        let interlinks = vec![id_from_byte(0x11), id_from_byte(0x22)];
+        let interlink_fields = NipopowAlgos::pack_interlinks(interlinks.clone());
+        let interlinks_only = ExtensionCandidate::new(interlink_fields.clone()).unwrap();
+        let legacy_proof = NipopowAlgos::proof_for_interlink_vector(&interlinks_only).unwrap();
+        let mut mixed_fields = interlink_fields.clone();
+        mixed_fields.push(([0x02, 0x00], vec![0x01]));
+        let legacy_root = extension_tree(&interlink_fields).root_hash();
+        let mixed_root = extension_tree(&mixed_fields).root_hash();
+        assert!(legacy_proof.valid(legacy_root.as_ref()));
+        assert!(!legacy_proof.valid(mixed_root.as_ref()));
+
+        let make_header = header_factory();
+        let mut header = make_header(id_from_byte(0x31), id_from_byte(0x30), 2);
+        header.extension_root = mixed_root;
+        let popow_header = PoPowHeader {
+            header,
+            interlinks,
+            interlinks_proof: legacy_proof,
+        };
+
+        assert!(!popow_header.check_interlinks_proof());
+    }
+
+    #[test]
+    fn full_root_keeps_interlinks_only_extensions_compatible() {
+        let popow_header =
+            interlinks_only_popow_header(2, vec![id_from_byte(0x11), id_from_byte(0x22)]);
+
+        assert!(popow_header.check_interlinks_proof());
     }
 
     /// Helper: VLQ-encode a u32 into bytes.
