@@ -18,6 +18,8 @@ const MAX_POPOW_HEADER_BYTES: usize = 10_000;
 const MAX_POPOW_INTERLINKS: usize = 10_000;
 /// Upper bound for the serialized interlinks proof (bytes).
 const MAX_POPOW_PROOF_BYTES: usize = 1_000_000;
+/// Maximum depth implied by the serialized `u32` Merkle index domain.
+const MAX_MERKLE_PROOF_LEVELS: usize = u32::BITS as usize;
 /// Upper bound for one serialized `PoPowHeader` element frame.
 ///
 /// This is derived from the existing nested limits, plus room for length
@@ -81,6 +83,18 @@ fn validate_batch_merkle_proof_frame(bytes: &[u8]) -> Result<(), ScorexParsingEr
         return Err(ScorexParsingError::ValueOutOfBounds(format!(
             "BatchMerkleProof encoded length requires {required_bytes} bytes and does not fit declared proof frame of {} bytes",
             bytes.len()
+        )));
+    }
+    let max_proof_nodes = indices_len
+        .checked_mul(MAX_MERKLE_PROOF_LEVELS)
+        .ok_or_else(|| {
+            ScorexParsingError::ValueOutOfBounds(
+                "BatchMerkleProof structural proof-node bound overflow".into(),
+            )
+        })?;
+    if proofs_len > max_proof_nodes {
+        return Err(ScorexParsingError::ValueOutOfBounds(format!(
+            "BatchMerkleProof proof count {proofs_len} exceeds structural limit {max_proof_nodes} for {indices_len} disclosed indices"
         )));
     }
     Ok(())
@@ -643,7 +657,7 @@ mod arbitrary {
 pub mod tests {
     use super::*;
     use ergo_chain_types::{Digest32, ExtensionCandidate};
-    use ergo_merkle_tree::{BatchMerkleProof, MerkleNode, MerkleTree};
+    use ergo_merkle_tree::{BatchMerkleProof, MerkleNode, MerkleTree, NodeSide};
     use proptest::prelude::*;
     use proptest::strategy::ValueTree;
     use proptest::test_runner::TestRunner;
@@ -1329,6 +1343,9 @@ pub mod tests {
         if proof.prefix.len() == 1 {
             proof.prefix.push(proof.prefix[0].clone());
         }
+        if proof.suffix_tail.is_empty() {
+            proof.suffix_tail.push(proof.suffix_head.header.clone());
+        }
         if proof.suffix_tail.len() == 1 {
             proof.suffix_tail.push(proof.suffix_tail[0].clone());
         }
@@ -1555,6 +1572,25 @@ pub mod tests {
     #[test]
     fn merkle_proof_count_outside_declared_frame_is_rejected_before_parse() {
         assert_merkle_count_preflight(0, 1, "proof");
+    }
+
+    #[test]
+    fn impossible_singleton_merkle_depth_is_rejected_before_parse() {
+        let value = sample_framing_proof().prefix.remove(0);
+        let header_frame = value.header.scorex_serialize_bytes().unwrap();
+        let proof_count = u32::BITS + 1;
+        let mut proof_frame = Vec::new();
+        proof_frame.extend_from_slice(&1_u32.to_be_bytes());
+        proof_frame.extend_from_slice(&proof_count.to_be_bytes());
+        proof_frame.extend_from_slice(&0_u32.to_be_bytes());
+        proof_frame.extend_from_slice(&[0x11; 32]);
+        for _ in 0..proof_count {
+            proof_frame.extend_from_slice(&[0x22; 32]);
+            proof_frame.push(NodeSide::Left as u8);
+        }
+        let bytes = serialize_popow_header_with_nested_frames(&value, &header_frame, &proof_frame);
+
+        assert!(PoPowHeader::scorex_parse_bytes(&bytes).is_err());
     }
 
     #[test]

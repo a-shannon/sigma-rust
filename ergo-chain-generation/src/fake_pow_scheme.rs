@@ -469,4 +469,26 @@ mod tests {
             db_backed_proof.prefix.len()
         );
     }
+
+    #[test]
+    fn verifier_rejects_an_invalid_first_proof_without_poisoning_the_incumbent() {
+        let m = 30;
+        let k = 30;
+        let popow_algos = NipopowAlgos::default();
+        let chain = generate_popowheader_chain(100, None);
+        let genesis_id = chain[0].header.id;
+        let good = popow_algos.prove(&chain, k, m).unwrap();
+        assert!(good.is_valid());
+
+        let mut bad = good.clone();
+        bad.suffix_tail[0].parent_id = BlockId(Digest32::from([0xff; 32]));
+        assert!(!bad.is_valid());
+
+        let mut verifier = ergo_nipopow::NipopowVerifier::new(genesis_id);
+        assert_eq!(verifier.process(bad), Ok(()));
+        assert!(verifier.best_proof().is_none());
+
+        assert_eq!(verifier.process(good.clone()), Ok(()));
+        assert_eq!(verifier.best_proof(), Some(good));
+    }
 }
