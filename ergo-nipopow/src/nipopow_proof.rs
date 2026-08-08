@@ -752,7 +752,7 @@ pub mod tests {
     /// Build a structurally valid proof whose suffix contains exactly `k`
     /// headers. A genesis suffix head needs neither interlinks nor a Merkle
     /// proof, so this fixture isolates parameter validation from cryptography.
-    fn valid_proof(m: u32, k: u32) -> NipopowProof {
+    pub(crate) fn valid_proof(m: u32, k: u32) -> NipopowProof {
         assert!(k >= 1);
         let mk_header = header_factory();
         let suffix_head_id = id_from_byte(0x40);
