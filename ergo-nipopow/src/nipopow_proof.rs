@@ -130,8 +130,9 @@ impl NipopowProof {
         suffix_head: PoPowHeader,
         suffix_tail: Vec<Header>,
     ) -> Result<NipopowProof, NipopowProofError> {
-        Self::validate_parameters(m, k)?;
-        Self::validate_suffix_length(k, suffix_tail.len())?;
+        Self::validate_parameters(m, k).map_err(NipopowValidationError::into_construction_error)?;
+        Self::validate_suffix_length(k, suffix_tail.len())
+            .map_err(NipopowValidationError::into_construction_error)?;
         Ok(NipopowProof {
             popow_algos: NipopowAlgos::default(),
             m,
@@ -144,29 +145,32 @@ impl NipopowProof {
 
     /// Validate proof parameters before any parameter-dependent allocation,
     /// arithmetic, loop, or indexing.
-    pub(crate) fn validate_parameters(m: u32, k: u32) -> Result<(), NipopowProofError> {
+    pub(crate) fn validate_parameters(m: u32, k: u32) -> Result<(), NipopowValidationError> {
         if m == 0 || m > MAX_NIPOPOW_PROOF_ELEMENTS as u32 {
-            return Err(NipopowProofError::InvalidMParameter(m));
+            return Err(NipopowValidationError::InvalidMParameter(m));
         }
         if k == 0 {
-            return Err(NipopowProofError::ZeroKParameter);
+            return Err(NipopowValidationError::ZeroKParameter);
         }
         if k > MAX_NIPOPOW_PROOF_ELEMENTS as u32 {
-            return Err(NipopowProofError::InvalidKParameter(k));
+            return Err(NipopowValidationError::InvalidKParameter(k));
         }
         Ok(())
     }
 
-    fn validate_suffix_length(k: u32, suffix_tail_len: usize) -> Result<(), NipopowProofError> {
+    fn validate_suffix_length(
+        k: u32,
+        suffix_tail_len: usize,
+    ) -> Result<(), NipopowValidationError> {
         let actual = u32::try_from(suffix_tail_len)
             .ok()
             .and_then(|len| len.checked_add(1))
-            .ok_or(NipopowProofError::SuffixLengthMismatch {
+            .ok_or(NipopowValidationError::SuffixLengthMismatch {
                 expected: k,
                 actual: suffix_tail_len.saturating_add(1),
             })?;
         if actual != k {
-            return Err(NipopowProofError::SuffixLengthMismatch {
+            return Err(NipopowValidationError::SuffixLengthMismatch {
                 expected: k,
                 actual: actual as usize,
             });
@@ -178,15 +182,13 @@ impl NipopowProof {
     ///
     /// [`KMZ17`]: https://fc20.ifca.ai/preproceedings/74.pdf
     pub fn is_better_than(&self, that: &NipopowProof) -> Result<bool, NipopowProofError> {
-        self.validate()?;
-        that.validate()?;
+        let self_is_valid = self.validate().is_ok();
+        let that_is_valid = that.validate().is_ok();
+        if !self_is_valid || !that_is_valid {
+            return Ok(self_is_valid);
+        }
         if (self.m, self.k) != (that.m, that.k) {
-            return Err(NipopowProofError::IncompatibleComparisonParameters {
-                left_m: self.m,
-                left_k: self.k,
-                right_m: that.m,
-                right_k: that.k,
-            });
+            return Ok(false);
         }
         if let Some(lca) = self.popow_algos.lowest_common_ancestor(
             &self.headers_chain().collect::<Vec<_>>(),
@@ -208,17 +210,19 @@ impl NipopowProof {
     }
 
     /// Validate parameters, suffix cardinality, chain structure, and interlink proofs.
-    pub fn validate(&self) -> Result<(), NipopowProofError> {
+    pub fn validate(&self) -> Result<(), NipopowValidationError> {
         Self::validate_parameters(self.m, self.k)?;
         Self::validate_suffix_length(self.k, self.suffix_tail.len())?;
         if !self.has_valid_connections() {
-            return Err(NipopowProofError::InvalidProofStructure("connections"));
+            return Err(NipopowValidationError::InvalidProofStructure("connections"));
         }
         if !self.has_valid_heights() {
-            return Err(NipopowProofError::InvalidProofStructure("heights"));
+            return Err(NipopowValidationError::InvalidProofStructure("heights"));
         }
         if !self.has_valid_proofs() {
-            return Err(NipopowProofError::InvalidProofStructure("interlink proofs"));
+            return Err(NipopowValidationError::InvalidProofStructure(
+                "interlink proofs",
+            ));
         }
         Ok(())
     }
@@ -394,12 +398,10 @@ impl ScorexSerializable for NipopowProof {
     }
 }
 
-/// `NipopowProof` errors
+/// Detailed validation failures for a `NipopowProof`.
+#[non_exhaustive]
 #[derive(PartialEq, Eq, Debug, Clone, thiserror::Error)]
-pub enum NipopowProofError {
-    /// Errors from `AutolykosPowScheme`
-    #[error("{0:?}")]
-    AutolykosPowSchemeError(#[from] AutolykosPowSchemeError),
+pub enum NipopowValidationError {
     /// `m` is outside the supported proof-resource range.
     #[error("m parameter {0} must be in 1..=20000")]
     InvalidMParameter(u32),
@@ -417,23 +419,34 @@ pub enum NipopowProofError {
         /// Actual suffix length, including the suffix head.
         actual: usize,
     },
-    /// Proofs with different security parameters cannot be compared.
-    #[error(
-        "cannot compare proofs with parameters ({left_m}, {left_k}) and ({right_m}, {right_k})"
-    )]
-    IncompatibleComparisonParameters {
-        /// Left proof `m`.
-        left_m: u32,
-        /// Left proof `k`.
-        left_k: u32,
-        /// Right proof `m`.
-        right_m: u32,
-        /// Right proof `k`.
-        right_k: u32,
-    },
     /// A structural or cryptographic proof predicate failed.
     #[error("invalid NiPoPoW proof structure: {0}")]
     InvalidProofStructure(&'static str),
+}
+
+impl NipopowValidationError {
+    pub(crate) fn into_construction_error(self) -> NipopowProofError {
+        match self {
+            Self::ZeroKParameter => NipopowProofError::ZeroKParameter,
+            Self::InvalidMParameter(_)
+            | Self::InvalidKParameter(_)
+            | Self::SuffixLengthMismatch { .. }
+            | Self::InvalidProofStructure(_) => {
+                NipopowProofError::AutolykosPowSchemeError(AutolykosPowSchemeError::OutOfBounds)
+            }
+        }
+    }
+}
+
+/// `NipopowProof` construction and comparison errors.
+#[derive(PartialEq, Eq, Debug, Clone, thiserror::Error)]
+pub enum NipopowProofError {
+    /// Errors from `AutolykosPowScheme`
+    #[error("{0:?}")]
+    AutolykosPowSchemeError(#[from] AutolykosPowSchemeError),
+    /// `k` parameter == 0. Must be >= 1.
+    #[error("k parameter == 0. Must be >= 1")]
+    ZeroKParameter,
     /// Can not prove non-anchored (first block is non-Genesis) chain
     #[error("Can not prove non-anchored (first block is non-Genesis) chain")]
     NonAnchoredChain,
@@ -645,26 +658,30 @@ mod arbitrary {
 }
 
 #[cfg(test)]
-#[cfg(feature = "arbitrary")]
 #[allow(clippy::unwrap_used, clippy::panic)]
 pub mod tests {
     use super::*;
-    use ergo_chain_types::{Digest32, ExtensionCandidate};
+    use ergo_chain_types::{
+        ADDigest, AutolykosSolution, Digest32, EcPoint, ExtensionCandidate, Votes,
+    };
     use ergo_merkle_tree::{BatchMerkleProof, MerkleNode, MerkleTree, NodeSide};
-    use proptest::prelude::*;
-    use proptest::strategy::ValueTree;
-    use proptest::test_runner::TestRunner;
-    use sigma_ser::scorex_serialize_roundtrip;
-    proptest! {
 
-        #![proptest_config(ProptestConfig::with_cases(64))]
+    #[cfg(feature = "arbitrary")]
+    mod property_tests {
+        use super::*;
+        use proptest::prelude::*;
+        use sigma_ser::scorex_serialize_roundtrip;
 
-        #[test]
-        fn nipopowproof_roundtrip(v in any::<NipopowProof>()) {
-            prop_assert_eq![scorex_serialize_roundtrip(&v), v];
+        proptest! {
+
+            #![proptest_config(ProptestConfig::with_cases(64))]
+
+            #[test]
+            fn nipopowproof_roundtrip(v in any::<NipopowProof>()) {
+                prop_assert_eq![scorex_serialize_roundtrip(&v), v];
+            }
+
         }
-
-
     }
 
     /// Build a `BlockId` filled with the given byte. Used by the
@@ -674,20 +691,30 @@ pub mod tests {
         BlockId(Digest32::from([byte; 32]))
     }
 
-    /// Generate one valid base `Header` via the proptest `Arbitrary` impl,
-    /// then return a customizing closure. The closure rewrites the
-    /// `id`, `parent_id`, and `height` fields without rebuilding the rest
-    /// of the (irrelevant-to-this-test) header content. We only need the
-    /// three fields above because `has_valid_connections` only inspects
-    /// `header.id`, `header.parent_id`, and `PoPowHeader::interlinks`.
+    /// Return a deterministic header template that callers can customize.
     fn header_factory() -> impl Fn(BlockId, BlockId, u32) -> Header {
-        let mut runner = TestRunner::default();
-        let base = any::<Box<Header>>()
-            .new_tree(&mut runner)
-            .unwrap()
-            .current();
+        let base = Header {
+            version: 2,
+            id: id_from_byte(0),
+            parent_id: id_from_byte(0),
+            ad_proofs_root: Digest32::zero(),
+            state_root: ADDigest::zero(),
+            transaction_root: Digest32::zero(),
+            timestamp: 0,
+            n_bits: 0,
+            height: 1,
+            extension_root: Digest32::zero(),
+            autolykos_solution: AutolykosSolution {
+                miner_pk: Box::<EcPoint>::default(),
+                pow_onetime_pk: None,
+                nonce: vec![0; 8],
+                pow_distance: None,
+            },
+            votes: Votes([0, 0, 0]),
+            unparsed_bytes: Box::new([]),
+        };
         move |id, parent_id, height| {
-            let mut h = (*base).clone();
+            let mut h = base.clone();
             h.id = id;
             h.parent_id = parent_id;
             h.height = height;
@@ -747,6 +774,10 @@ pub mod tests {
         }
     }
 
+    fn legacy_out_of_bounds_error() -> NipopowProofError {
+        NipopowProofError::AutolykosPowSchemeError(AutolykosPowSchemeError::OutOfBounds)
+    }
+
     #[test]
     fn new_rejects_zero_m() {
         let proof = valid_proof(1, 1);
@@ -759,7 +790,7 @@ pub mod tests {
                 proof.suffix_tail,
             )
             .unwrap_err(),
-            NipopowProofError::InvalidMParameter(0)
+            legacy_out_of_bounds_error()
         );
     }
 
@@ -797,7 +828,7 @@ pub mod tests {
                 proof.suffix_tail,
             )
             .unwrap_err(),
-            NipopowProofError::InvalidMParameter(20_001)
+            legacy_out_of_bounds_error()
         );
     }
 
@@ -813,7 +844,7 @@ pub mod tests {
                 proof.suffix_tail,
             )
             .unwrap_err(),
-            NipopowProofError::InvalidKParameter(20_001)
+            legacy_out_of_bounds_error()
         );
     }
 
@@ -829,10 +860,7 @@ pub mod tests {
                 proof.suffix_tail,
             )
             .unwrap_err(),
-            NipopowProofError::SuffixLengthMismatch {
-                expected: 2,
-                actual: 1,
-            }
+            legacy_out_of_bounds_error()
         );
     }
 
@@ -857,32 +885,26 @@ pub mod tests {
 
     #[test]
     fn comparison_rejects_different_m() {
-        assert_eq!(
-            valid_proof(6, 1)
-                .is_better_than(&valid_proof(7, 1))
-                .unwrap_err(),
-            NipopowProofError::IncompatibleComparisonParameters {
-                left_m: 6,
-                left_k: 1,
-                right_m: 7,
-                right_k: 1,
-            }
-        );
+        assert!(!valid_proof(6, 1)
+            .is_better_than(&valid_proof(7, 1))
+            .unwrap());
     }
 
     #[test]
     fn comparison_rejects_different_k() {
-        assert_eq!(
-            valid_proof(6, 1)
-                .is_better_than(&valid_proof(6, 2))
-                .unwrap_err(),
-            NipopowProofError::IncompatibleComparisonParameters {
-                left_m: 6,
-                left_k: 1,
-                right_m: 6,
-                right_k: 2,
-            }
-        );
+        assert!(!valid_proof(6, 1)
+            .is_better_than(&valid_proof(6, 2))
+            .unwrap());
+    }
+
+    #[test]
+    fn comparison_prefers_valid_proof_to_invalid_proof() {
+        let valid = valid_proof(6, 2);
+        let mut invalid = valid.clone();
+        invalid.suffix_tail[0].parent_id = id_from_byte(0xff);
+
+        assert!(valid.is_better_than(&invalid).unwrap());
+        assert!(!invalid.is_better_than(&valid).unwrap());
     }
 
     #[test]
@@ -897,7 +919,7 @@ pub mod tests {
         let proof = valid_proof(0, 1);
         assert_eq!(
             proof.validate(),
-            Err(NipopowProofError::InvalidMParameter(0))
+            Err(NipopowValidationError::InvalidMParameter(0))
         );
     }
 
@@ -905,7 +927,10 @@ pub mod tests {
     fn validate_rejects_zero_k() {
         let mut proof = valid_proof(6, 1);
         proof.k = 0;
-        assert_eq!(proof.validate(), Err(NipopowProofError::ZeroKParameter));
+        assert_eq!(
+            proof.validate(),
+            Err(NipopowValidationError::ZeroKParameter)
+        );
     }
 
     #[test]
@@ -914,7 +939,7 @@ pub mod tests {
         proof.k = 2;
         assert_eq!(
             proof.validate(),
-            Err(NipopowProofError::SuffixLengthMismatch {
+            Err(NipopowValidationError::SuffixLengthMismatch {
                 expected: 2,
                 actual: 1,
             })
@@ -927,7 +952,7 @@ pub mod tests {
         proof.suffix_tail[0].parent_id = id_from_byte(0xff);
         assert_eq!(
             proof.validate(),
-            Err(NipopowProofError::InvalidProofStructure("connections"))
+            Err(NipopowValidationError::InvalidProofStructure("connections"))
         );
         assert!(!proof.is_valid());
     }
@@ -939,7 +964,7 @@ pub mod tests {
         assert!(proof.has_valid_connections());
         assert_eq!(
             proof.validate(),
-            Err(NipopowProofError::InvalidProofStructure("heights"))
+            Err(NipopowValidationError::InvalidProofStructure("heights"))
         );
     }
 
@@ -950,7 +975,9 @@ pub mod tests {
         assert!(proof.has_valid_connections());
         assert_eq!(
             proof.validate(),
-            Err(NipopowProofError::InvalidProofStructure("interlink proofs"))
+            Err(NipopowValidationError::InvalidProofStructure(
+                "interlink proofs"
+            ))
         );
     }
 

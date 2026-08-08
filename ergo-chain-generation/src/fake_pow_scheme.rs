@@ -354,12 +354,12 @@ mod tests {
         let reopened_id = interlinks[0];
         assert_ne!(interlinks.last(), Some(&reopened_id));
         interlinks.push(reopened_id);
-        let extension =
-            ExtensionCandidate::new(NipopowAlgos::pack_interlinks(interlinks.clone())).unwrap();
-        proof.suffix_head.interlinks = interlinks;
-        proof.suffix_head.interlinks_proof =
-            NipopowAlgos::proof_for_interlink_vector(&extension).unwrap();
+        set_suffix_head_interlinks_with_valid_proof(&mut proof, interlinks);
         assert!(proof.has_valid_connections());
+        assert!(proof
+            .suffix_head
+            .interlinks_proof
+            .valid(proof.suffix_head.header.extension_root.as_ref()));
         assert!(!proof.suffix_head.check_interlinks_proof());
         assert_initial_proof_ignored(genesis_id, proof);
     }
@@ -375,12 +375,12 @@ mod tests {
         assert!(!interlinks.contains(&separating_id));
         assert_ne!(reopened_id, separating_id);
         interlinks.extend([reopened_id, separating_id, reopened_id]);
-        let extension =
-            ExtensionCandidate::new(NipopowAlgos::pack_interlinks(interlinks.clone())).unwrap();
-        proof.suffix_head.interlinks = interlinks;
-        proof.suffix_head.interlinks_proof =
-            NipopowAlgos::proof_for_interlink_vector(&extension).unwrap();
+        set_suffix_head_interlinks_with_valid_proof(&mut proof, interlinks);
         assert!(proof.has_valid_connections());
+        assert!(proof
+            .suffix_head
+            .interlinks_proof
+            .valid(proof.suffix_head.header.extension_root.as_ref()));
         assert!(!proof.suffix_head.check_interlinks_proof());
         assert_initial_proof_ignored(genesis_id, proof);
     }
@@ -620,11 +620,13 @@ mod tests {
             suffix_tail: proof.suffix_tail.clone(),
         };
         assert_eq!(
-            proof.is_better_than(&disconnected_proof),
-            Err(ergo_nipopow::NipopowProofError::InvalidProofStructure(
+            disconnected_proof.validate(),
+            Err(ergo_nipopow::NipopowValidationError::InvalidProofStructure(
                 "connections"
             ))
         );
+        assert!(proof.is_better_than(&disconnected_proof).unwrap());
+        assert!(!disconnected_proof.is_better_than(&proof).unwrap());
     }
 
     #[test]

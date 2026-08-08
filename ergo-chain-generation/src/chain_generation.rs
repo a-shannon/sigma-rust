@@ -469,11 +469,13 @@ mod tests {
             suffix_tail: proof.suffix_tail.clone(),
         };
         assert_eq!(
-            proof.is_better_than(&disconnected_proof),
-            Err(ergo_nipopow::NipopowProofError::InvalidProofStructure(
+            disconnected_proof.validate(),
+            Err(ergo_nipopow::NipopowValidationError::InvalidProofStructure(
                 "connections"
             ))
         );
+        assert!(proof.is_better_than(&disconnected_proof).unwrap());
+        assert!(!disconnected_proof.is_better_than(&proof).unwrap());
     }
 
     #[test]

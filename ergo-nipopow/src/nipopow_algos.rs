@@ -7,7 +7,8 @@ use ergo_chain_types::{
 use num_traits::{ToPrimitive, Zero};
 use std::convert::TryInto;
 
-use crate::{nipopow_proof::PoPowHeader, NipopowProof, NipopowProofError};
+use crate::nipopow_proof::{NipopowValidationError, PoPowHeader};
+use crate::{NipopowProof, NipopowProofError};
 use ergo_chain_types::{BlockId, Digest32, ExtensionCandidate};
 
 /// Prefix for Block Interlinks
@@ -175,7 +176,8 @@ impl NipopowAlgos {
         k: u32,
         m: u32,
     ) -> Result<NipopowProof, NipopowProofError> {
-        NipopowProof::validate_parameters(m, k)?;
+        NipopowProof::validate_parameters(m, k)
+            .map_err(NipopowValidationError::into_construction_error)?;
         let k_usize = k as usize;
         let m_usize = m as usize;
         // Both values are at most MAX_NIPOPOW_PROOF_ELEMENTS, so this sum is
@@ -403,20 +405,7 @@ fn extension_merkletree(kv: &[([u8; 2], Vec<u8>)]) -> ergo_merkle_tree::MerkleTr
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[cfg(feature = "arbitrary")]
-    use proptest::{strategy::Strategy, strategy::ValueTree, test_runner::TestRunner};
-
-    #[cfg(feature = "arbitrary")]
-    fn arbitrary_header() -> Option<Header> {
-        use proptest::arbitrary::any;
-
-        let mut runner = TestRunner::default();
-        any::<Box<Header>>()
-            .new_tree(&mut runner)
-            .ok()
-            .map(|tree| *tree.current())
-    }
+    use ergo_chain_types::{ADDigest, AutolykosSolution, EcPoint, Votes};
 
     fn blockid(byte: u8) -> BlockId {
         BlockId(Digest32::from([byte; 32]))
@@ -470,25 +459,42 @@ mod tests {
         );
     }
 
-    #[cfg(feature = "arbitrary")]
     #[test]
-    fn max_level_rejects_zero_decoded_target() -> Result<(), &'static str> {
-        let mut header = arbitrary_header().ok_or("Header strategy must produce a value")?;
-        header.height = 2;
-        header.n_bits = 0;
+    fn max_level_rejects_zero_decoded_target() {
+        let header = Header {
+            version: 2,
+            id: blockid(1),
+            parent_id: blockid(0),
+            ad_proofs_root: Digest32::zero(),
+            state_root: ADDigest::zero(),
+            transaction_root: Digest32::zero(),
+            timestamp: 0,
+            n_bits: 0,
+            height: 2,
+            extension_root: Digest32::zero(),
+            autolykos_solution: AutolykosSolution {
+                miner_pk: Box::<EcPoint>::default(),
+                pow_onetime_pk: None,
+                nonce: vec![0; 8],
+                pow_distance: None,
+            },
+            votes: Votes([0, 0, 0]),
+            unparsed_bytes: Box::new([]),
+        };
 
         assert_eq!(
             NipopowAlgos::default().max_level_of(&header),
             Err(AutolykosPowSchemeError::OutOfBounds)
         );
-        Ok(())
     }
 
     #[test]
     fn prove_rejects_parameter_sum_overflow_before_slicing() {
         assert_eq!(
             NipopowAlgos::default().prove(&[], u32::MAX, 1),
-            Err(NipopowProofError::InvalidKParameter(u32::MAX))
+            Err(NipopowProofError::AutolykosPowSchemeError(
+                AutolykosPowSchemeError::OutOfBounds
+            ))
         );
     }
 }
