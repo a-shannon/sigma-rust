@@ -6,7 +6,7 @@ import XCTest
 final class RestNodeApiTests: XCTestCase {
     func testGetNipopowProofByHeaderIdNonAsync() throws {
         let expectation = self.expectation(description: "getNipopowByHeaderIdNonAsync")
-        let nodeConf = try NodeConf(withAddrString: "213.239.193.208:9053")
+        let nodeConf = try blockingReachableNodeConf()
         let restNodeApi = try RestNodeApi()
         let blockHeaders = try HeaderTests.generateBlockHeadersFromJSON()
         let _ = try restNodeApi.getNipopowProofByHeaderId(
@@ -23,7 +23,7 @@ final class RestNodeApiTests: XCTestCase {
                 }
                 expectation.fulfill()
             })
-        waitForExpectations(timeout: 5, handler: nil)
+        waitForExpectations(timeout: 30, handler: nil)
     }
 
     func testGetNipopowProofByHeaderAbort() throws {
@@ -42,7 +42,7 @@ final class RestNodeApiTests: XCTestCase {
     }
 
     func testGetNipopowProofByHeaderIdAsync() async throws {
-        let nodeConf = try NodeConf(withAddrString: "213.239.193.208:9053")
+        let nodeConf = try await reachableNodeConf()
         let restNodeApi = try RestNodeApi()
         let blockHeaders = try HeaderTests.generateBlockHeadersFromJSON()
         let proof = try await restNodeApi.getNipopowProofByHeaderIdAsync(
@@ -107,31 +107,34 @@ final class RestNodeApiTests: XCTestCase {
             withString: "d1366f762e46b7885496aaab0c42ec2950b0422d48aec3b91f45d4d0cdeb41e5")
         let txId = try TxId(
             withString: "258ddfc09b94b8313bca724de44a0d74010cab26de379be845713cc129546b78")
-        let proofs = try await withThrowingTaskGroup(of: [NipopowProof].self) {
-            group -> [NipopowProof] in
-            group.addTask {
-                let proof = try await getNipopowProof(
-                    url: URL(string: "http://159.65.11.55:9053")!, headerId: headerId)!
-                return [proof]
+        // Get NiPoPow proofs from up to 2 separate ergo nodes, skipping unreachable ones
+        var proofs: [NipopowProof] = []
+        var lastError: Error?
+        for url in mainnetNodeUrls {
+            if proofs.count >= 2 { break }
+            do {
+                if let proof = try await getNipopowProof(url: url, headerId: headerId) {
+                    proofs.append(proof)
+                }
+            } catch {
+                lastError = error
             }
-            group.addTask {
-                let proof = try await getNipopowProof(
-                    url: URL(string: "http://213.239.193.208:9053")!, headerId: headerId)!
-                return [proof]
-            }
-            return try await group.reduce(into: [NipopowProof]()) { $0 += $1 }
+        }
+        guard !proofs.isEmpty else {
+            throw lastError!
         }
 
         let genesisBlockId = try BlockId(
             withString: "b0244dfc267baca974a4caee06120321562784303a8a688976ae56170e4d175b")
         let verifier = NipopowVerifier(withGenesisBlockId: genesisBlockId)
-        try verifier.process(newProof: proofs[0])
-        try verifier.process(newProof: proofs[1])
+        for proof in proofs {
+            try verifier.process(newProof: proof)
+        }
         let bestProof = verifier.bestProof()
         XCTAssertEqual(try bestProof.suffixHead().getHeader().getBlockId(), headerId)
 
-        // Now verify with 3rd node
-        let nodeConf = try NodeConf(withAddrString: "213.239.193.208:9053")
+        // Now verify against a reachable node
+        let nodeConf = try await reachableNodeConf()
         let restNodeApi = try RestNodeApi()
         let header = try await restNodeApi.getHeaderAsync(nodeConf: nodeConf, blockId: headerId)
         let merkleProof = try await restNodeApi.getBlocksHeaderIdProofForTxIdAsync(

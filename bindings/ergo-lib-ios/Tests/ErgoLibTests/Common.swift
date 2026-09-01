@@ -51,3 +51,42 @@ func getNipopowProof(url: URL, headerId: BlockId) async throws -> NipopowProof? 
         return nil
     }
 }
+
+// Known-live mainnet nodes (REST API on :9053) used as fallbacks for network-dependent tests.
+let mainnetNodeUrls = [
+    "http://213.239.193.208:9053",
+    "http://159.65.11.55:9053",
+].map { URL(string: $0)! }
+
+/// Returns a NodeConf for the first mainnet node that answers a getInfo request.
+/// Throws the last error if no node is reachable.
+func reachableNodeConf() async throws -> NodeConf {
+    var lastError: Error?
+    for url in mainnetNodeUrls {
+        do {
+            let nodeConf = try NodeConf(withUrl: url)
+            let restNodeApi = try RestNodeApi()
+            let _ = try await restNodeApi.getInfoAsync(nodeConf: nodeConf)
+            return nodeConf
+        } catch {
+            lastError = error
+        }
+    }
+    throw lastError!
+}
+
+/// Blocking wrapper around `reachableNodeConf()` for non-async tests.
+func blockingReachableNodeConf() throws -> NodeConf {
+    let semaphore = DispatchSemaphore(value: 0)
+    var resolved: Result<NodeConf, Error>?
+    Task {
+        do {
+            resolved = .success(try await reachableNodeConf())
+        } catch {
+            resolved = .failure(error)
+        }
+        semaphore.signal()
+    }
+    semaphore.wait()
+    return try resolved!.get()
+}

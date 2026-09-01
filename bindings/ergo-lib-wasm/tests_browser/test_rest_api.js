@@ -37,13 +37,17 @@ it('node REST API: peer_discovery endpoint (INCREMENTAL VERSION)', async () => {
     assert(scan_1_len <= scan_2_len, "Should have found more peers after second scan!");
 });
 
+// Known-live mainnet nodes (REST API on :9053) used as fallbacks for network-dependent tests.
+const MAINNET_NODE_URLS = [
+    "http://213.239.193.208:9053",
+    "http://159.65.11.55:9053",
+].map(x => new URL(x));
+
 it('node REST API: get_nipopow_proof_by_header_id endpoint', async () => {
-    let node_conf = new ergo_wasm.NodeConf(new URL("http://213.239.193.208:9053")); //active_peers.get(0));
-    assert(node_conf != null);
     const header_id = ergo_wasm.BlockId.from_str("4caa17e62fe66ba7bd69597afdc996ae35b1ff12e0ba90c22ff288a4de10e91b");
-    let res = await ergo_wasm.get_nipopow_proof_by_header_id(node_conf, 3, 4, header_id);
+    let res = await with_fallback_node(node_conf =>
+        ergo_wasm.get_nipopow_proof_by_header_id(node_conf, 3, 4, header_id));
     assert(res != null);
-    assert(node_conf != null);
 });
 
 it('node REST API: example SPV workflow', async () => {
@@ -52,29 +56,53 @@ it('node REST API: example SPV workflow', async () => {
     let tx_id = ergo_wasm.TxId.from_str("258ddfc09b94b8313bca724de44a0d74010cab26de379be845713cc129546b78");
     assert(tx_id != null);
 
-    // Get NiPoPow proofs from 2 separate ergo nodes
-    let proofs = await Promise.all([
-        get_nipopow_proof(new URL("http://159.65.11.55:9053"), header_id),
-        get_nipopow_proof(new URL("http://213.239.193.208:9053"), header_id),
-    ]);
+    // Get NiPoPow proofs from up to 2 separate ergo nodes, skipping unreachable ones
+    let proofs = [];
+    let last_err;
+    for (const url of MAINNET_NODE_URLS) {
+        if (proofs.length >= 2) break;
+        try {
+            proofs.push(await get_nipopow_proof(url, header_id));
+        } catch (e) {
+            console.log("get_nipopow_proof failed for", url.href, e);
+            last_err = e;
+        }
+    }
+    assert(proofs.length > 0, `all nodes failed: ${last_err}`);
 
     const genesis_block_id = ergo_wasm.BlockId.from_str("b0244dfc267baca974a4caee06120321562784303a8a688976ae56170e4d175b");
     let verifier = new ergo_wasm.NipopowVerifier(genesis_block_id);
     assert(verifier != null, "verifier should be non-null");
-    verifier.process(proofs[0]);
-    verifier.process(proofs[1]);
+    for (const proof of proofs) {
+        verifier.process(proof);
+    }
     let best_proof = verifier.best_proof();
     assert(best_proof != null, "best proof should exist");
     assert(best_proof.suffix_head().id().equals(header_id), "equality");
 
-    // Verify with a 3rd node
-    let node_conf = new ergo_wasm.NodeConf(new URL("http://213.239.193.208:9053"));
-    let header = await ergo_wasm.get_header(node_conf, header_id);
+    // Verify against a reachable node
+    let header = await with_fallback_node(node_conf => ergo_wasm.get_header(node_conf, header_id));
     assert(header != null, "header should be non-null");
-    let merkle_proof = await ergo_wasm.get_blocks_header_id_proof_for_tx_id(node_conf, header_id, tx_id);
+    let merkle_proof = await with_fallback_node(node_conf =>
+        ergo_wasm.get_blocks_header_id_proof_for_tx_id(node_conf, header_id, tx_id));
     assert(merkle_proof != null, "merkle_proof should be non-null");
     assert(merkle_proof.valid(header.transactions_root()), "merkle_proof should be valid");
 });
+
+// Run `fn` against each known mainnet node, returning the first success.
+// Throws the last error if all nodes fail.
+async function with_fallback_node(fn) {
+    let last_err;
+    for (const url of MAINNET_NODE_URLS) {
+        try {
+            return await fn(new ergo_wasm.NodeConf(url));
+        } catch (e) {
+            console.log("node request failed for", url.href, e);
+            last_err = e;
+        }
+    }
+    throw last_err;
+}
 
 async function get_nipopow_proof(url, header_id) {
     let node_conf = new ergo_wasm.NodeConf(url);
