@@ -4,11 +4,6 @@ import XCTest
 @testable import ErgoLibC
 
 final class RestNodeApiTests: XCTestCase {
-    override func setUpWithError() throws {
-        try super.setUpWithError()
-        try XCTSkipIf(ProcessInfo.processInfo.environment["SKIP_NETWORK_TESTS"] == "1", "Skipping network-dependent tests")
-    }
-
     func testGetNipopowProofByHeaderIdNonAsync() throws {
         let expectation = self.expectation(description: "getNipopowByHeaderIdNonAsync")
         let nodeConf = try NodeConf(withAddrString: "213.239.193.208:9053")
@@ -121,7 +116,7 @@ final class RestNodeApiTests: XCTestCase {
             }
             group.addTask {
                 let proof = try await getNipopowProof(
-                    url: URL(string: "http://76.22.82.80:9053")!, headerId: headerId)!
+                    url: URL(string: "http://213.239.193.208:9053")!, headerId: headerId)!
                 return [proof]
             }
             return try await group.reduce(into: [NipopowProof]()) { $0 += $1 }
@@ -136,7 +131,7 @@ final class RestNodeApiTests: XCTestCase {
         XCTAssertEqual(try bestProof.suffixHead().getHeader().getBlockId(), headerId)
 
         // Now verify with 3rd node
-        let nodeConf = try NodeConf(withAddrString: "76.22.82.80:9053")
+        let nodeConf = try NodeConf(withAddrString: "213.239.193.208:9053")
         let restNodeApi = try RestNodeApi()
         let header = try await restNodeApi.getHeaderAsync(nodeConf: nodeConf, blockId: headerId)
         let merkleProof = try await restNodeApi.getBlocksHeaderIdProofForTxIdAsync(

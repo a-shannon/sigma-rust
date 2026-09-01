@@ -5,11 +5,6 @@ import XCTest
 // These integration tests assume that a local ergo node instance is running and its REST API is
 // accessible @ 127.0.0.1:9053.
 final class RestNodeApiIntegrationTests: XCTestCase {
-    override func setUpWithError() throws {
-        try super.setUpWithError()
-        try XCTSkipIf(ProcessInfo.processInfo.environment["SKIP_NETWORK_TESTS"] == "1", "Skipping network-dependent tests")
-    }
-
     func testGetInfo() throws {
         let expectation = self.expectation(description: "getInfo")
         let nodeConf = try NodeConf(withAddrString: "127.0.0.1:9053")

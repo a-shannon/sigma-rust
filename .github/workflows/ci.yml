@@ -102,7 +102,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       HAS_NPM_TOKEN: ${{ secrets.NPM_TOKEN != '' }}
-      SKIP_NETWORK_TESTS: 1
 
     # Service containers to run `ergo` node in `devnet` mode
     services:
@@ -223,10 +222,24 @@ jobs:
   ios_tests:
     name: Test Swift(iOS) bindings
     runs-on: ubuntu-latest
-    env:
-      SKIP_NETWORK_TESTS: 1
+
+    # Service containers to run `ergo` node in `devnet` mode
+    services:
+      # Label used to access the service container
+      ergo_node:
+        # Docker Hub image
+        image: ergoplatform/ergo-devnet:latest
+        ports:
+          # Maps tcp port 9053 on service container to the host
+          - 9053:9053
 
     steps:
+      # Need the following command to get around a GA bug where the workspace can't be cleared due
+      # to incorrect access permissions. This comes up due to the use of the service container
+      # above. See https://github.com/actions/checkout/issues/211
+      - name: set_file_permissions
+        run: sudo chown -R $USER:$USER ${{ github.workspace }}
+
       - name: checkout
         uses: actions/checkout@v4
 

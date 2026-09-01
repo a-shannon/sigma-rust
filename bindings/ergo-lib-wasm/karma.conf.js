@@ -2,11 +2,10 @@ const webpack = require("webpack");
 const outputDir = __dirname + "/dist";
 
 module.exports = function (config) {
-  // tests_browser/test_rest_api.js hits external Ergo nodes and is too flaky for CI.
-  const browserTests = ["tests_browser/integration_tests_rest_api.js"];
-  if (!process.env.SKIP_NETWORK_TESTS) {
-    browserTests.push("tests_browser/test_rest_api.js");
-  }
+  const browserTests = [
+    "tests_browser/integration_tests_rest_api.js",
+    "tests_browser/test_rest_api.js",
+  ];
 
   config.set({
     frameworks: ["mocha", "chai", "webpack"],
