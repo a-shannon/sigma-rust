@@ -205,6 +205,9 @@ jobs:
       - name: Test stubs
         working-directory: bindings/ergo-lib-python
         run: "source ../../.venv/bin/activate && stubtest ergo_lib_python --allowlist .mypy_allowlist.txt"
+      - name: Type-check constructor signatures
+        working-directory: bindings/ergo-lib-python
+        run: "source ../../.venv/bin/activate && python -m mypy --warn-unused-ignores tests/typing/ergo_box_candidate_constructor.py"
       - name: Run doctests
         working-directory: bindings/ergo-lib-python
         run: "source ../../.venv/bin/activate && cd docs && make doctest"
