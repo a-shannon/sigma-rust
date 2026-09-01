@@ -168,6 +168,10 @@ jobs:
           npm run build-nodejs-alpha
           npm run build-browser-alpha
 
+      - name: check generated TypeScript declarations
+        working-directory: bindings/ergo-lib-wasm
+        run: npm run test-types
+
       - name: publish nodejs alpha version to npm
         if: github.event_name == 'push' && env.HAS_NPM_TOKEN == 'true'
         uses: JS-DevTools/npm-publish@v1
@@ -222,6 +226,7 @@ jobs:
   ios_tests:
     name: Test Swift(iOS) bindings
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     # Service containers to run `ergo` node in `devnet` mode
     services:
