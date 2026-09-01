@@ -115,6 +115,27 @@ func externalNodeAvailabilityReason(for error: Error) -> String? {
     return reason
 }
 
+func effectiveNodeIdentity(_ url: URL) throws -> String {
+    guard url.scheme == "http" || url.scheme == "https" else {
+        throw NodeConfError.InvalidScheme
+    }
+    guard let host = url.host else { throw NodeConfError.MissingHost }
+    guard let port = url.port else { throw NodeConfError.MissingPort }
+    return host + ":" + String(port)
+}
+
+func distinctNodeUrlsByEffectiveIdentity(_ urls: [URL]) throws -> [URL] {
+    var identities = Set<String>()
+    var distinctUrls: [URL] = []
+    for url in urls {
+        let identity = try effectiveNodeIdentity(url)
+        if identities.insert(identity).inserted {
+            distinctUrls.append(url)
+        }
+    }
+    return distinctUrls
+}
+
 private func nodeOperationErrorDescription(_ error: Error) -> String {
     if let restError = error as? RestNodeApiError {
         switch restError {
@@ -136,6 +157,9 @@ func firstMainnetResult<T>(
             let restNodeApi = try RestNodeApi()
             return try await operation(url, restNodeApi, nodeConf)
         } catch {
+            guard externalNodeAvailabilityReason(for: error) != nil else {
+                throw error
+            }
             lastError = MainnetNodeFallbackError(
                 attemptedUrl: url,
                 underlyingError: error,
