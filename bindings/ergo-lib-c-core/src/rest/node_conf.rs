@@ -18,7 +18,8 @@ pub unsafe fn node_conf_from_addr(addr: &str, ptr_out: *mut NodeConfPtr) -> Resu
     let node_conf = ergo_lib::ergo_rest::NodeConf {
         addr: peer_addr,
         api_key: None,
-        timeout: None,
+        // default request timeout so a stalled node does not block fallbacks
+        timeout: Some(std::time::Duration::from_secs(30)),
     };
     *ptr_out = Box::into_raw(Box::new(node_conf.into()));
     Ok(())
