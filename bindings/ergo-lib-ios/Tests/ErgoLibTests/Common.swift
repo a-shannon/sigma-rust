@@ -40,14 +40,16 @@ func getSeeds() -> [URL] {
 }
 
 func getNipopowProof(url: URL, headerId: BlockId) async throws -> NipopowProof? {
-    let nodeConf = try NodeConf(withUrl: url)
-    let restNodeApi = try RestNodeApi()
-    let nodeInfo = try await restNodeApi.getInfoAsync(nodeConf: nodeConf)
-    if nodeInfo.isAtLeastVersion40100() {
-        let proof = try await restNodeApi.getNipopowProofByHeaderIdAsync(
-            nodeConf: nodeConf, minChainLength: UInt32(7), suffixLen: UInt32(6), headerId: headerId)
-        return proof
-    } else {
+    try await firstMainnetResult(urls: [url]) { _, restNodeApi, nodeConf in
+        let nodeInfo = try await restNodeApi.getInfoAsync(nodeConf: nodeConf)
+        if nodeInfo.isAtLeastVersion40100() {
+            return try await restNodeApi.getNipopowProofByHeaderIdAsync(
+                nodeConf: nodeConf,
+                minChainLength: UInt32(7),
+                suffixLen: UInt32(6),
+                headerId: headerId
+            )
+        }
         return nil
     }
 }
@@ -58,35 +60,120 @@ let mainnetNodeUrls = [
     "http://159.65.11.55:9053",
 ].map { URL(string: $0)! }
 
-/// Returns a NodeConf for the first mainnet node that answers a getInfo request.
-/// Throws the last error if no node is reachable.
-func reachableNodeConf() async throws -> NodeConf {
-    var lastError: Error?
-    for url in mainnetNodeUrls {
+struct MainnetNodeFallbackError: Error, LocalizedError {
+    let attemptedUrl: URL?
+    let underlyingError: Error?
+    let underlyingErrorDescription: String
+
+    var errorDescription: String? {
+        guard let attemptedUrl = attemptedUrl else {
+            return underlyingErrorDescription
+        }
+        return "Mainnet node operation failed at \(attemptedUrl.absoluteString): "
+            + underlyingErrorDescription
+    }
+}
+
+func externalNodeAvailabilityReason(for error: Error) -> String? {
+    let underlyingError: Error
+    if let fallbackError = error as? MainnetNodeFallbackError {
+        guard let fallbackUnderlyingError = fallbackError.underlyingError else {
+            return nil
+        }
+        underlyingError = fallbackUnderlyingError
+    } else {
+        underlyingError = error
+    }
+
+    guard let restError = underlyingError as? RestNodeApiError else {
+        return nil
+    }
+    let reason: String
+    switch restError {
+    case .misc(let restReason):
+        reason = restReason
+    }
+
+    guard !reason.contains("kind: Decode") else {
+        return nil
+    }
+    guard reason.contains("ReqwestError") else {
+        return nil
+    }
+
+    let externalMarkers = [
+        "kind: Request",
+        "ConnectError",
+        "ConnectionRefused",
+        "TimedOut",
+        "timed out",
+        "timeout",
+    ]
+    guard externalMarkers.contains(where: { reason.contains($0) }) else {
+        return nil
+    }
+    return reason
+}
+
+func effectiveNodeIdentity(_ url: URL) throws -> String {
+    guard url.scheme == "http" || url.scheme == "https" else {
+        throw NodeConfError.InvalidScheme
+    }
+    guard let host = url.host else { throw NodeConfError.MissingHost }
+    guard let port = url.port else { throw NodeConfError.MissingPort }
+    return host + ":" + String(port)
+}
+
+func distinctNodeUrlsByEffectiveIdentity(_ urls: [URL]) throws -> [URL] {
+    var identities = Set<String>()
+    var distinctUrls: [URL] = []
+    for url in urls {
+        let identity = try effectiveNodeIdentity(url)
+        if identities.insert(identity).inserted {
+            distinctUrls.append(url)
+        }
+    }
+    return distinctUrls
+}
+
+private func nodeOperationErrorDescription(_ error: Error) -> String {
+    if let restError = error as? RestNodeApiError {
+        switch restError {
+        case .misc(let reason):
+            return reason
+        }
+    }
+    return error.localizedDescription
+}
+
+func firstMainnetResult<T>(
+    urls: [URL] = mainnetNodeUrls,
+    operation: (URL, RestNodeApi, NodeConf) async throws -> T
+) async throws -> T {
+    var lastError: MainnetNodeFallbackError?
+    for url in urls {
         do {
             let nodeConf = try NodeConf(withUrl: url)
             let restNodeApi = try RestNodeApi()
-            let _ = try await restNodeApi.getInfoAsync(nodeConf: nodeConf)
-            return nodeConf
+            return try await operation(url, restNodeApi, nodeConf)
         } catch {
-            lastError = error
+            guard externalNodeAvailabilityReason(for: error) != nil else {
+                throw error
+            }
+            lastError = MainnetNodeFallbackError(
+                attemptedUrl: url,
+                underlyingError: error,
+                underlyingErrorDescription: nodeOperationErrorDescription(error)
+            )
         }
     }
-    throw lastError!
-}
 
-/// Blocking wrapper around `reachableNodeConf()` for non-async tests.
-func blockingReachableNodeConf() throws -> NodeConf {
-    let semaphore = DispatchSemaphore(value: 0)
-    var resolved: Result<NodeConf, Error>?
-    Task {
-        do {
-            resolved = .success(try await reachableNodeConf())
-        } catch {
-            resolved = .failure(error)
-        }
-        semaphore.signal()
+    if let lastError = lastError {
+        throw lastError
     }
-    semaphore.wait()
-    return try resolved!.get()
+    throw MainnetNodeFallbackError(
+        attemptedUrl: nil,
+        underlyingError: nil,
+        underlyingErrorDescription: "No mainnet node URLs were configured"
+    )
 }

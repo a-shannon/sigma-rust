@@ -415,9 +415,6 @@ class ErgoBoxCandidate:
                 :param mint_token_decimals: Decimals of token to be minted
             """
             ...
-    def __init__(self, /, *args, **kwargs) -> None:
-        """Constructor signature is enforced by :py:meth:`__new__`."""
-        ...
     @property
     def value(self) -> int:
         """Amount of nanoErgs in the box"""
